@@ -16,7 +16,8 @@ export default async function GastosPage() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
 
-  const { data: expenses } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: expensesRaw } = await (supabase as any)
     .from('expenses')
     .select('*')
     .eq('club_id', clubId)
@@ -24,7 +25,9 @@ export default async function GastosPage() {
     .lte('expense_date', monthEnd.slice(0, 10))
     .order('expense_date', { ascending: false })
 
-  const totalExpenses = (expenses ?? []).reduce((sum, e) => sum + (e.amount ?? 0), 0)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const expenses = (expensesRaw ?? []) as any[]
+  const totalExpenses = expenses.reduce((sum: number, e) => sum + (e.amount ?? 0), 0)
 
   return (
     <div className="flex flex-col h-full">
