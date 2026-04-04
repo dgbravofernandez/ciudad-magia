@@ -1,0 +1,666 @@
+'use client'
+
+import { useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import {
+  ArrowLeft, Shield, Footprints, Ruler, Weight,
+  Calendar, Mail, Phone, FileText, Heart, Euro, AlertTriangle,
+  ExternalLink, CheckCircle2, XCircle, Send, Trash2
+} from 'lucide-react'
+import { deletePlayer } from '@/features/jugadores/actions/player.actions'
+import {
+  RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer
+} from 'recharts'
+import { cn } from '@/lib/utils/cn'
+import { formatDate, formatCurrency, getMonthName } from '@/lib/utils/currency'
+import type { Player, Injury, QuotaPayment } from '@/types/database.types'
+import { RoleGuard } from '@/components/shared/RoleGuard'
+
+type PlayerWithTeam = Player & {
+  teams?: { id: string; name: string; categories?: { name: string } | null } | null
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  active: 'badge-success',
+  injured: 'badge-warning',
+  inactive: 'badge-muted',
+  low: 'badge-destructive',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  active: 'Activo',
+  injured: 'Lesionado',
+  inactive: 'Inactivo',
+  low: 'Baja',
+}
+
+const TABS = ['Datos', 'Stats', 'Lesiones', 'Pagos', 'Documentos'] as const
+type Tab = (typeof TABS)[number]
+
+export function PlayerCard({
+  player,
+  stats,
+  injuries,
+  payments,
+  sanctions,
+}: {
+  player: PlayerWithTeam
+  stats: Record<string, unknown>[]
+  injuries: Injury[]
+  payments: QuotaPayment[]
+  sanctions: Record<string, unknown>[]
+}) {
+  const [tab, setTab] = useState<Tab>('Datos')
+  const [deleting, setDeleting] = useState(false)
+  const [photoError, setPhotoError] = useState(false)
+  const router = useRouter()
+
+  async function handleDelete() {
+    if (!confirm(`¿Eliminar a ${player.first_name} ${player.last_name}? Esta acción no se puede deshacer.`)) return
+    setDeleting(true)
+    const result = await deletePlayer(player.id)
+    if (result.success) {
+      router.push('/jugadores')
+    } else {
+      alert(`Error: ${result.error}`)
+      setDeleting(false)
+    }
+  }
+
+  const currentSeason = stats[0]
+  const age = player.birth_date
+    ? Math.floor(
+        (Date.now() - new Date(player.birth_date).getTime()) /
+          (365.25 * 24 * 60 * 60 * 1000)
+      )
+    : null
+
+  const radarData = [
+    { subject: 'Goles', value: Math.min(((currentSeason?.goals as number) ?? 0) * 10, 100) },
+    { subject: 'Asistencias', value: Math.min(((currentSeason?.assists as number) ?? 0) * 10, 100) },
+    { subject: 'Partidos', value: Math.min(((currentSeason?.matches_played as number) ?? 0) * 5, 100) },
+    { subject: 'Asistencia', value: currentSeason?.matches_available
+      ? Math.round(((currentSeason.matches_played as number) / (currentSeason.matches_available as number)) * 100)
+      : 0
+    },
+    { subject: 'Valoración', value: currentSeason?.rating_avg
+      ? ((currentSeason.rating_avg as number) / 10) * 100
+      : 0
+    },
+  ]
+
+  const pendingPayments = payments.filter((p) => p.status === 'pending' || p.status === 'partial')
+  const activeSanctions = sanctions.filter((s) => (s as {active: boolean}).active)
+
+  return (
+    <div className="space-y-6">
+      {/* Back + actions */}
+      <div className="flex items-center gap-4">
+        <Link href="/jugadores" className="btn-ghost gap-2">
+          <ArrowLeft className="w-4 h-4" />
+          Volver
+        </Link>
+        <RoleGuard roles={['admin', 'direccion', 'coordinador', 'director_deportivo']}>
+          <div className="flex items-center gap-2 ml-auto">
+            <Link href={`/jugadores/${player.id}/editar`} className="btn-secondary">
+              Editar ficha
+            </Link>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              {deleting ? 'Eliminando...' : 'Eliminar'}
+            </button>
+          </div>
+        </RoleGuard>
+      </div>
+
+      {/* FIFA-style header card */}
+      <div className="card overflow-hidden">
+        <div
+          className="h-24 w-full"
+          style={{ background: `linear-gradient(135deg, var(--color-primary), var(--color-primary)aa)` }}
+        />
+        <div className="px-6 pb-6">
+          <div className="flex items-end gap-6 -mt-10 mb-4">
+            <div className="relative">
+              {player.photo_url && !photoError ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={driveImageUrl(player.photo_url)}
+                  alt={`${player.first_name} ${player.last_name}`}
+                  className="w-24 h-24 rounded-xl object-cover border-4 border-card shadow-lg"
+                  onError={() => setPhotoError(true)}
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-xl bg-muted border-4 border-card shadow-lg flex items-center justify-center text-2xl font-bold text-muted-foreground">
+                  {player.first_name.charAt(0)}{player.last_name.charAt(0)}
+                </div>
+              )}
+              {player.dorsal_number && (
+                <span className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold flex items-center justify-center shadow">
+                  {player.dorsal_number}
+                </span>
+              )}
+            </div>
+
+            <div className="flex-1 min-w-0 pt-4">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="text-2xl font-bold">
+                  {player.first_name} {player.last_name}
+                </h2>
+                <span className={cn('badge', STATUS_COLORS[player.status])}>
+                  {STATUS_LABELS[player.status]}
+                </span>
+                {activeSanctions.length > 0 && (
+                  <span className="badge badge-destructive gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    Sancionado
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-4 mt-1 text-sm text-muted-foreground">
+                {player.teams && (
+                  <span className="flex items-center gap-1">
+                    <Shield className="w-3 h-3" />
+                    {player.teams.name}
+                    {player.teams.categories && ` · ${player.teams.categories.name}`}
+                  </span>
+                )}
+                {player.position && (
+                  <span className="flex items-center gap-1">
+                    <Footprints className="w-3 h-3" />
+                    {player.position}
+                  </span>
+                )}
+                {age && (
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    {age} años
+                  </span>
+                )}
+                {player.nationality && (
+                  <span>{player.nationality}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Quick stats */}
+            {currentSeason && (
+              <div className="hidden lg:flex items-center gap-6 text-center">
+                <div>
+                  <p className="text-2xl font-bold text-primary">{currentSeason.goals as number}</p>
+                  <p className="text-xs text-muted-foreground">Goles</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-primary">{currentSeason.assists as number}</p>
+                  <p className="text-xs text-muted-foreground">Asistencias</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-primary">{currentSeason.matches_played as number}</p>
+                  <p className="text-xs text-muted-foreground">Partidos</p>
+                </div>
+                {!!currentSeason.rating_avg && (
+                  <div>
+                    <p className="text-2xl font-bold text-primary">{(currentSeason.rating_avg as number).toFixed(1)}</p>
+                    <p className="text-xs text-muted-foreground">Valoración</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Tabs */}
+          <div className="border-b flex gap-1 -mb-px">
+            {TABS.map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium border-b-2 transition-colors',
+                  tab === t
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {t}
+                {t === 'Pagos' && pendingPayments.length > 0 && (
+                  <span className="ml-1.5 badge badge-destructive text-[10px] py-0">
+                    {pendingPayments.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Tab content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {tab === 'Datos' && <DatosTab player={player} />}
+        {tab === 'Stats' && <StatsTab stats={stats} radarData={radarData} />}
+        {tab === 'Lesiones' && <LesionesTab injuries={injuries} />}
+        {tab === 'Pagos' && <PagosTab payments={payments} />}
+        {tab === 'Documentos' && <DocumentosTab player={player} />}
+      </div>
+    </div>
+  )
+}
+
+function DatosTab({ player }: { player: PlayerWithTeam }) {
+  return (
+    <>
+      <div className="lg:col-span-2 space-y-4">
+        <div className="card p-5 space-y-4">
+          <h3 className="font-semibold">Datos deportivos</h3>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+            <div>
+              <dt className="text-muted-foreground">Posición</dt>
+              <dd className="font-medium">{player.position ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Pie dominante</dt>
+              <dd className="font-medium">{player.dominant_foot ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Altura</dt>
+              <dd className="font-medium">{player.height_cm ? `${player.height_cm} cm` : '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Peso</dt>
+              <dd className="font-medium">{player.weight_kg ? `${player.weight_kg} kg` : '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Dorsal</dt>
+              <dd className="font-medium">{player.dorsal_number ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Equipo</dt>
+              <dd className="font-medium">{player.teams?.name ?? '—'}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="card p-5 space-y-4">
+          <h3 className="font-semibold">Datos personales</h3>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+            <div>
+              <dt className="text-muted-foreground">Fecha nacimiento</dt>
+              <dd className="font-medium">{player.birth_date ? formatDate(player.birth_date) : '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">DNI/NIE</dt>
+              <dd className="font-medium">{player.dni ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Nacionalidad</dt>
+              <dd className="font-medium">{player.nationality ?? '—'}</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="card p-5 space-y-3">
+          <h3 className="font-semibold">Tutor principal</h3>
+          <div className="space-y-2 text-sm">
+            <p className="font-medium">{player.tutor_name ?? '—'}</p>
+            {player.tutor_email && (
+              <a href={`mailto:${player.tutor_email}`} className="flex items-center gap-2 text-muted-foreground hover:text-primary">
+                <Mail className="w-3.5 h-3.5" />
+                {player.tutor_email}
+              </a>
+            )}
+            {player.tutor_phone && (
+              <a href={`tel:${player.tutor_phone}`} className="flex items-center gap-2 text-muted-foreground hover:text-primary">
+                <Phone className="w-3.5 h-3.5" />
+                {player.tutor_phone}
+              </a>
+            )}
+          </div>
+        </div>
+
+        {player.tutor2_name && (
+          <div className="card p-5 space-y-3">
+            <h3 className="font-semibold">Tutor secundario</h3>
+            <div className="space-y-2 text-sm">
+              <p className="font-medium">{player.tutor2_name}</p>
+              {player.tutor2_email && (
+                <a href={`mailto:${player.tutor2_email}`} className="flex items-center gap-2 text-muted-foreground hover:text-primary">
+                  <Mail className="w-3.5 h-3.5" />
+                  {player.tutor2_email}
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
+        {player.notes && (
+          <div className="card p-5 space-y-2">
+            <h3 className="font-semibold flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Notas
+            </h3>
+            <p className="text-sm text-muted-foreground">{player.notes}</p>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+function StatsTab({
+  stats,
+  radarData,
+}: {
+  stats: Record<string, unknown>[]
+  radarData: { subject: string; value: number }[]
+}) {
+  return (
+    <>
+      <div className="lg:col-span-2 card p-5">
+        <h3 className="font-semibold mb-4">Rendimiento (temporada actual)</h3>
+        <ResponsiveContainer width="100%" height={280}>
+          <RadarChart data={radarData}>
+            <PolarGrid />
+            <PolarAngleAxis dataKey="subject" tick={{ fontSize: 12 }} />
+            <Radar
+              name="Jugador"
+              dataKey="value"
+              stroke="var(--color-primary)"
+              fill="var(--color-primary)"
+              fillOpacity={0.3}
+            />
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="space-y-4">
+        <h3 className="font-semibold">Historial por temporada</h3>
+        {stats.map((s) => (
+          <div key={s.season as string} className="card p-4">
+            <p className="font-medium text-sm mb-3">{s.season as string}</p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="text-center p-2 rounded-md bg-muted">
+                <p className="text-lg font-bold text-primary">{s.goals as number}</p>
+                <p className="text-xs text-muted-foreground">Goles</p>
+              </div>
+              <div className="text-center p-2 rounded-md bg-muted">
+                <p className="text-lg font-bold text-primary">{s.assists as number}</p>
+                <p className="text-xs text-muted-foreground">Asistencias</p>
+              </div>
+              <div className="text-center p-2 rounded-md bg-muted">
+                <p className="text-lg font-bold">{s.matches_played as number}/{s.matches_available as number}</p>
+                <p className="text-xs text-muted-foreground">Partidos</p>
+              </div>
+              <div className="text-center p-2 rounded-md bg-muted">
+                <p className="text-lg font-bold">{s.yellow_cards as number} 🟨 {s.red_cards as number} 🟥</p>
+                <p className="text-xs text-muted-foreground">Tarjetas</p>
+              </div>
+            </div>
+          </div>
+        ))}
+        {stats.length === 0 && (
+          <p className="text-sm text-muted-foreground">Sin estadísticas registradas</p>
+        )}
+      </div>
+    </>
+  )
+}
+
+function LesionesTab({ injuries }: { injuries: Injury[] }) {
+  return (
+    <div className="lg:col-span-3 card p-5">
+      <h3 className="font-semibold mb-4 flex items-center gap-2">
+        <Heart className="w-4 h-4 text-destructive" />
+        Historial de lesiones
+      </h3>
+      {injuries.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Sin lesiones registradas</p>
+      ) : (
+        <div className="space-y-3">
+          {injuries.map((injury) => (
+            <div
+              key={injury.id}
+              className={cn(
+                'flex items-start gap-4 p-3 rounded-lg border',
+                injury.status === 'active' ? 'border-warning bg-warning/5' : 'border-border'
+              )}
+            >
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-sm">{injury.injury_type ?? 'Lesión'}</p>
+                  {injury.status === 'active' && (
+                    <span className="badge-warning">Activa</span>
+                  )}
+                </div>
+                {injury.description && (
+                  <p className="text-xs text-muted-foreground mt-0.5">{injury.description}</p>
+                )}
+              </div>
+              <div className="text-right text-xs text-muted-foreground">
+                <p>{formatDate(injury.injured_at)}</p>
+                {injury.recovered_at && (
+                  <p className="text-success">Alta: {formatDate(injury.recovered_at)}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PagosTab({ payments }: { payments: QuotaPayment[] }) {
+  const totalPending = payments
+    .filter((p) => p.status === 'pending' || p.status === 'partial')
+    .reduce((sum, p) => sum + (p.amount_due - p.amount_paid), 0)
+
+  const PAYMENT_STATUS_COLORS: Record<string, string> = {
+    paid: 'badge-success',
+    pending: 'badge-destructive',
+    partial: 'badge-warning',
+    exempt: 'badge-muted',
+  }
+  const PAYMENT_STATUS_LABELS: Record<string, string> = {
+    paid: 'Pagado',
+    pending: 'Pendiente',
+    partial: 'Parcial',
+    exempt: 'Exento',
+  }
+
+  return (
+    <div className="lg:col-span-3 card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold flex items-center gap-2">
+          <Euro className="w-4 h-4" />
+          Historial de pagos
+        </h3>
+        {totalPending > 0 && (
+          <span className="badge-destructive font-medium">
+            Pendiente: {formatCurrency(totalPending)}
+          </span>
+        )}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b">
+              <th className="text-left py-2 font-medium text-muted-foreground">Concepto</th>
+              <th className="text-left py-2 font-medium text-muted-foreground">Fecha</th>
+              <th className="text-right py-2 font-medium text-muted-foreground">Importe</th>
+              <th className="text-right py-2 font-medium text-muted-foreground">Pagado</th>
+              <th className="text-center py-2 font-medium text-muted-foreground">Estado</th>
+              <th className="text-left py-2 font-medium text-muted-foreground">Forma pago</th>
+            </tr>
+          </thead>
+          <tbody>
+            {payments.map((p) => (
+              <tr key={p.id} className="border-b last:border-0">
+                <td className="py-2">
+                  {p.concept ?? (p.month ? `${getMonthName(p.month)} ${p.season}` : p.season)}
+                </td>
+                <td className="py-2 text-muted-foreground">
+                  {p.payment_date ? formatDate(p.payment_date) : '—'}
+                </td>
+                <td className="py-2 text-right font-medium">{formatCurrency(p.amount_due)}</td>
+                <td className="py-2 text-right">{formatCurrency(p.amount_paid)}</td>
+                <td className="py-2 text-center">
+                  <span className={cn('badge', PAYMENT_STATUS_COLORS[p.status])}>
+                    {PAYMENT_STATUS_LABELS[p.status]}
+                  </span>
+                </td>
+                <td className="py-2 text-muted-foreground capitalize">{p.payment_method ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {payments.length === 0 && (
+          <p className="text-sm text-muted-foreground py-4 text-center">Sin pagos registrados</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+import { driveViewUrl, driveImageUrl } from '@/lib/utils/drive'
+
+function DocRow({ label, url }: { label: string; url: string | null | undefined }) {
+  const hasDoc = !!url
+  return (
+    <div className="flex items-center justify-between py-2 border-b last:border-0">
+      <div className="flex items-center gap-2 text-sm">
+        {hasDoc
+          ? <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+          : <XCircle className="w-4 h-4 text-red-400 shrink-0" />}
+        <span className={hasDoc ? 'text-foreground' : 'text-muted-foreground'}>{label}</span>
+      </div>
+      {hasDoc && url && (
+        <a
+          href={driveViewUrl(url)}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+        >
+          Ver <ExternalLink className="w-3 h-3" />
+        </a>
+      )}
+    </div>
+  )
+}
+
+function DocumentosTab({ player }: { player: PlayerWithTeam }) {
+  const p = player as PlayerWithTeam & {
+    photo_url?: string | null
+    dni_front_url?: string | null
+    dni_back_url?: string | null
+    birth_cert_url?: string | null
+    residency_cert_url?: string | null
+    passport_url?: string | null
+    nie_url?: string | null
+    spanish_nationality?: boolean | null
+  }
+
+  const isSpanish = p.spanish_nationality !== false  // assume Spanish unless explicitly false
+  const missingCount = [
+    p.photo_url,
+    p.dni_front_url,
+    p.dni_back_url,
+    isSpanish ? 'ok' : p.nie_url,
+    isSpanish ? 'ok' : p.passport_url,
+    p.birth_cert_url,
+  ].filter(v => !v).length
+
+  const photoDisplay = p.photo_url ? driveImageUrl(p.photo_url) : null
+
+  return (
+    <>
+      {/* Photo + identity */}
+      <div className="card p-5 space-y-4">
+        <h3 className="font-semibold">Foto y DNI</h3>
+
+        {/* Photo preview */}
+        {photoDisplay ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={photoDisplay}
+            alt={`Foto de ${p.first_name}`}
+            className="w-32 h-32 object-cover rounded-xl border shadow-sm"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+        ) : (
+          <div className="w-32 h-32 rounded-xl bg-muted flex items-center justify-center text-3xl font-bold text-muted-foreground border">
+            {p.first_name.charAt(0)}{p.last_name.charAt(0)}
+          </div>
+        )}
+
+        <DocRow label="Foto jugador" url={p.photo_url} />
+        <DocRow label="DNI cara 1" url={p.dni_front_url} />
+        <DocRow label="DNI cara 2 / Libro familia" url={p.dni_back_url} />
+        {!isSpanish && <DocRow label="NIE" url={p.nie_url} />}
+        {!isSpanish && <DocRow label="Pasaporte" url={p.passport_url} />}
+      </div>
+
+      {/* Certificates */}
+      <div className="card p-5 space-y-4">
+        <h3 className="font-semibold">Certificados</h3>
+        <DocRow label="Certificado de nacimiento" url={p.birth_cert_url} />
+        <DocRow label="Cert. empadronamiento" url={p.residency_cert_url} />
+        {p.forms_link && (
+          <a href={p.forms_link} target="_blank" rel="noreferrer"
+            className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
+            <ExternalLink className="w-3 h-3" /> Formulario inscripción
+          </a>
+        )}
+
+        {/* Nationality tag */}
+        <div className="pt-2 border-t">
+          <p className="text-xs text-muted-foreground mb-1">Nacionalidad española</p>
+          <span className={cn('badge', p.spanish_nationality === true ? 'badge-success' : p.spanish_nationality === false ? 'badge-warning' : 'badge-muted')}>
+            {p.spanish_nationality === true ? 'Sí' : p.spanish_nationality === false ? 'No' : 'Sin confirmar'}
+          </span>
+        </div>
+
+        {/* Request docs button */}
+        {missingCount > 0 && p.tutor_email && (
+          <a
+            href={`mailto:${p.tutor_email}?subject=Documentación pendiente - ${p.first_name} ${p.last_name}&body=Estimada familia,%0D%0A%0D%0AEn el club tenemos pendiente recibir la documentación de ${p.first_name} ${p.last_name}.%0D%0APor favor, envíe los documentos solicitados.%0D%0A%0D%0AUn saludo,%0D%0AE.F. Ciudad de Getafe`}
+            className="flex items-center gap-2 w-full justify-center px-3 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors mt-2"
+          >
+            <Send className="w-4 h-4" />
+            Solicitar {missingCount} documento{missingCount !== 1 ? 's' : ''} por email
+          </a>
+        )}
+        {missingCount > 0 && !p.tutor_email && (
+          <p className="text-xs text-muted-foreground mt-2">
+            Sin email de tutor — sincroniza desde Google Sheets para obtenerlo.
+          </p>
+        )}
+      </div>
+
+      {/* Email tracking */}
+      <div className="card p-5">
+        <h3 className="font-semibold mb-4">Emails de gestión</h3>
+        <div className="space-y-0">
+          {[
+            { label: 'Asignación de equipo', sent: p.email_team_assignment_sent },
+            { label: 'Solicitar documentos',  sent: p.email_request_docs_sent },
+            { label: 'Rellenar formulario',   sent: p.email_fill_form_sent },
+            { label: 'Admisión confirmada',   sent: p.email_admitted_sent },
+          ].map((e) => (
+            <div key={e.label} className="flex items-center justify-between py-1.5 border-b last:border-0">
+              <span className="text-sm">{e.label}</span>
+              <span className={cn('badge', e.sent ? 'badge-muted' : 'badge-warning')}>
+                {e.sent ? 'Enviado' : 'Pendiente'}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}

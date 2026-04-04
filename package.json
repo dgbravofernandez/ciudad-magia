@@ -1,0 +1,53 @@
+{
+  "name": "ciudad-magia-crm",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:types": "supabase gen types typescript --local > src/types/database.types.ts"
+  },
+  "dependencies": {
+    "@fullcalendar/daygrid": "^6.1.15",
+    "@fullcalendar/interaction": "^6.1.15",
+    "@fullcalendar/react": "^6.1.15",
+    "@fullcalendar/timegrid": "^6.1.15",
+    "@hookform/resolvers": "^3.9.1",
+    "@react-pdf/renderer": "^4.1.5",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.47.0",
+    "@tanstack/react-query": "^5.62.0",
+    "@tanstack/react-table": "^8.20.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "googleapis": "^144.0.0",
+    "konva": "^9.3.15",
+    "lucide-react": "^0.468.0",
+    "next": "^15.1.0",
+    "nodemailer": "^8.0.4",
+    "nuqs": "^2.2.3",
+    "react": "^19.0.0",
+    "react-day-picker": "^9.4.0",
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.54.0",
+    "react-konva": "^18.2.10",
+    "recharts": "^2.13.0",
+    "sonner": "^1.7.1",
+    "tailwind-merge": "^2.5.4",
+    "xlsx": "^0.18.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/nodemailer": "^7.0.11",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.0"
+  }
+}

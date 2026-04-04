@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Ciudad Magia CRM",
+      "runtimeExecutable": "start-dev.cmd",
+      "runtimeArgs": [],
+      "port": 3002,
+      "autoPort": true
+    }
+  ]
+}
