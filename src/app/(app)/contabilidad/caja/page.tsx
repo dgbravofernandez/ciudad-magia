@@ -35,13 +35,15 @@ export default async function CajaPage() {
     .limit(20)
 
   // Calculate system totals from movements
-  const systemCash = (movements ?? [])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const movs = (movements ?? []) as any[]
+  const systemCash = movs
     .filter((m) => m.payment_method === 'efectivo')
-    .reduce((sum, m) => sum + (m.type === 'income' ? m.amount : -m.amount), 0)
+    .reduce((sum: number, m) => sum + (m.type === 'income' ? m.amount : -m.amount), 0)
 
-  const systemCard = (movements ?? [])
+  const systemCard = movs
     .filter((m) => m.payment_method === 'tarjeta')
-    .reduce((sum, m) => sum + (m.type === 'income' ? m.amount : -m.amount), 0)
+    .reduce((sum: number, m) => sum + (m.type === 'income' ? m.amount : -m.amount), 0)
 
   return (
     <div className="flex flex-col h-full">
