@@ -107,12 +107,12 @@ export async function assignCoachToTeam(
     .upsert({ team_id: teamId, member_id: memberId, role: 'entrenador' }, { onConflict: 'team_id,member_id' })
   if (error) return { success: false, error: error.message }
 
-  // Ensure entrenador role exists for this member (with team context)
+  // Ensure entrenador role exists — constraint is UNIQUE(member_id, role)
   await sb
     .from('club_member_roles')
     .upsert(
-      { member_id: memberId, role: 'entrenador', team_id: teamId },
-      { onConflict: 'member_id,role,team_id', ignoreDuplicates: true }
+      { member_id: memberId, role: 'entrenador' },
+      { onConflict: 'member_id,role', ignoreDuplicates: true }
     )
 
   revalidatePath('/entrenadores/staff')
@@ -163,10 +163,11 @@ export async function assignCoordinatorToTeam(
   const { data: team } = await sb.from('teams').select('id').eq('id', teamId).eq('club_id', clubId).single()
   if (!team) return { success: false, error: 'Equipo no encontrado' }
 
-  // Upsert coordinador role with team context in club_member_roles
+  // Upsert coordinador role — constraint is UNIQUE(member_id, role)
+  // so we update team_id if the row already exists
   const { error } = await sb.from('club_member_roles').upsert(
     { member_id: memberId, role: 'coordinador', team_id: teamId },
-    { onConflict: 'member_id,role,team_id', ignoreDuplicates: true }
+    { onConflict: 'member_id,role' }
   )
   if (error) return { success: false, error: error.message }
 
