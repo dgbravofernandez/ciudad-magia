@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
-import { Search, Send, CheckCircle2, XCircle, Clock, ChevronDown, UserX, RefreshCw, RotateCcw, Download } from 'lucide-react'
+import { Search, Send, CheckCircle2, XCircle, Clock, ChevronDown, UserX, RefreshCw, RotateCcw, Download, ArrowUpDown, Copy, Link2 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import type { Player } from '@/types/database.types'
 import {
@@ -77,6 +77,7 @@ export function InscripcionesTable({
   const [search, setSearch] = useState('')
   const [filterTeam, setFilterTeam] = useState('')
   const [filterStatus, setFilterStatus] = useState<'' | InscriptionStatus>('')
+  const [sortDate, setSortDate] = useState<'newest' | 'oldest' | ''>('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [syncing, setSyncing] = useState(false)
   const [syncingCoaches, setSyncingCoaches] = useState(false)
@@ -89,7 +90,7 @@ export function InscripcionesTable({
   }, [players])
 
   const filtered = useMemo(() => {
-    return players.filter(p => {
+    const result = players.filter(p => {
       const name = `${p.first_name} ${p.last_name}`.toLowerCase()
       const status = getStatus(p)
       return (
@@ -101,7 +102,15 @@ export function InscripcionesTable({
         (!filterStatus || status === filterStatus)
       )
     })
-  }, [players, search, filterTeam, filterStatus])
+    if (sortDate) {
+      result.sort((a, b) => {
+        const da = new Date(a.updated_at).getTime()
+        const db = new Date(b.updated_at).getTime()
+        return sortDate === 'newest' ? db - da : da - db
+      })
+    }
+    return result
+  }, [players, search, filterTeam, filterStatus, sortDate])
 
   const selectableIds = useMemo(
     () => filtered.filter(p => getStatus(p) !== 'dismissed').map(p => p.id),
@@ -369,6 +378,15 @@ export function InscripcionesTable({
           <option value="continuing">Continúan</option>
           <option value="dismissed">Bajas</option>
         </select>
+        <select
+          className="input w-auto"
+          value={sortDate}
+          onChange={e => setSortDate(e.target.value as 'newest' | 'oldest' | '')}
+        >
+          <option value="">Orden: Apellido</option>
+          <option value="newest">Más recientes primero</option>
+          <option value="oldest">Más antiguos primero</option>
+        </select>
         {selected.size > 0 && (
           <div className="flex flex-wrap gap-2 ml-auto">
             <button
@@ -608,6 +626,18 @@ export function InscripcionesTable({
                     {/* Acciones */}
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1 justify-center">
+                        {player.forms_link && (
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(player.forms_link!)
+                              toast.success('Link del formulario copiado')
+                            }}
+                            className="text-muted-foreground hover:text-primary transition-colors"
+                            title="Copiar link del formulario"
+                          >
+                            <Link2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         {!isDismissed && (
                           <DismissMenu
                             playerName={`${player.first_name} ${player.last_name}`}

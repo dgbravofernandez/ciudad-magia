@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubId } from '@/lib/supabase/get-club-id'
 import { headers } from 'next/headers'
 import { Topbar } from '@/components/layout/Topbar'
@@ -8,15 +9,47 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = { title: 'Cuerpo técnico' }
 
 export default async function CoachesStaffPage() {
-  const clubId = await getClubId()
-  const supabase = await createClient()
-  const headersList = await headers()
-  const memberRoles = JSON.parse(headersList.get('x-user-roles') ?? '[]') as string[]
-  const isAdmin = memberRoles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))
-
-  // Get all members with entrenador or coordinador role
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const sb = createAdminClient() as any
+
+  /* ── clubId: header first, then fallback to first club in DB ── */
+  let clubId = await getClubId()
+  if (!clubId) {
+    const { data: anyClub } = await sb.from('clubs').select('id').limit(1).single()
+    clubId = anyClub?.id ?? ''
+  }
+
+  /* ── isAdmin: header first, then fallback via admin client ── */
+  const headersList = await headers()
+  let memberRoles = JSON.parse(headersList.get('x-user-roles') ?? '[]') as string[]
+
+  if (memberRoles.length === 0) {
+    // Try to resolve member_id from header, else from auth user
+    let memberId = headersList.get('x-member-id') ?? ''
+    if (!memberId) {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: member } = await sb
+          .from('club_members')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('club_id', clubId)
+          .limit(1)
+          .single()
+        memberId = member?.id ?? ''
+      }
+    }
+    if (memberId) {
+      const { data: roles } = await sb
+        .from('club_member_roles')
+        .select('role')
+        .eq('member_id', memberId)
+      memberRoles = (roles ?? []).map((r: { role: string }) => r.role)
+    }
+  }
+
+  const isAdmin = memberRoles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))
 
   const { data: coachRoles } = await sb
     .from('club_member_roles')
