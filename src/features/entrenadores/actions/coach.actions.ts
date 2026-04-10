@@ -147,14 +147,7 @@ export async function removeCoachFromTeam(
     .eq('member_id', memberId)
   if (error) return { success: false, error: error.message }
 
-  // Also remove the team-specific role entry
-  await sb
-    .from('club_member_roles')
-    .delete()
-    .eq('member_id', memberId)
-    .eq('role', 'entrenador')
-    .eq('team_id', teamId)
-
+  // Keep the entrenador role in club_member_roles — only remove the team assignment
   revalidatePath('/entrenadores/staff')
   revalidatePath('/entrenadores')
   revalidatePath('/jugadores/inscripciones')

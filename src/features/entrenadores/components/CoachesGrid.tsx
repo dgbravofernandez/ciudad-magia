@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
-  UserCircle2, Users, ClipboardList, Plus, X, Shield, UserPlus, Send
+  UserCircle2, Users, ClipboardList, Plus, X, Shield, UserPlus, Send, RefreshCw
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { toast } from 'sonner'
@@ -12,6 +12,11 @@ import {
   assignCoordinatorToTeam, removeCoordinatorFromTeam,
   sendCoachInvitation,
 } from '@/features/entrenadores/actions/coach.actions'
+import {
+  previewCoachSync,
+  applyCoachSync,
+} from '@/features/jugadores/actions/sync-inscriptions.actions'
+import { COACHES_SHEET_ID, COACHES_GID } from '@/features/jugadores/constants'
 import { driveImageUrl } from '@/lib/utils/drive'
 
 type CoachWithDetails = {
@@ -61,6 +66,7 @@ export function CoachesGrid({
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
   const [isSendingInvite, startInviteTransition] = useTransition()
+  const [syncingCoaches, setSyncingCoaches] = useState(false)
 
   const filtered = coaches.filter(c => {
     const name = c.full_name.toLowerCase()
@@ -68,6 +74,56 @@ export function CoachesGrid({
     const matchRole = !filterRole || c.roles.includes(filterRole)
     return matchSearch && matchRole
   })
+
+  async function handleSyncCoaches() {
+    setSyncingCoaches(true)
+    try {
+      function parseCSV(text: string): string[][] {
+        return text.split('\n').map(line => {
+          const result: string[] = []
+          let cur = ''
+          let inQuotes = false
+          for (const ch of line) {
+            if (ch === '"') { inQuotes = !inQuotes; continue }
+            if (ch === ',' && !inQuotes) { result.push(cur.trim()); cur = ''; continue }
+            cur += ch
+          }
+          result.push(cur.trim())
+          return result
+        })
+      }
+
+      const res = await fetch(
+        `https://docs.google.com/spreadsheets/d/${COACHES_SHEET_ID}/export?format=csv&gid=${COACHES_GID}`
+      )
+      if (!res.ok) throw new Error('No se pudo descargar la hoja de entrenadores')
+      const rows = parseCSV(await res.text())
+
+      const preview = await previewCoachSync(rows)
+      if (preview.error) { toast.error(`Error: ${preview.error}`); return }
+
+      if (preview.toAssign.length === 0) {
+        toast.info('Sin entrenadores nuevos que importar')
+        return
+      }
+
+      const { created, assigned, error } = await applyCoachSync(preview.toAssign)
+      if (error) { toast.error(`Error al aplicar: ${error}`); return }
+
+      const parts: string[] = []
+      if (created > 0) parts.push(`${created} creado${created !== 1 ? 's' : ''}`)
+      if (assigned > 0) parts.push(`${assigned} asignado${assigned !== 1 ? 's' : ''}`)
+      if (preview.unknownTeams.length > 0) parts.push(`${preview.unknownTeams.length} equipos no encontrados`)
+      toast.success(`Entrenadores: ${parts.join(' · ')}`)
+      if (preview.unknownTeams.length > 0) {
+        toast.warning(`Equipos sin coincidencia: ${preview.unknownTeams.slice(0, 4).join(', ')}`)
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al sincronizar entrenadores')
+    } finally {
+      setSyncingCoaches(false)
+    }
+  }
 
   function handleSendInvite() {
     if (!inviteEmail.trim()) { toast.error('Introduce un email'); return }
@@ -91,15 +147,28 @@ export function CoachesGrid({
           <h2 className="text-xl font-semibold">Cuerpo técnico</h2>
           <span className="text-sm text-muted-foreground">{coaches.length} miembro{coaches.length !== 1 ? 's' : ''}</span>
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setShowInviteModal(true)}
-            className="btn-primary flex items-center gap-2 text-sm"
-          >
-            <UserPlus className="w-4 h-4" />
-            Inscribir entrenador
-          </button>
-        )}
+        <div className="flex gap-2 flex-wrap">
+          {isAdmin && (
+            <button
+              onClick={handleSyncCoaches}
+              disabled={syncingCoaches}
+              className="btn-secondary flex items-center gap-2 text-sm"
+              title="Sincronizar inscripciones de entrenadores desde Google Sheets"
+            >
+              <RefreshCw className={cn('w-4 h-4', syncingCoaches && 'animate-spin')} />
+              {syncingCoaches ? 'Sincronizando...' : 'Sync Entrenadores'}
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => setShowInviteModal(true)}
+              className="btn-primary flex items-center gap-2 text-sm"
+            >
+              <UserPlus className="w-4 h-4" />
+              Inscribir entrenador
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Invite modal */}
