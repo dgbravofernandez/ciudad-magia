@@ -99,11 +99,17 @@ export function CoachesGrid({
       if (!res.ok) throw new Error('No se pudo descargar la hoja de entrenadores')
       const rows = parseCSV(await res.text())
 
+      toast.info(`CSV: ${rows.length - 1} filas de datos leídas`)
+
       const preview = await previewCoachSync(rows)
       if (preview.error) { toast.error(`Error: ${preview.error}`); return }
 
+      const newCount = preview.toAssign.filter(i => i.isNew).length
+      const existingCount = preview.toAssign.filter(i => !i.isNew).length
+      toast.info(`Procesando: ${preview.toAssign.length} entrenadores (${newCount} nuevos, ${existingCount} existentes)`)
+
       if (preview.toAssign.length === 0) {
-        toast.info('Sin entrenadores nuevos que importar')
+        toast.info(`Sin entrenadores que importar. CSV tenía ${rows.length - 1} filas.`)
         return
       }
 
@@ -111,6 +117,7 @@ export function CoachesGrid({
       if (error) { toast.error(`Error al aplicar: ${error}`); return }
 
       const parts: string[] = []
+      parts.push(`${preview.toAssign.length} procesados`)
       if (created > 0) parts.push(`${created} creado${created !== 1 ? 's' : ''}`)
       if (assigned > 0) parts.push(`${assigned} asignado${assigned !== 1 ? 's' : ''}`)
       if (preview.unknownTeams.length > 0) parts.push(`${preview.unknownTeams.length} equipos no encontrados`)

@@ -51,37 +51,38 @@ export default async function CoachesStaffPage() {
 
   const isAdmin = memberRoles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))
 
-  const { data: coachRoles } = await sb
-    .from('club_member_roles')
-    .select('member_id, role, team_id')
-    .in('role', ['entrenador', 'coordinador'])
+  // Get ALL club members (staff) — not just those with entrenador/coordinador role
+  const { data: coaches } = await sb
+    .from('club_members')
+    .select('*')
+    .eq('club_id', clubId)
+    .eq('active', true)
+    .order('full_name')
 
-  const coachMemberIds = [...new Set((coachRoles ?? []).map((r: { member_id: string }) => r.member_id))] as string[]
+  const allMemberIds = (coaches ?? []).map((c: { id: string }) => c.id) as string[]
 
-  const { data: coaches } = coachMemberIds.length > 0
+  // Get all roles for these members
+  const { data: coachRoles } = allMemberIds.length > 0
     ? await sb
-        .from('club_members')
-        .select('*')
-        .eq('club_id', clubId)
-        .eq('active', true)
-        .in('id', coachMemberIds)
-        .order('full_name')
+        .from('club_member_roles')
+        .select('member_id, role, team_id')
+        .in('member_id', allMemberIds)
     : { data: [] }
 
   // Get team assignments from team_coaches
-  const { data: teamAssignments } = coachMemberIds.length > 0
+  const { data: teamAssignments } = allMemberIds.length > 0
     ? await sb
         .from('team_coaches')
         .select('member_id, role, teams(id, name)')
-        .in('member_id', coachMemberIds)
+        .in('member_id', allMemberIds)
     : { data: [] }
 
   // Get session counts per coach
-  const { data: sessionCounts } = coachMemberIds.length > 0
+  const { data: sessionCounts } = allMemberIds.length > 0
     ? await sb
         .from('sessions')
         .select('logged_by')
-        .in('logged_by', coachMemberIds)
+        .in('logged_by', allMemberIds)
         .eq('club_id', clubId)
     : { data: [] }
 
@@ -105,13 +106,13 @@ export default async function CoachesStaffPage() {
   }
 
   // Get coordinator team assignments from club_member_roles (role=coordinador + team_id)
-  const { data: coordRoleRows } = coachMemberIds.length > 0
+  const { data: coordRoleRows } = allMemberIds.length > 0
     ? await sb
         .from('club_member_roles')
         .select('member_id, team_id, teams:team_id(id, name)')
         .eq('role', 'coordinador')
         .not('team_id', 'is', null)
-        .in('member_id', coachMemberIds)
+        .in('member_id', allMemberIds)
     : { data: [] }
 
   const coordTeamMap: Record<string, { id: string; name: string }[]> = {}
