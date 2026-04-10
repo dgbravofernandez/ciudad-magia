@@ -593,11 +593,15 @@ export async function sendTrialLetter(
   clubDestino: string,
   trialDate: string
 ): Promise<{ success: boolean; error?: string; emailSent?: boolean }> {
-  const supabase = await createClient()
+  const { createAdminClient } = await import('@/lib/supabase/admin')
   const { getClubId } = await import('@/lib/supabase/get-club-id')
-  const clubId = await getClubId()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const sb = createAdminClient() as any
+  let clubId = await getClubId()
+  if (!clubId) {
+    const { data: anyClub } = await sb.from('clubs').select('id').limit(1).single()
+    clubId = anyClub?.id ?? ''
+  }
 
   const { data: player } = await sb
     .from('players')
@@ -616,7 +620,28 @@ export async function sendTrialLetter(
 
   const clubName = club?.name ?? 'Escuela de Fútbol Ciudad de Getafe'
   const playerName = `${player.first_name} ${player.last_name}`
-  const dateFormatted = new Date(trialDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+  const currentDate = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+
+  // Generate PDF
+  let pdfBuffer: Buffer | null = null
+  try {
+    const { renderToBuffer } = await import('@react-pdf/renderer')
+    const { TrialLetterPDF } = await import('@/features/jugadores/components/TrialLetterPDF')
+    const React = await import('react')
+    const doc = React.createElement(TrialLetterPDF, {
+      clubName,
+      playerName,
+      playerDob: player.birth_date,
+      tutorName: player.tutor_name,
+      trialDate,
+      clubDestino,
+      currentDate,
+    })
+    pdfBuffer = await renderToBuffer(doc as React.ReactElement)
+  } catch (pdfErr) {
+    console.error('[sendTrialLetter] PDF generation failed:', pdfErr)
+    // Continue without PDF — email will still be sent
+  }
 
   // Save to trial_letters
   await sb.from('trial_letters').insert({
@@ -633,21 +658,40 @@ export async function sendTrialLetter(
 
   let emailSent = false
   if (player.tutor_email) {
-    const subject = `Carta de autorización de prueba — ${playerName}`
+    const subject = `Carta de pruebas — ${playerName}`
     const html = `<div style="font-family:Arial,sans-serif;padding:25px;border:4px solid #ffcc00;border-radius:15px;color:#333;">
-      <h2 style="color:#000;text-align:center;">Autorización para prueba deportiva</h2>
-      <p>Estimado/a <strong>${player.tutor_name ?? 'tutor/a'}</strong>,</p>
-      <p>${clubName} autoriza a <strong>${playerName}</strong> a realizar una prueba con el equipo <strong>${clubDestino}</strong> el día <strong>${dateFormatted}</strong>.</p>
-      <p>Esta carta sirve como documento acreditativo de la autorización emitida por el club para dicha prueba.</p>
+      <p>Estimado/a Familia:</p>
+      <p>Como es de su conocimiento, al expedir la carta de pruebas, el club se reserva el derecho de no ofrecer continuidad al jugador para la temporada 26/27. Agradecemos su comprensión respecto a esta política de la entidad.</p>
+      <p>Adjuntamos la carta de pruebas correspondiente a <strong>${playerName}</strong> para su constancia.</p>
+      <p>Quedamos a su disposición para cualquier duda o aclaración adicional.</p>
       <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
-      <p style="text-align:center;font-size:0.9em;">Atentamente,<br><strong>La Dirección — ${clubName}</strong></p>
+      <p style="text-align:center;font-size:0.9em;">Atentamente,<br><strong>Ciudad de Getafe</strong></p>
     </div>`
-    const { sent } = await sendHtmlEmail({ to: player.tutor_email, subject, html })
+
+    const attachments = pdfBuffer
+      ? [{ filename: `Carta_Pruebas_${playerName.replace(/\s+/g, '_')}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }]
+      : undefined
+
+    const { sent } = await sendHtmlEmail({ to: player.tutor_email, subject, html, attachments })
     emailSent = sent
   }
 
   revalidatePath(`/jugadores/${playerId}`)
+  revalidatePath('/jugadores/inscripciones')
   return { success: true, emailSent }
+}
+
+export async function getTrialLetterPlayerIds(
+  clubId: string
+): Promise<Set<string>> {
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const { data } = await sb
+    .from('trial_letters')
+    .select('player_id')
+    .eq('club_id', clubId)
+  return new Set((data ?? []).map((r: { player_id: string }) => r.player_id))
 }
 
 // ─── Añadir lesión ─────────────────────────────────────────────────────────

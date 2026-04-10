@@ -16,11 +16,18 @@ function createTransport() {
   })
 }
 
+export interface EmailAttachment {
+  filename: string
+  content: Buffer
+  contentType?: string
+}
+
 export interface EmailPayload {
   to: string
   subject: string
   html: string
   replyTo?: string
+  attachments?: EmailAttachment[]
 }
 
 export async function sendHtmlEmail(payload: EmailPayload): Promise<{ sent: boolean; error?: string }> {
@@ -40,6 +47,11 @@ export async function sendHtmlEmail(payload: EmailPayload): Promise<{ sent: bool
       subject: payload.subject,
       html: payload.html,
       replyTo: payload.replyTo ?? GMAIL_USER,
+      attachments: payload.attachments?.map(a => ({
+        filename: a.filename,
+        content: a.content,
+        contentType: a.contentType ?? 'application/pdf',
+      })),
     })
     return { sent: true }
   } catch (err) {

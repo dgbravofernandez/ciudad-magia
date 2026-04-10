@@ -73,11 +73,22 @@ export default async function InscripcionesPage() {
     }
   }
 
+  // Get player IDs that have trial letters
+  const { getTrialLetterPlayerIds } = await import('@/features/jugadores/actions/player.actions')
+  const trialLetterPlayerIds = await getTrialLetterPlayerIds(clubId)
+  const trialLetterIds = Array.from(trialLetterPlayerIds)
+
   return (
     <div className="flex flex-col h-full">
       <Topbar title="Seguimiento de inscripciones" />
       <div className="flex-1 p-6">
-        <InscripcionesTable players={players} teams={teams} coachMap={coachMap} isAdmin={isAdmin} />
+        <InscripcionesTable
+          players={players}
+          teams={teams}
+          coachMap={coachMap}
+          isAdmin={isAdmin}
+          trialLetterPlayerIds={trialLetterIds}
+        />
       </div>
     </div>
   )

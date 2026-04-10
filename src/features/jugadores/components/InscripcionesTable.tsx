@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
-import { Search, Send, CheckCircle2, XCircle, Clock, ChevronDown, UserX, RefreshCw, RotateCcw, Download, ArrowUpDown, Copy, Link2 } from 'lucide-react'
+import { Search, Send, CheckCircle2, XCircle, Clock, ChevronDown, UserX, RefreshCw, RotateCcw, Download, ArrowUpDown, Copy, Link2, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import type { Player } from '@/types/database.types'
 import {
@@ -9,6 +9,7 @@ import {
   sendEmail,
   dismissPlayerInscription,
   resetEmailFlag,
+  sendTrialLetter,
 } from '@/features/jugadores/actions/player.actions'
 import {
   previewInscriptionSync,
@@ -68,11 +69,13 @@ export function InscripcionesTable({
   teams,
   coachMap = {},
   isAdmin = false,
+  trialLetterPlayerIds = [],
 }: {
   players: PlayerWithTeam[]
   teams: { id: string; name: string }[]
   coachMap?: Record<string, string>
   isAdmin?: boolean
+  trialLetterPlayerIds?: string[]
 }) {
   const [search, setSearch] = useState('')
   const [filterTeam, setFilterTeam] = useState('')
@@ -82,6 +85,11 @@ export function InscripcionesTable({
   const [syncing, setSyncing] = useState(false)
   const [syncingCoaches, setSyncingCoaches] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [trialLetterIds, setTrialLetterIds] = useState<Set<string>>(new Set(trialLetterPlayerIds))
+  const [trialModalPlayer, setTrialModalPlayer] = useState<PlayerWithTeam | null>(null)
+  const [trialClub, setTrialClub] = useState('')
+  const [trialDate, setTrialDate] = useState('')
+  const [sendingTrial, setSendingTrial] = useState(false)
 
   const stats = useMemo(() => {
     const counts = { pending: 0, continuing: 0, dismissed: 0, total: players.length }
@@ -291,6 +299,31 @@ export function InscripcionesTable({
     })
   }
 
+  async function handleSendTrialLetter() {
+    if (!trialModalPlayer || !trialClub || !trialDate) return
+    setSendingTrial(true)
+    try {
+      const result = await sendTrialLetter(trialModalPlayer.id, trialClub, trialDate)
+      if (result.success) {
+        setTrialLetterIds(prev => new Set([...prev, trialModalPlayer.id]))
+        if (result.emailSent) {
+          toast.success(`Carta de pruebas enviada a ${trialModalPlayer.tutor_email}`)
+        } else {
+          toast.success('Carta de pruebas registrada (sin email de tutor)')
+        }
+      } else {
+        toast.error(result.error ?? 'Error al enviar carta de pruebas')
+      }
+    } catch {
+      toast.error('Error inesperado')
+    } finally {
+      setSendingTrial(false)
+      setTrialModalPlayer(null)
+      setTrialClub('')
+      setTrialDate('')
+    }
+  }
+
   const allSelectableSelected =
     selectableIds.length > 0 && selectableIds.every(id => selected.has(id))
 
@@ -443,6 +476,7 @@ export function InscripcionesTable({
                 <th className="text-center px-3 py-3 font-medium text-muted-foreground">Reserva</th>
                 <th className="text-center px-3 py-3 font-medium text-muted-foreground">Form. enviado</th>
                 <th className="text-center px-3 py-3 font-medium text-muted-foreground">Email asig.</th>
+                <th className="text-center px-3 py-3 font-medium text-muted-foreground">Carta pruebas</th>
                 <th className="text-center px-3 py-3 font-medium text-muted-foreground">Acciones</th>
               </tr>
             </thead>
@@ -623,6 +657,28 @@ export function InscripcionesTable({
                       )}
                     </td>
 
+                    {/* Carta de pruebas */}
+                    <td className="px-3 py-2 text-center">
+                      {trialLetterIds.has(player.id) ? (
+                        <span title="Carta de pruebas enviada">
+                          <FileText className="w-4 h-4 text-amber-500 mx-auto" />
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setTrialModalPlayer(player)
+                            setTrialClub('')
+                            setTrialDate('')
+                          }}
+                          disabled={isDismissed || isPending}
+                          className="mx-auto flex text-muted-foreground hover:text-amber-500 transition-colors disabled:opacity-40"
+                          title="Enviar carta de pruebas"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </button>
+                      )}
+                    </td>
+
                     {/* Acciones */}
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1 justify-center">
@@ -671,6 +727,63 @@ export function InscripcionesTable({
           )}
         </div>
       </div>
+
+      {/* Trial Letter Modal */}
+      {trialModalPlayer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="card p-6 w-full max-w-md shadow-xl border">
+            <h3 className="text-lg font-semibold mb-4">
+              Carta de pruebas — {trialModalPlayer.first_name} {trialModalPlayer.last_name}
+            </h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Club de destino</label>
+                <input
+                  className="input w-full mt-1"
+                  placeholder="Nombre del club donde hará la prueba"
+                  value={trialClub}
+                  onChange={e => setTrialClub(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Fecha de la prueba</label>
+                <input
+                  type="date"
+                  className="input w-full mt-1"
+                  value={trialDate}
+                  onChange={e => setTrialDate(e.target.value)}
+                />
+              </div>
+              {trialModalPlayer.tutor_email ? (
+                <p className="text-xs text-muted-foreground">
+                  Se enviará a: <strong>{trialModalPlayer.tutor_email}</strong> con PDF adjunto
+                </p>
+              ) : (
+                <p className="text-xs text-amber-600">
+                  Este jugador no tiene email de tutor. La carta se registrará pero no se enviará email.
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 mt-5 justify-end">
+              <button
+                onClick={() => setTrialModalPlayer(null)}
+                className="btn-secondary text-sm"
+                disabled={sendingTrial}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSendTrialLetter}
+                disabled={!trialClub || !trialDate || sendingTrial}
+                className="btn-primary gap-2 flex items-center text-sm"
+              >
+                <FileText className="w-4 h-4" />
+                {sendingTrial ? 'Enviando...' : 'Enviar carta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
