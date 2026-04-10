@@ -7,11 +7,11 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = { title: 'Jugadores' }
 
 export default async function JugadoresPage() {
-  const { clubId, memberId, roles: memberRoles } = await getClubContext()
+  const { clubId } = await getClubContext()
 
   const supabase = await createClient()
 
-  let query = supabase
+  const { data: players } = await supabase
     .from('players')
     .select(`
       *,
@@ -19,27 +19,6 @@ export default async function JugadoresPage() {
     `)
     .eq('club_id', clubId)
     .order('last_name')
-
-  // Coaches only see their team's players
-  if (
-    !memberRoles.some((r) =>
-      ['admin', 'direccion', 'director_deportivo', 'coordinador', 'infancia'].includes(r)
-    )
-  ) {
-    const { data: teamIds } = await supabase
-      .from('team_coaches')
-      .select('team_id')
-      .eq('member_id', memberId)
-
-    const ids = (teamIds ?? []).map((t) => t.team_id)
-    if (ids.length > 0) {
-      query = query.in('team_id', ids)
-    } else {
-      query = query.eq('id', '00000000-0000-0000-0000-000000000000') // no results
-    }
-  }
-
-  const { data: players } = await query
 
   const [{ data: teams }, sanctionsResult] = await Promise.all([
     supabase
