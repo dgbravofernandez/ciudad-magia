@@ -140,16 +140,18 @@ export async function previewCoachSync(rows: string[][]): Promise<CoachSyncPrevi
     const cols = detectCoachColumns(rows)
     const toAssign: CoachSyncItem[] = []
     const unknownTeams: string[] = []
-    const seenName = new Set<string>()
+    const seenKey = new Set<string>()
 
     for (let r = 1; r < rows.length; r++) {
       const row = rows[r]
       const coachNameRaw = (row[cols.nameCol] ?? '').trim()
       if (!coachNameRaw) continue
-      if (seenName.has(norm(coachNameRaw))) continue
-      seenName.add(norm(coachNameRaw))
-
       const email = cols.emailCol >= 0 ? (row[cols.emailCol] ?? '').trim() : ''
+      // Deduplicate by email (preferred) or normalized name
+      const dedupeKey = email ? email.toLowerCase() : norm(coachNameRaw)
+      if (seenKey.has(dedupeKey)) continue
+      seenKey.add(dedupeKey)
+
       const phone = cols.phoneCol >= 0 ? (row[cols.phoneCol] ?? '').trim() : ''
       const teamLabel = cols.teamCol >= 0 ? (row[cols.teamCol] ?? '').trim() : ''
       const photoUrl = cols.photoCol >= 0 ? (row[cols.photoCol] ?? '').trim() || null : null
@@ -305,15 +307,17 @@ export async function applyCoachSync(
         }
       }
 
+      // Always ensure entrenador role exists (even for existing members)
+      await supabase.from('club_member_roles').upsert(
+        { member_id: memberId, role: 'entrenador' },
+        { onConflict: 'member_id,role', ignoreDuplicates: true }
+      )
+
       // Assign to team if we have one
       if (item.teamId) {
         await supabase.from('team_coaches').upsert(
           { team_id: item.teamId, member_id: memberId, role: 'entrenador' },
           { onConflict: 'team_id,member_id' }
-        )
-        await supabase.from('club_member_roles').upsert(
-          { member_id: memberId, role: 'entrenador', team_id: item.teamId },
-          { onConflict: 'member_id,role,team_id', ignoreDuplicates: true }
         )
         assigned++
       }
