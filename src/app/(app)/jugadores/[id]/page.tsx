@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getClubId } from '@/lib/supabase/get-club-id'
+import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { PlayerCard } from '@/features/jugadores/components/PlayerCard'
 import { Topbar } from '@/components/layout/Topbar'
@@ -22,8 +23,13 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function PlayerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const clubId = await getClubId()
+  const headersList = await headers()
+  const memberRoles = JSON.parse(headersList.get('x-user-roles') ?? '[]') as string[]
+  const memberName = headersList.get('x-member-name') ?? 'Usuario'
 
   const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
 
   const [
     { data: player },
@@ -31,6 +37,7 @@ export default async function PlayerDetailPage({ params }: { params: Promise<{ i
     { data: injuries },
     { data: payments },
     { data: sanctions },
+    { data: observations },
   ] = await Promise.all([
     supabase
       .from('players')
@@ -60,9 +67,19 @@ export default async function PlayerDetailPage({ params }: { params: Promise<{ i
       .select('*')
       .eq('player_id', id)
       .eq('active', true),
+    sb
+      .from('player_observations')
+      .select('id, category, comment, author_name, created_at')
+      .eq('player_id', id)
+      .order('created_at', { ascending: false }),
   ])
 
   if (!player) notFound()
+
+  // Coaches can also add injuries
+  const canAddInjury = memberRoles.some(r =>
+    ['admin', 'direccion', 'director_deportivo', 'coordinador', 'entrenador'].includes(r)
+  )
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const p = player as any
@@ -76,6 +93,9 @@ export default async function PlayerDetailPage({ params }: { params: Promise<{ i
           injuries={injuries ?? []}
           payments={payments ?? []}
           sanctions={sanctions ?? []}
+          observations={observations ?? []}
+          canAddInjury={canAddInjury}
+          authorName={memberName}
         />
       </div>
     </div>

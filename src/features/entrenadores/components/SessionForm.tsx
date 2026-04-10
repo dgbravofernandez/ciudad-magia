@@ -20,6 +20,7 @@ export function SessionForm({ teams, defaultTeamId }: SessionFormProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [sessionType, setSessionType] = useState<string>('training')
+  const [manualTeam, setManualTeam] = useState(teams.length === 0)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -49,19 +50,43 @@ export function SessionForm({ teams, defaultTeamId }: SessionFormProps) {
         <h2 className="text-base font-semibold">Nueva sesión</h2>
 
         <div className="space-y-1">
-          <label className="label" htmlFor="team_id">Equipo *</label>
-          <select
-            id="team_id"
-            name="team_id"
-            required
-            defaultValue={defaultTeamId ?? ''}
-            className="input w-full"
-          >
-            <option value="">Seleccionar equipo</option>
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
+          <div className="flex items-center justify-between mb-1">
+            <label className="label" htmlFor="team_id">Equipo *</label>
+            {teams.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setManualTeam(p => !p)}
+                className="text-xs text-primary hover:underline"
+              >
+                {manualTeam ? 'Seleccionar de lista' : 'Introducir manualmente'}
+              </button>
+            )}
+          </div>
+          {manualTeam ? (
+            <input
+              id="team_id"
+              name="team_id"
+              className="input w-full"
+              placeholder="Nombre del equipo (ej: Alevín A)"
+              required
+            />
+          ) : (
+            <select
+              id="team_id"
+              name="team_id"
+              required
+              defaultValue={defaultTeamId ?? ''}
+              className="input w-full"
+            >
+              <option value="">Seleccionar equipo</option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          )}
+          {teams.length === 0 && (
+            <p className="text-xs text-muted-foreground mt-1">No hay equipos asignados — escribe el nombre del equipo manualmente.</p>
+          )}
         </div>
 
         <div className="space-y-1">

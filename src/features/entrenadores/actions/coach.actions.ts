@@ -173,17 +173,12 @@ export async function assignCoordinatorToTeam(
   const { data: team } = await sb.from('teams').select('id').eq('id', teamId).eq('club_id', clubId).single()
   if (!team) return { success: false, error: 'Equipo no encontrado' }
 
-  // coordinator_team_assignments: drives what teams the coordinator sees/evaluates
-  const { error } = await sb
-    .from('coordinator_team_assignments')
-    .upsert({ club_id: clubId, member_id: memberId, team_id: teamId }, { onConflict: 'member_id,team_id', ignoreDuplicates: true })
-  if (error) return { success: false, error: error.message }
-
-  // Ensure coordinador role exists for this member
-  await sb.from('club_member_roles').upsert(
+  // Upsert coordinador role with team context in club_member_roles
+  const { error } = await sb.from('club_member_roles').upsert(
     { member_id: memberId, role: 'coordinador', team_id: teamId },
     { onConflict: 'member_id,role,team_id', ignoreDuplicates: true }
   )
+  if (error) return { success: false, error: error.message }
 
   revalidatePath('/entrenadores/staff')
   revalidatePath('/entrenadores')
@@ -199,7 +194,6 @@ export async function removeCoordinatorFromTeam(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any
 
-  await sb.from('coordinator_team_assignments').delete().eq('member_id', memberId).eq('team_id', teamId)
   await sb.from('club_member_roles').delete().eq('member_id', memberId).eq('role', 'coordinador').eq('team_id', teamId)
 
   revalidatePath('/entrenadores/staff')

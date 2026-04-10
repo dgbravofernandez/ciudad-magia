@@ -6,9 +6,9 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Shield, Footprints, Ruler, Weight,
   Calendar, Mail, Phone, FileText, Heart, Euro, AlertTriangle,
-  ExternalLink, CheckCircle2, XCircle, Send, Trash2
+  ExternalLink, CheckCircle2, XCircle, Send, Trash2, Plus, MessageSquare
 } from 'lucide-react'
-import { deletePlayer } from '@/features/jugadores/actions/player.actions'
+import { deletePlayer, sendTrialLetter, addInjury, addPlayerObservation } from '@/features/jugadores/actions/player.actions'
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer
 } from 'recharts'
@@ -35,8 +35,10 @@ const STATUS_LABELS: Record<string, string> = {
   low: 'Baja',
 }
 
-const TABS = ['Datos', 'Stats', 'Lesiones', 'Pagos', 'Documentos'] as const
+const TABS = ['Datos', 'Stats', 'Lesiones', 'Pagos', 'Documentos', 'Observaciones'] as const
 type Tab = (typeof TABS)[number]
+
+type Observation = { id: string; category: string; comment: string; author_name: string | null; created_at: string }
 
 export function PlayerCard({
   player,
@@ -44,17 +46,45 @@ export function PlayerCard({
   injuries,
   payments,
   sanctions,
+  observations = [],
+  canAddInjury = false,
+  authorName = '',
 }: {
   player: PlayerWithTeam
   stats: Record<string, unknown>[]
   injuries: Injury[]
   payments: QuotaPayment[]
   sanctions: Record<string, unknown>[]
+  observations?: Observation[]
+  canAddInjury?: boolean
+  authorName?: string
 }) {
   const [tab, setTab] = useState<Tab>('Datos')
   const [deleting, setDeleting] = useState(false)
   const [photoError, setPhotoError] = useState(false)
+
+  // Carta de pruebas modal
+  const [showTrialModal, setShowTrialModal] = useState(false)
+  const [trialClub, setTrialClub] = useState('')
+  const [trialDate, setTrialDate] = useState('')
+  const [trialLoading, setTrialLoading] = useState(false)
+
   const router = useRouter()
+
+  async function handleSendTrialLetter() {
+    if (!trialClub.trim() || !trialDate) return
+    setTrialLoading(true)
+    const res = await sendTrialLetter(player.id, trialClub.trim(), trialDate)
+    setTrialLoading(false)
+    if (res.success) {
+      setShowTrialModal(false)
+      setTrialClub('')
+      setTrialDate('')
+      alert(res.emailSent ? 'Carta enviada al tutor por email.' : 'Carta guardada (no hay email de tutor).')
+    } else {
+      alert(`Error: ${res.error}`)
+    }
+  }
 
   async function handleDelete() {
     if (!confirm(`¿Eliminar a ${player.first_name} ${player.last_name}? Esta acción no se puede deshacer.`)) return
@@ -101,8 +131,17 @@ export function PlayerCard({
           <ArrowLeft className="w-4 h-4" />
           Volver
         </Link>
-        <RoleGuard roles={['admin', 'direccion', 'coordinador', 'director_deportivo']}>
-          <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-2 ml-auto flex-wrap">
+          <RoleGuard roles={['admin', 'direccion', 'director_deportivo']}>
+            <button
+              onClick={() => setShowTrialModal(true)}
+              className="btn-secondary gap-1.5 flex items-center text-sm"
+            >
+              <FileText className="w-4 h-4" />
+              Carta de pruebas
+            </button>
+          </RoleGuard>
+          <RoleGuard roles={['admin', 'direccion', 'coordinador', 'director_deportivo']}>
             <Link href={`/jugadores/${player.id}/editar`} className="btn-secondary">
               Editar ficha
             </Link>
@@ -114,9 +153,57 @@ export function PlayerCard({
               <Trash2 className="w-4 h-4" />
               {deleting ? 'Eliminando...' : 'Eliminar'}
             </button>
-          </div>
-        </RoleGuard>
+          </RoleGuard>
+        </div>
       </div>
+
+      {/* Carta de pruebas modal */}
+      {showTrialModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-background rounded-xl shadow-xl p-6 w-full max-w-md space-y-4">
+            <h3 className="text-lg font-semibold">Carta de pruebas</h3>
+            <p className="text-sm text-muted-foreground">
+              Se enviará una carta al tutor autorizando a <strong>{player.first_name} {player.last_name}</strong> a realizar una prueba.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium block mb-1">Club destino *</label>
+                <input
+                  className="input w-full"
+                  placeholder="Nombre del club"
+                  value={trialClub}
+                  onChange={e => setTrialClub(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium block mb-1">Fecha de prueba *</label>
+                <input
+                  type="date"
+                  className="input w-full"
+                  value={trialDate}
+                  onChange={e => setTrialDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => { setShowTrialModal(false); setTrialClub(''); setTrialDate('') }}
+                className="btn-secondary flex-1"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSendTrialLetter}
+                disabled={trialLoading || !trialClub.trim() || !trialDate}
+                className="btn-primary flex-1 gap-2 flex items-center justify-center"
+              >
+                <Send className="w-4 h-4" />
+                {trialLoading ? 'Enviando...' : 'Enviar carta'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* FIFA-style header card */}
       <div className="card overflow-hidden">
@@ -242,9 +329,12 @@ export function PlayerCard({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {tab === 'Datos' && <DatosTab player={player} />}
         {tab === 'Stats' && <StatsTab stats={stats} radarData={radarData} />}
-        {tab === 'Lesiones' && <LesionesTab injuries={injuries} />}
+        {tab === 'Lesiones' && <LesionesTab injuries={injuries} playerId={player.id} canAdd={canAddInjury} />}
         {tab === 'Pagos' && <PagosTab payments={payments} />}
         {tab === 'Documentos' && <DocumentosTab player={player} />}
+        {tab === 'Observaciones' && (
+          <ObservacionesTab observations={observations} playerId={player.id} authorName={authorName} />
+        )}
       </div>
     </div>
   )
@@ -411,16 +501,72 @@ function StatsTab({
   )
 }
 
-function LesionesTab({ injuries }: { injuries: Injury[] }) {
+const INJURY_TYPES = ['Muscular', 'Esguince', 'Fractura', 'Contusión', 'Tendinitis', 'Otro']
+
+function LesionesTab({ injuries, playerId, canAdd }: { injuries: Injury[]; playerId: string; canAdd: boolean }) {
+  const [showForm, setShowForm] = useState(false)
+  const [injuryType, setInjuryType] = useState('Muscular')
+  const [injuryDesc, setInjuryDesc] = useState('')
+  const [injuryDate, setInjuryDate] = useState(new Date().toISOString().slice(0, 10))
+  const [saving, setSaving] = useState(false)
+
+  async function handleAddInjury() {
+    setSaving(true)
+    const res = await addInjury(playerId, { injury_type: injuryType, description: injuryDesc || undefined, injured_at: injuryDate })
+    setSaving(false)
+    if (res.success) {
+      setShowForm(false)
+      setInjuryDesc('')
+    } else {
+      alert(`Error: ${res.error}`)
+    }
+  }
+
   return (
     <div className="lg:col-span-3 card p-5">
-      <h3 className="font-semibold mb-4 flex items-center gap-2">
-        <Heart className="w-4 h-4 text-destructive" />
-        Historial de lesiones
-      </h3>
-      {injuries.length === 0 ? (
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold flex items-center gap-2">
+          <Heart className="w-4 h-4 text-destructive" />
+          Historial de lesiones
+        </h3>
+        {canAdd && !showForm && (
+          <button onClick={() => setShowForm(true)} className="btn-secondary gap-1.5 flex items-center text-sm">
+            <Plus className="w-4 h-4" />
+            Añadir lesión
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <div className="bg-muted/40 rounded-lg p-4 mb-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium block mb-1">Tipo de lesión</label>
+              <select className="input w-full text-sm" value={injuryType} onChange={e => setInjuryType(e.target.value)}>
+                {INJURY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-1">Fecha inicio</label>
+              <input type="date" className="input w-full text-sm" value={injuryDate} onChange={e => setInjuryDate(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium block mb-1">Descripción (opcional)</label>
+            <input className="input w-full text-sm" placeholder="Detalles..." value={injuryDesc} onChange={e => setInjuryDesc(e.target.value)} />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setShowForm(false)} className="btn-secondary text-sm flex-1">Cancelar</button>
+            <button onClick={handleAddInjury} disabled={saving} className="btn-primary text-sm flex-1">
+              {saving ? 'Guardando...' : 'Guardar lesión'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {injuries.length === 0 && !showForm ? (
         <p className="text-sm text-muted-foreground">Sin lesiones registradas</p>
-      ) : (
+      ) : injuries.length > 0 ? (
         <div className="space-y-3">
           {injuries.map((injury) => (
             <div
@@ -450,7 +596,7 @@ function LesionesTab({ injuries }: { injuries: Injury[] }) {
             </div>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
@@ -662,5 +808,106 @@ function DocumentosTab({ player }: { player: PlayerWithTeam }) {
         </div>
       </div>
     </>
+  )
+}
+
+const OBS_CATEGORIES = ['Técnica', 'Táctica', 'Física', 'Actitud', 'Psicológica', 'Otro']
+
+function ObservacionesTab({
+  observations,
+  playerId,
+  authorName,
+}: {
+  observations: Observation[]
+  playerId: string
+  authorName: string
+}) {
+  const [category, setCategory] = useState('Técnica')
+  const [comment, setComment] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [localObs, setLocalObs] = useState<Observation[]>(observations)
+
+  async function handleAdd() {
+    if (!comment.trim()) return
+    setSaving(true)
+    const res = await addPlayerObservation(playerId, { category, comment: comment.trim(), author_name: authorName })
+    setSaving(false)
+    if (res.success) {
+      const newObs: Observation = {
+        id: Date.now().toString(),
+        category,
+        comment: comment.trim(),
+        author_name: authorName,
+        created_at: new Date().toISOString(),
+      }
+      setLocalObs(prev => [newObs, ...prev])
+      setComment('')
+    } else {
+      alert(`Error: ${res.error}`)
+    }
+  }
+
+  return (
+    <div className="lg:col-span-3 card p-5 space-y-4">
+      <h3 className="font-semibold flex items-center gap-2">
+        <MessageSquare className="w-4 h-4" />
+        Observaciones
+      </h3>
+
+      {/* Add form */}
+      <div className="bg-muted/40 rounded-lg p-4 space-y-3">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="col-span-1">
+            <label className="text-xs font-medium block mb-1">Categoría</label>
+            <select className="input w-full text-sm" value={category} onChange={e => setCategory(e.target.value)}>
+              {OBS_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="text-xs font-medium block mb-1">Observación</label>
+            <div className="flex gap-2">
+              <input
+                className="input flex-1 text-sm"
+                placeholder="Escribe una observación..."
+                value={comment}
+                onChange={e => setComment(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
+              />
+              <button
+                onClick={handleAdd}
+                disabled={saving || !comment.trim()}
+                className="btn-primary text-sm px-3"
+              >
+                {saving ? '...' : 'Añadir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* History */}
+      {localObs.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Sin observaciones aún</p>
+      ) : (
+        <div className="space-y-3">
+          {localObs.map(obs => (
+            <div key={obs.id} className="flex gap-3 p-3 rounded-lg border">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="badge-muted text-xs">{obs.category}</span>
+                  {obs.author_name && (
+                    <span className="text-xs text-muted-foreground">{obs.author_name}</span>
+                  )}
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {new Date(obs.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  </span>
+                </div>
+                <p className="text-sm">{obs.comment}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

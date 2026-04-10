@@ -14,12 +14,14 @@ export default async function InscripcionesPage() {
   const memberRoles = JSON.parse(headersList.get('x-user-roles') ?? '[]') as string[]
   const isAdmin = memberRoles.some(r => ['admin', 'direccion'].includes(r))
 
-  const [{ data: players }, { data: teams }] = await Promise.all([
-    supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [playersResult, teamsResult] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
       .from('players')
-      .select('*, teams(id, name)')
+      .select('*, teams:team_id(id, name), next_team:next_team_id(id, name)')
       .eq('club_id', clubId)
-      .eq('status', 'active')
+      .neq('status', 'low')
       .order('last_name'),
     supabase
       .from('teams')
@@ -28,6 +30,10 @@ export default async function InscripcionesPage() {
       .eq('active', true)
       .order('name'),
   ])
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const players = (playersResult.data ?? []) as any[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const teams = (teamsResult.data ?? []) as { id: string; name: string }[]
 
   // Build coachMap: team_id → first coach name
   const teamIds = (teams ?? []).map((t: { id: string }) => t.id)
@@ -51,7 +57,7 @@ export default async function InscripcionesPage() {
     <div className="flex flex-col h-full">
       <Topbar title="Seguimiento de inscripciones" />
       <div className="flex-1 p-6">
-        <InscripcionesTable players={players ?? []} teams={teams ?? []} coachMap={coachMap} isAdmin={isAdmin} />
+        <InscripcionesTable players={players} teams={teams} coachMap={coachMap} isAdmin={isAdmin} />
       </div>
     </div>
   )

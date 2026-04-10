@@ -62,7 +62,7 @@ export default async function PagosPage() {
       teams(id, name)
     `)
     .eq('club_id', clubId)
-    .eq('status', 'active')
+    .neq('status', 'low')
     .order('last_name')
 
   const { data: seasonPayments } = await supabase

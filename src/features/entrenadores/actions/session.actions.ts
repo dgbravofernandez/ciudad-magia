@@ -11,10 +11,16 @@ export async function createSession(formData: FormData) {
   const memberId = headersList.get('x-member-id')!
 
   const sessionType = formData.get('session_type') as string
-  const teamId = formData.get('team_id') as string
+  const teamIdRaw = (formData.get('team_id') as string) || ''
   const sessionDate = formData.get('session_date') as string
   const opponent = (formData.get('opponent') as string) || null
-  const notes = (formData.get('notes') as string) || null
+  const notesRaw = (formData.get('notes') as string) || null
+
+  // If teamIdRaw is not a UUID, it's a manual team name — store in notes
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const teamId = uuidRegex.test(teamIdRaw) ? teamIdRaw : null
+  const manualTeamNote = !uuidRegex.test(teamIdRaw) && teamIdRaw ? `[Equipo: ${teamIdRaw}]` : null
+  const notes = [manualTeamNote, notesRaw].filter(Boolean).join(' — ') || null
 
   const { data: session, error } = await supabase
     .from('sessions')

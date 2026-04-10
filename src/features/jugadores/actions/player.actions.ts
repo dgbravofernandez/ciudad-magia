@@ -11,6 +11,7 @@ export async function updateInscriptionStatus(
     made_reservation: boolean
     wants_to_continue: boolean
     team_id: string | null
+    next_team_id: string | null
   }>
 ) {
   const supabase = await createClient()
@@ -59,10 +60,10 @@ export async function sendEmail(playerId: string, emailType: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any
 
-  // Get player + team info
+  // Get player + team info (including next_team for 26/27 assignment emails)
   const { data: player } = await sb
     .from('players')
-    .select('*, teams(name)')
+    .select('*, teams:team_id(name), next_team:next_team_id(id, name)')
     .eq('id', playerId)
     .eq('club_id', clubId)
     .single()
@@ -80,15 +81,21 @@ export async function sendEmail(playerId: string, emailType: string) {
 
   const playerName = `${player.first_name} ${player.last_name}`
   const tutorName = player.tutor_name || playerName
-  const teamName = player.teams?.name ?? 'Por confirmar'
 
-  // Fetch coach name for this player's team
+  // For team_assignment emails, show the 26/27 (next) team; otherwise current team
+  const isTeamAssignment = emailType === 'team_assignment'
+  const teamName = isTeamAssignment
+    ? (player.next_team?.name ?? player.teams?.name ?? 'Por confirmar')
+    : (player.teams?.name ?? 'Por confirmar')
+
+  // Fetch coach name: for team_assignment use next_team_id, otherwise current team_id
   let coachName: string | null = null
-  if (player.team_id) {
+  const coachTeamId = isTeamAssignment ? (player.next_team_id ?? player.team_id) : player.team_id
+  if (coachTeamId) {
     const { data: coachRow } = await sb
       .from('team_coaches')
       .select('club_members(full_name)')
-      .eq('team_id', player.team_id)
+      .eq('team_id', coachTeamId)
       .limit(1)
       .maybeSingle()
     coachName = coachRow?.club_members?.full_name ?? null
@@ -577,4 +584,137 @@ export async function importPlayers(
 
   revalidatePath('/jugadores')
   return { success: true, imported: newPlayers.length, skipped, teamUpdated }
+}
+
+// ─── Carta de pruebas ──────────────────────────────────────────────────────
+
+export async function sendTrialLetter(
+  playerId: string,
+  clubDestino: string,
+  trialDate: string
+): Promise<{ success: boolean; error?: string; emailSent?: boolean }> {
+  const supabase = await createClient()
+  const { getClubId } = await import('@/lib/supabase/get-club-id')
+  const clubId = await getClubId()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  const { data: player } = await sb
+    .from('players')
+    .select('first_name, last_name, birth_date, tutor_name, tutor_email')
+    .eq('id', playerId)
+    .eq('club_id', clubId)
+    .single()
+
+  if (!player) return { success: false, error: 'Jugador no encontrado' }
+
+  const { data: club } = await sb
+    .from('clubs')
+    .select('name')
+    .eq('id', clubId)
+    .single()
+
+  const clubName = club?.name ?? 'Escuela de Fútbol Ciudad de Getafe'
+  const playerName = `${player.first_name} ${player.last_name}`
+  const dateFormatted = new Date(trialDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+
+  // Save to trial_letters
+  await sb.from('trial_letters').insert({
+    club_id: clubId,
+    player_id: playerId,
+    player_name: playerName,
+    player_dob: player.birth_date,
+    tutor_name: player.tutor_name,
+    tutor_email: player.tutor_email,
+    trial_date: trialDate,
+    location: clubDestino,
+    sent_at: new Date().toISOString(),
+  })
+
+  let emailSent = false
+  if (player.tutor_email) {
+    const subject = `Carta de autorización de prueba — ${playerName}`
+    const html = `<div style="font-family:Arial,sans-serif;padding:25px;border:4px solid #ffcc00;border-radius:15px;color:#333;">
+      <h2 style="color:#000;text-align:center;">Autorización para prueba deportiva</h2>
+      <p>Estimado/a <strong>${player.tutor_name ?? 'tutor/a'}</strong>,</p>
+      <p>${clubName} autoriza a <strong>${playerName}</strong> a realizar una prueba con el equipo <strong>${clubDestino}</strong> el día <strong>${dateFormatted}</strong>.</p>
+      <p>Esta carta sirve como documento acreditativo de la autorización emitida por el club para dicha prueba.</p>
+      <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+      <p style="text-align:center;font-size:0.9em;">Atentamente,<br><strong>La Dirección — ${clubName}</strong></p>
+    </div>`
+    const { sent } = await sendHtmlEmail({ to: player.tutor_email, subject, html })
+    emailSent = sent
+  }
+
+  revalidatePath(`/jugadores/${playerId}`)
+  return { success: true, emailSent }
+}
+
+// ─── Añadir lesión ─────────────────────────────────────────────────────────
+
+export async function addInjury(
+  playerId: string,
+  data: { injury_type: string; description?: string; injured_at: string }
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { getClubId } = await import('@/lib/supabase/get-club-id')
+  const clubId = await getClubId()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  const { error } = await sb.from('injuries').insert({
+    club_id: clubId,
+    player_id: playerId,
+    injury_type: data.injury_type,
+    description: data.description || null,
+    injured_at: data.injured_at,
+    status: 'active',
+  })
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath(`/jugadores/${playerId}`)
+  return { success: true }
+}
+
+// ─── Observaciones de jugador ──────────────────────────────────────────────
+
+export async function addPlayerObservation(
+  playerId: string,
+  data: { category: string; comment: string; author_name: string }
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { getClubId } = await import('@/lib/supabase/get-club-id')
+  const clubId = await getClubId()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  const { error } = await sb.from('player_observations').insert({
+    club_id: clubId,
+    player_id: playerId,
+    category: data.category,
+    comment: data.comment,
+    author_name: data.author_name,
+  })
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath(`/jugadores/${playerId}`)
+  return { success: true }
+}
+
+export async function getPlayerObservations(
+  playerId: string
+): Promise<{ id: string; category: string; comment: string; author_name: string | null; created_at: string }[]> {
+  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  const { data } = await sb
+    .from('player_observations')
+    .select('id, category, comment, author_name, created_at')
+    .eq('player_id', playerId)
+    .order('created_at', { ascending: false })
+
+  return data ?? []
 }

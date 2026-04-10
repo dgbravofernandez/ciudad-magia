@@ -71,16 +71,18 @@ export default async function CoachesStaffPage() {
     if (t.teams) teamMap[t.member_id].push(t.teams)
   }
 
-  // Get coordinator team assignments
-  const { data: coordAssignments } = coachMemberIds.length > 0
+  // Get coordinator team assignments from club_member_roles (role=coordinador + team_id)
+  const { data: coordRoleRows } = coachMemberIds.length > 0
     ? await sb
-        .from('coordinator_team_assignments')
-        .select('member_id, team_id, teams(id, name)')
+        .from('club_member_roles')
+        .select('member_id, team_id, teams:team_id(id, name)')
+        .eq('role', 'coordinador')
+        .not('team_id', 'is', null)
         .in('member_id', coachMemberIds)
     : { data: [] }
 
   const coordTeamMap: Record<string, { id: string; name: string }[]> = {}
-  for (const ca of (coordAssignments ?? [])) {
+  for (const ca of (coordRoleRows ?? [])) {
     if (!coordTeamMap[ca.member_id]) coordTeamMap[ca.member_id] = []
     if (ca.teams) coordTeamMap[ca.member_id].push(ca.teams)
   }

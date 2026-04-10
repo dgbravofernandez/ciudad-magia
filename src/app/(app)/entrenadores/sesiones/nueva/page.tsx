@@ -26,7 +26,7 @@ export default async function NuevaSesionPage({
     .eq('active', true)
     .order('name')
 
-  // Coaches only see their teams
+  // Coaches only see their teams (fallback to all teams if no assignment found)
   if (
     memberRoles.includes('entrenador') &&
     !memberRoles.some((r: string) => ['admin', 'direccion', 'director_deportivo', 'coordinador'].includes(r))
@@ -36,9 +36,11 @@ export default async function NuevaSesionPage({
       .select('team_id')
       .eq('member_id', memberId)
     const teamIds = (coachTeams ?? []).map((t) => t.team_id)
+    // If coach has assigned teams, filter to those; otherwise show all (graceful fallback)
     if (teamIds.length > 0) {
       teamsQuery = teamsQuery.in('id', teamIds)
     }
+    // If teamIds is empty, show all club teams so the coach can still create a session
   }
 
   const { data: teams } = await teamsQuery

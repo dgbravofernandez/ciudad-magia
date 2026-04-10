@@ -102,6 +102,7 @@ export type Database = {
           height_cm: number | null
           weight_kg: number | null
           team_id: string | null
+          next_team_id: string | null
           dorsal_number: number | null
           status: string
           sheets_row_index: number | null

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Search, Plus, ChevronRight, ChevronDown, X } from 'lucide-react'
+import { Search, Plus, ChevronRight, ChevronDown, X, Download } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import type { Player } from '@/types/database.types'
 import { RoleGuard } from '@/components/shared/RoleGuard'
@@ -119,12 +119,30 @@ function MultiSelectDropdown({
   )
 }
 
+function downloadCsv(rows: Record<string, unknown>[], filename: string) {
+  if (!rows.length) return
+  const headers = Object.keys(rows[0])
+  const csv = [headers, ...rows.map(r => headers.map(h => {
+    const v = r[h] ?? ''
+    const s = String(v)
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+  }))].map(row => row.join(',')).join('\n')
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
 export function PlayerList({
   players,
   teams,
+  activeSanctions = {},
 }: {
   players: PlayerWithTeam[]
   teams: { id: string; name: string }[]
+  activeSanctions?: Record<string, number>
 }) {
   const [search, setSearch] = useState('')
   const [filterTeams, setFilterTeams] = useState<string[]>([])
@@ -172,12 +190,33 @@ export function PlayerList({
             {activeFilters > 0 && <span className="text-primary"> (filtrado)</span>}
           </p>
         </div>
-        <RoleGuard roles={['admin', 'direccion', 'coordinador', 'director_deportivo']}>
-          <Link href="/jugadores/nuevo" className="btn-primary gap-2 flex items-center">
-            <Plus className="w-4 h-4" />
-            Nuevo jugador
-          </Link>
-        </RoleGuard>
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={() => downloadCsv(filtered.map(p => ({
+              Nombre: p.first_name,
+              Apellidos: p.last_name,
+              DNI: p.dni ?? '',
+              Equipo: p.teams?.name ?? '',
+              Posición: p.position ?? '',
+              Edad: calcAge(p.birth_date) ?? '',
+              'Año nac.': p.birth_date ? new Date(p.birth_date).getFullYear() : '',
+              Estado: STATUS_LABELS[p.status] ?? p.status,
+              'Email tutor': p.tutor_email ?? '',
+              'Tel. tutor': p.tutor_phone ?? '',
+            })), `jugadores_${new Date().toISOString().slice(0, 10)}.csv`)}
+            className="btn-secondary gap-2 flex items-center text-sm"
+            title="Exportar lista filtrada a CSV"
+          >
+            <Download className="w-4 h-4" />
+            Exportar
+          </button>
+          <RoleGuard roles={['admin', 'direccion', 'coordinador', 'director_deportivo']}>
+            <Link href="/jugadores/nuevo" className="btn-primary gap-2 flex items-center">
+              <Plus className="w-4 h-4" />
+              Nuevo jugador
+            </Link>
+          </RoleGuard>
+        </div>
       </div>
 
       {/* Filters */}
@@ -254,7 +293,7 @@ export function PlayerList({
       {view === 'cards' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map((player) => (
-            <PlayerCard key={player.id} player={player} />
+            <PlayerCard key={player.id} player={player} sanctionedMatches={activeSanctions[player.id]} />
           ))}
         </div>
       ) : (
@@ -291,9 +330,16 @@ export function PlayerList({
                         {age !== null ? `${age} años` : '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={cn('badge', STATUS_COLORS[player.status])}>
-                          {STATUS_LABELS[player.status] ?? player.status}
-                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          <span className={cn('badge', STATUS_COLORS[player.status])}>
+                            {STATUS_LABELS[player.status] ?? player.status}
+                          </span>
+                          {activeSanctions[player.id] !== undefined && (
+                            <span className="badge badge-destructive">
+                              Sancionado ({activeSanctions[player.id]}p)
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{player.tutor_name ?? '—'}</td>
                       <td className="px-4 py-3">
@@ -343,7 +389,7 @@ function PlayerAvatar({ player, size = 'md' }: { player: PlayerWithTeam; size?: 
   return initials
 }
 
-function PlayerCard({ player }: { player: PlayerWithTeam }) {
+function PlayerCard({ player, sanctionedMatches }: { player: PlayerWithTeam; sanctionedMatches?: number }) {
   const age = calcAge(player.birth_date)
   return (
     <Link href={`/jugadores/${player.id}`}>
@@ -367,13 +413,18 @@ function PlayerCard({ player }: { player: PlayerWithTeam }) {
             {age !== null && (
               <p className="text-xs text-muted-foreground">{age} años</p>
             )}
-            <div className="flex items-center gap-1.5 mt-1.5">
+            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
               {player.position && (
                 <span className="badge-muted">{player.position}</span>
               )}
               <span className={cn('badge', STATUS_COLORS[player.status])}>
                 {STATUS_LABELS[player.status]}
               </span>
+              {sanctionedMatches !== undefined && (
+                <span className="badge badge-destructive">
+                  Sancionado ({sanctionedMatches}p)
+                </span>
+              )}
             </div>
           </div>
           <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
-import { Search, Send, CheckCircle2, XCircle, Clock, ChevronDown, UserX, RefreshCw, RotateCcw } from 'lucide-react'
+import { Search, Send, CheckCircle2, XCircle, Clock, ChevronDown, UserX, RefreshCw, RotateCcw, Download } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import type { Player } from '@/types/database.types'
 import {
@@ -20,7 +20,10 @@ import { INSCRIPTIONS_SHEET_ID, COACHES_SHEET_ID, COACHES_GID } from '@/features
 import { toast } from 'sonner'
 import Link from 'next/link'
 
-type PlayerWithTeam = Player & { teams?: { id: string; name: string } | null }
+type PlayerWithTeam = Player & {
+  teams?: { id: string; name: string } | null
+  next_team?: { id: string; name: string } | null
+}
 
 type InscriptionStatus = 'pending' | 'continuing' | 'dismissed'
 
@@ -42,6 +45,22 @@ const STATUS_BADGE: Record<InscriptionStatus, string> = {
   pending: 'bg-muted text-muted-foreground',
   continuing: 'bg-success/15 text-success',
   dismissed: 'bg-destructive/15 text-destructive',
+}
+
+function downloadCsv(rows: Record<string, unknown>[], filename: string) {
+  if (!rows.length) return
+  const headers = Object.keys(rows[0])
+  const csv = [headers, ...rows.map(r => headers.map(h => {
+    const v = r[h] ?? ''
+    const s = String(v)
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+  }))].map(row => row.join(',')).join('\n')
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
 }
 
 export function InscripcionesTable({
@@ -246,9 +265,9 @@ export function InscripcionesTable({
     })
   }
 
-  function handleTeamChange(playerId: string, teamId: string | null) {
+  function handleNextTeamChange(playerId: string, teamId: string | null) {
     startTransition(async () => {
-      await updateInscriptionStatus(playerId, { team_id: teamId ?? undefined })
+      await updateInscriptionStatus(playerId, { next_team_id: teamId ?? null })
     })
   }
 
@@ -271,7 +290,25 @@ export function InscripcionesTable({
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-semibold">Seguimiento de inscripciones</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => downloadCsv(filtered.map(p => ({
+              Nombre: p.first_name,
+              Apellidos: p.last_name,
+              'Email tutor': p.tutor_email ?? '',
+              'Equipo 25/26': p.teams?.name ?? '',
+              'Equipo 26/27': p.next_team?.name ?? (teams.find(t => t.id === (p.next_team_id ?? p.next_team?.id))?.name ?? ''),
+              Estado: STATUS_LABEL[getStatus(p)],
+              Continúa: p.wants_to_continue === true ? 'Sí' : p.wants_to_continue === false ? 'No' : 'Pendiente',
+              Requisitos: p.meets_requirements === true ? 'Sí' : p.meets_requirements === false ? 'No' : '—',
+              Reserva: p.made_reservation === true ? 'Sí' : p.made_reservation === false ? 'No' : '—',
+            })), `inscripciones_${new Date().toISOString().slice(0, 10)}.csv`)}
+            className="btn-secondary gap-2 flex items-center text-sm"
+            title="Exportar inscripciones filtradas a CSV"
+          >
+            <Download className="w-4 h-4" />
+            Exportar
+          </button>
           <button
             onClick={handleSyncCoaches}
             disabled={syncingCoaches}
@@ -380,6 +417,7 @@ export function InscripcionesTable({
                   />
                 </th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Jugador</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Equipo 25/26</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Equipo 26/27</th>
                 <th className="text-center px-3 py-3 font-medium text-muted-foreground">Estado</th>
                 <th className="text-center px-3 py-3 font-medium text-muted-foreground">Continúa</th>
@@ -430,12 +468,19 @@ export function InscripcionesTable({
                       )}
                     </td>
 
-                    {/* Equipo 26/27 */}
+                    {/* Equipo 25/26 — read only */}
+                    <td className="px-3 py-2">
+                      <span className="text-sm text-muted-foreground">
+                        {player.teams?.name ?? '—'}
+                      </span>
+                    </td>
+
+                    {/* Equipo 26/27 — editable */}
                     <td className="px-3 py-2">
                       <select
                         className="input text-xs py-1 w-36"
-                        value={player.team_id ?? ''}
-                        onChange={e => handleTeamChange(player.id, e.target.value || null)}
+                        value={(player.next_team_id ?? player.next_team?.id) ?? ''}
+                        onChange={e => handleNextTeamChange(player.id, e.target.value || null)}
                         disabled={isDismissed || isPending}
                       >
                         <option value="">Sin equipo</option>
@@ -443,9 +488,9 @@ export function InscripcionesTable({
                           <option key={t.id} value={t.id}>{t.name}</option>
                         ))}
                       </select>
-                      {player.team_id && coachMap[player.team_id] && (
+                      {(player.next_team_id ?? player.next_team?.id) && coachMap[(player.next_team_id ?? player.next_team?.id)!] && (
                         <p className="text-xs text-muted-foreground mt-0.5 truncate w-36">
-                          {coachMap[player.team_id]}
+                          {coachMap[(player.next_team_id ?? player.next_team?.id)!]}
                         </p>
                       )}
                     </td>

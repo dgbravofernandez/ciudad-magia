@@ -64,6 +64,7 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set('x-member-id', member.id)
   requestHeaders.set('x-user-roles', JSON.stringify(roleNames))
   requestHeaders.set('x-user-email', user.email ?? '')
+  requestHeaders.set('x-member-name', member.full_name ?? '')
 
   const response = NextResponse.next({
     request: { headers: requestHeaders },

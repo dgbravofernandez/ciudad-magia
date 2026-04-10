@@ -58,6 +58,7 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { label: 'Listado', href: '/jugadores' },
       { label: 'Inscripciones', href: '/jugadores/inscripciones' },
+      { label: 'Sanciones', href: '/jugadores/sanciones' },
       { label: 'Importar Excel', href: '/jugadores/importar', requiredRole: ADMIN_ONLY },
       { label: 'Sincronizar docs', href: '/jugadores/importar/documentos', requiredRole: ADMIN_ONLY },
     ],
