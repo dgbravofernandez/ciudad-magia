@@ -16,7 +16,7 @@ export default async function JugadoresPage() {
     .from('players')
     .select(`
       *,
-      teams(id, name, categories(name))
+      teams(id, name)
     `)
     .eq('club_id', clubId)
     .order('last_name')
