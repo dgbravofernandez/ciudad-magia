@@ -313,8 +313,8 @@ export async function applyCoachSync(
         { onConflict: 'member_id,role', ignoreDuplicates: true }
       )
 
-      // Assign to team if we have one
-      if (item.teamId) {
+      // Only assign team for NEW members — don't overwrite manual team changes
+      if (item.isNew && item.teamId) {
         await supabase.from('team_coaches').upsert(
           { team_id: item.teamId, member_id: memberId, role: 'entrenador' },
           { onConflict: 'team_id,member_id' }

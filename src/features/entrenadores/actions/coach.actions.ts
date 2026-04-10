@@ -163,13 +163,18 @@ export async function assignCoordinatorToTeam(
   const { data: team } = await sb.from('teams').select('id').eq('id', teamId).eq('club_id', clubId).single()
   if (!team) return { success: false, error: 'Equipo no encontrado' }
 
-  // Upsert coordinador role — constraint is UNIQUE(member_id, role)
-  // so we update team_id if the row already exists
-  const { error } = await sb.from('club_member_roles').upsert(
-    { member_id: memberId, role: 'coordinador', team_id: teamId },
-    { onConflict: 'member_id,role' }
+  // Use team_coaches for the team assignment (supports multiple teams)
+  const { error } = await sb.from('team_coaches').upsert(
+    { team_id: teamId, member_id: memberId, role: 'coordinador' },
+    { onConflict: 'team_id,member_id' }
   )
   if (error) return { success: false, error: error.message }
+
+  // Ensure coordinador base role exists in club_member_roles (no team_id)
+  await sb.from('club_member_roles').upsert(
+    { member_id: memberId, role: 'coordinador' },
+    { onConflict: 'member_id,role', ignoreDuplicates: true }
+  )
 
   revalidatePath('/entrenadores/staff')
   revalidatePath('/entrenadores')
@@ -182,10 +187,11 @@ export async function removeCoordinatorFromTeam(
 ): Promise<{ success: boolean; error?: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
-  const clubId = await getClubId()
 
-  await sb.from('club_member_roles').delete().eq('member_id', memberId).eq('role', 'coordinador').eq('team_id', teamId)
+  // Remove from team_coaches (the team assignment)
+  await sb.from('team_coaches').delete().eq('member_id', memberId).eq('team_id', teamId).eq('role', 'coordinador')
 
+  // Keep the coordinador role in club_member_roles — don't delete it
   revalidatePath('/entrenadores/staff')
   revalidatePath('/entrenadores')
   return { success: true }
