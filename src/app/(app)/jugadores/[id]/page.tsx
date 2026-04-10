@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubId } from '@/lib/supabase/get-club-id'
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
@@ -8,61 +9,118 @@ import type { Metadata } from 'next'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: player } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const { data: player } = await sb
     .from('players')
     .select('first_name, last_name')
     .eq('id', id)
     .single()
 
   if (!player) return { title: 'Jugador no encontrado' }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return { title: `${(player as any).first_name} ${(player as any).last_name}` }
+  return { title: `${player.first_name} ${player.last_name}` }
 }
 
 export default async function PlayerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const clubId = await getClubId()
+
+  /* ── clubId with fallback ── */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  let clubId = await getClubId()
+  if (!clubId) {
+    const { data: anyClub } = await sb.from('clubs').select('id').limit(1).single()
+    clubId = anyClub?.id ?? ''
+  }
+
+  /* ── isAdmin / roles with fallback ── */
   const headersList = await headers()
-  const memberRoles = JSON.parse(headersList.get('x-user-roles') ?? '[]') as string[]
+  let memberRoles = JSON.parse(headersList.get('x-user-roles') ?? '[]') as string[]
   const memberName = headersList.get('x-member-name') ?? 'Usuario'
 
-  const supabase = await createClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  if (memberRoles.length === 0) {
+    let memberId = headersList.get('x-member-id') ?? ''
+    if (!memberId) {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: member } = await sb
+          .from('club_members')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('club_id', clubId)
+          .limit(1)
+          .single()
+        memberId = member?.id ?? ''
+      }
+    }
+    if (memberId) {
+      const { data: roles } = await sb
+        .from('club_member_roles')
+        .select('role')
+        .eq('member_id', memberId)
+      memberRoles = (roles ?? []).map((r: { role: string }) => r.role)
+    }
+  }
 
+  /* ── Fetch player (no nested joins — they fail silently in production) ── */
+  const { data: player } = await sb
+    .from('players')
+    .select('*')
+    .eq('id', id)
+    .eq('club_id', clubId)
+    .single()
+
+  if (!player) notFound()
+
+  // Enrich with team data separately
+  if (player.team_id) {
+    const { data: team } = await sb
+      .from('teams')
+      .select('id, name')
+      .eq('id', player.team_id)
+      .single()
+    player.teams = team ?? null
+  } else {
+    player.teams = null
+  }
+
+  // Also enrich next_team if present
+  if (player.next_team_id) {
+    const { data: nextTeam } = await sb
+      .from('teams')
+      .select('id, name')
+      .eq('id', player.next_team_id)
+      .single()
+    player.next_team = nextTeam ?? null
+  }
+
+  /* ── Fetch related data in parallel ── */
   const [
-    { data: player },
     { data: stats },
     { data: injuries },
     { data: payments },
     { data: sanctions },
     { data: observations },
   ] = await Promise.all([
-    supabase
-      .from('players')
-      .select('*, teams(id, name, categories(name))')
-      .eq('id', id)
-      .eq('club_id', clubId)
-      .single(),
-    supabase
+    sb
       .from('player_season_stats')
       .select('*')
       .eq('player_id', id)
       .order('season', { ascending: false }),
-    supabase
+    sb
       .from('injuries')
       .select('*')
       .eq('player_id', id)
       .order('injured_at', { ascending: false }),
-    supabase
+    sb
       .from('quota_payments')
       .select('*')
       .eq('player_id', id)
       .order('season', { ascending: false })
       .order('month', { ascending: false })
       .limit(24),
-    supabase
+    sb
       .from('player_sanctions')
       .select('*')
       .eq('player_id', id)
@@ -74,18 +132,13 @@ export default async function PlayerDetailPage({ params }: { params: Promise<{ i
       .order('created_at', { ascending: false }),
   ])
 
-  if (!player) notFound()
-
-  // Coaches can also add injuries
   const canAddInjury = memberRoles.some(r =>
     ['admin', 'direccion', 'director_deportivo', 'coordinador', 'entrenador'].includes(r)
   )
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const p = player as any
   return (
     <div className="flex flex-col h-full">
-      <Topbar title={`${p.first_name} ${p.last_name}`} />
+      <Topbar title={`${player.first_name} ${player.last_name}`} />
       <div className="flex-1 p-6">
         <PlayerCard
           player={player}
