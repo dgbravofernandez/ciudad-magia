@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { getClubId } from '@/lib/supabase/get-club-id'
 import { COACHES_FORM_LINK } from '@/features/jugadores/constants'
@@ -38,10 +39,9 @@ export async function sendCoachInvitation(
 export async function sendCoachFormLink(
   memberId: string
 ): Promise<{ success: boolean; error?: string; emailSent?: boolean }> {
-  const supabase = await createClient()
-  const clubId = await getClubId()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const sb = createAdminClient() as any
+  const clubId = await getClubId()
 
   const { data: member } = await sb
     .from('club_members')
@@ -88,10 +88,9 @@ export async function assignCoachToTeam(
   memberId: string,
   teamId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const clubId = await getClubId()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const sb = createAdminClient() as any
+  const clubId = await getClubId()
 
   // Verify team belongs to this club
   const { data: team } = await sb
@@ -126,10 +125,9 @@ export async function removeCoachFromTeam(
   memberId: string,
   teamId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const clubId = await getClubId()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const sb = createAdminClient() as any
+  const clubId = await getClubId()
 
   // Verify team belongs to this club
   const { data: team } = await sb
@@ -158,10 +156,9 @@ export async function assignCoordinatorToTeam(
   memberId: string,
   teamId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const clubId = await getClubId()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const sb = createAdminClient() as any
+  const clubId = await getClubId()
 
   const { data: team } = await sb.from('teams').select('id').eq('id', teamId).eq('club_id', clubId).single()
   if (!team) return { success: false, error: 'Equipo no encontrado' }
@@ -182,10 +179,9 @@ export async function removeCoordinatorFromTeam(
   memberId: string,
   teamId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const clubId = await getClubId()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const sb = createAdminClient() as any
+  const clubId = await getClubId()
 
   await sb.from('club_member_roles').delete().eq('member_id', memberId).eq('role', 'coordinador').eq('team_id', teamId)
 
@@ -205,9 +201,8 @@ export async function saveEvaluation(data: {
   notes: string
   clubId: string
 }): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const sb = createAdminClient() as any
 
   const { error } = await sb.from('coordinator_observations').upsert({
     club_id: data.clubId,
@@ -231,10 +226,10 @@ export async function updateCoachProfile(
   memberId: string,
   data: { phone?: string; avatar_url?: string }
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const clubId = await getClubId()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
+  const sb = createAdminClient() as any
+  const clubId = await getClubId()
+  const { error } = await sb
     .from('club_members')
     .update(data)
     .eq('id', memberId)
