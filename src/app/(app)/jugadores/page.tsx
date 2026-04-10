@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { PlayerList } from '@/features/jugadores/components/PlayerList'
 import { Topbar } from '@/components/layout/Topbar'
@@ -9,9 +9,10 @@ export const metadata: Metadata = { title: 'Jugadores' }
 export default async function JugadoresPage() {
   const { clubId } = await getClubContext()
 
-  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
 
-  const { data: players } = await supabase
+  const { data: players } = await sb
     .from('players')
     .select(`
       *,
@@ -21,14 +22,13 @@ export default async function JugadoresPage() {
     .order('last_name')
 
   const [{ data: teams }, sanctionsResult] = await Promise.all([
-    supabase
+    sb
       .from('teams')
       .select('id, name')
       .eq('club_id', clubId)
       .eq('active', true)
       .order('name'),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
+    sb
       .from('player_sanctions')
       .select('player_id, matches_banned, matches_served')
       .eq('club_id', clubId)
