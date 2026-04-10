@@ -125,7 +125,11 @@ export async function previewCoachSync(rows: string[][]): Promise<CoachSyncPrevi
     const { createAdminClient } = await import('@/lib/supabase/admin')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = createAdminClient() as any
-    const clubId = await getClubId()
+    let clubId = await getClubId()
+    if (!clubId) {
+      const { data: anyClub } = await supabase.from('clubs').select('id').limit(1).single()
+      clubId = anyClub?.id ?? ''
+    }
     if (!clubId) return { toAssign: [], unknownTeams: [], error: 'no_club' }
 
     const [{ data: teams }, { data: members }] = await Promise.all([
@@ -179,7 +183,7 @@ export async function previewCoachSync(rows: string[][]): Promise<CoachSyncPrevi
         const s = Math.max(wordOverlap(coachNameRaw, m.full_name), wordOverlap(m.full_name, coachNameRaw))
         if (s > bestScore) { bestScore = s; bestMember = m }
       }
-      if (bestScore < 0.4) bestMember = null
+      if (bestScore < 0.3) bestMember = null
 
       toAssign.push({
         coachNameRaw,
@@ -215,7 +219,11 @@ export async function applyCoachSync(
     const { createAdminClient } = await import('@/lib/supabase/admin')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = createAdminClient() as any
-    const clubId = await getClubId()
+    let clubId = await getClubId()
+    if (!clubId) {
+      const { data: anyClub } = await supabase.from('clubs').select('id').limit(1).single()
+      clubId = anyClub?.id ?? ''
+    }
     if (!clubId) return { created: 0, assigned: 0, error: 'no_club' }
 
     let created = 0
@@ -255,16 +263,37 @@ export async function applyCoachSync(
           .select('id')
           .single()
 
-        if (insertErr || !newMember) continue
-        memberId = newMember.id
-        created++
+        if (insertErr || !newMember) {
+          // Insert failed — try to find existing member by email
+          if (item.email) {
+            const { data: existing } = await supabase
+              .from('club_members')
+              .select('id')
+              .eq('club_id', clubId)
+              .eq('email', item.email)
+              .limit(1)
+              .maybeSingle()
+            if (existing) {
+              memberId = existing.id
+            } else {
+              console.error('[applyCoachSync] insert failed and no match by email:', item.coachNameRaw, insertErr?.message)
+              continue
+            }
+          } else {
+            console.error('[applyCoachSync] insert failed:', item.coachNameRaw, insertErr?.message)
+            continue
+          }
+        } else {
+          memberId = newMember.id
+          created++
+        }
 
-        // Add entrenador role
-        await supabase.from('club_member_roles').insert({
+        // Ensure entrenador role exists
+        await supabase.from('club_member_roles').upsert({
           member_id: memberId,
           role: 'entrenador',
           team_id: item.teamId ?? null,
-        })
+        }, { onConflict: 'member_id,role', ignoreDuplicates: true })
       } else {
         // Update existing member with any new data from sheet
         const updateFields: Record<string, unknown> = { ...docFields }
