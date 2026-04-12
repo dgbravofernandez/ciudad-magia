@@ -32,16 +32,28 @@ export default async function PagosPage() {
   }
 
   /* ── Resolve roles for permission check ── */
+  const PAYMENT_ROLES = ['admin', 'direccion', 'director_deportivo']
   const memberRoles = JSON.parse(headersList.get('x-user-roles') ?? '[]') as string[]
-  let canRegisterPayments = memberRoles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))
-  if (!canRegisterPayments && memberRoles.length === 0) {
-    const memberId = headersList.get('x-member-id') ?? ''
+  let canRegisterPayments = memberRoles.some(r => PAYMENT_ROLES.includes(r))
+
+  // Always fallback to DB if headers didn't grant access
+  if (!canRegisterPayments) {
+    // Try memberId from header first
+    let memberId = headersList.get('x-member-id') ?? ''
+    // If no memberId in header, resolve from auth
+    if (!memberId) {
+      const supabase = await createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: m } = await sb
+          .from('club_members').select('id').eq('user_id', user.id).eq('club_id', clubId).eq('active', true).single()
+        memberId = m?.id ?? ''
+      }
+    }
     if (memberId) {
       const { data: roles } = await sb
         .from('club_member_roles').select('role').eq('member_id', memberId)
-      canRegisterPayments = (roles ?? []).some((r: { role: string }) =>
-        ['admin', 'direccion', 'director_deportivo'].includes(r.role)
-      )
+      canRegisterPayments = (roles ?? []).some((r: { role: string }) => PAYMENT_ROLES.includes(r.role))
     }
   }
 
@@ -122,7 +134,16 @@ export default async function PagosPage() {
     .eq('club_id', clubId)
     .single()
 
-  const quotaAmounts = settings?.quota_amounts ?? { default: 0, teams: {} }
+  const quotaAmounts = settings?.quota_amounts ?? {
+    annual: 360,
+    earlyPayDiscount: 5,
+    installments: [
+      { label: '1er plazo', amount: 120, deadline: '07-01' },
+      { label: '2do plazo', amount: 120, deadline: '09-01' },
+      { label: '3er plazo', amount: 120, deadline: '11-01' },
+    ],
+    teams: {},
+  }
 
   return (
     <div className="flex flex-col h-full">

@@ -49,7 +49,12 @@ interface Props {
   players: PlayerRow[]
   payments: Payment[]
   canRegisterPayments: boolean
-  quotaAmounts?: { default: number; teams: Record<string, number> }
+  quotaAmounts?: {
+    annual: number
+    earlyPayDiscount: number
+    installments: { label: string; amount: number; deadline: string }[]
+    teams: Record<string, number>
+  }
 }
 
 const PAYMENT_METHODS = [
@@ -82,14 +87,17 @@ export function PaymentRegistration({
 
   const today = new Date().toISOString().slice(0, 10)
 
-  // Get quota amount for a player based on team
-  function getQuotaForPlayer(player: PlayerRow): number {
+  // Get annual quota amount for a player based on team
+  function getAnnualQuota(player: PlayerRow): number {
     if (!quotaAmounts) return 0
     if (player.teams?.id && quotaAmounts.teams[player.teams.id]) {
       return quotaAmounts.teams[player.teams.id]
     }
-    return quotaAmounts.default ?? 0
+    return quotaAmounts.annual ?? 0
   }
+
+  const installments = quotaAmounts?.installments ?? []
+  const earlyDiscount = quotaAmounts?.earlyPayDiscount ?? 0
 
   // Pending players for table
   const pendingPlayers = useMemo(() => {
@@ -286,7 +294,7 @@ export function PaymentRegistration({
             <div className="border rounded-lg divide-y max-h-[600px] overflow-y-auto">
               {searchResults.map((player) => {
                 const pending = getPlayerPendingAmount(player.id)
-                const quota = getQuotaForPlayer(player)
+                const annualQuota = getAnnualQuota(player)
                 const expanded = expandedPlayerId === player.id
                 return (
                   <div key={player.id}>
@@ -304,8 +312,8 @@ export function PaymentRegistration({
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        {quota > 0 && (
-                          <span className="text-xs text-muted-foreground">Cuota: {formatCurrency(quota)}</span>
+                        {annualQuota > 0 && (
+                          <span className="text-xs text-muted-foreground">Cuota anual: {formatCurrency(annualQuota)}</span>
                         )}
                         {pending > 0 ? (
                           <span className="badge badge-destructive">{formatCurrency(pending)} pendiente</span>
@@ -342,6 +350,41 @@ export function PaymentRegistration({
                         {/* Register payment form */}
                         <form id={`payment-form-${player.id}`} className="space-y-3 border-t pt-3" onSubmit={(e) => e.preventDefault()}>
                           <p className="text-sm font-medium">Registrar pago</p>
+
+                          {/* Quick amount buttons */}
+                          {annualQuota > 0 && (
+                            <div className="space-y-1">
+                              <label className="label">Importe rapido</label>
+                              <div className="flex flex-wrap gap-2">
+                                {earlyDiscount > 0 && (
+                                  <button
+                                    type="button"
+                                    className="px-3 py-1.5 rounded-lg border text-xs font-medium hover:border-green-500 hover:bg-green-50 transition-colors"
+                                    onClick={() => {
+                                      const input = document.querySelector(`#payment-form-${player.id} [name="amount"]`) as HTMLInputElement
+                                      if (input) input.value = (annualQuota * (1 - earlyDiscount / 100)).toFixed(2)
+                                    }}
+                                  >
+                                    Pago completo (-{earlyDiscount}%): {formatCurrency(annualQuota * (1 - earlyDiscount / 100))}
+                                  </button>
+                                )}
+                                {installments.map((inst, idx) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    className="px-3 py-1.5 rounded-lg border text-xs font-medium hover:border-primary hover:bg-primary/5 transition-colors"
+                                    onClick={() => {
+                                      const input = document.querySelector(`#payment-form-${player.id} [name="amount"]`) as HTMLInputElement
+                                      if (input) input.value = inst.amount.toFixed(2)
+                                    }}
+                                  >
+                                    {inst.label}: {formatCurrency(inst.amount)}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                               <label className="label">Importe</label>
@@ -351,7 +394,7 @@ export function PaymentRegistration({
                                 step="0.01"
                                 min="0"
                                 className="input w-full"
-                                defaultValue={pending > 0 ? pending.toFixed(2) : quota > 0 ? quota.toFixed(2) : ''}
+                                defaultValue={pending > 0 ? pending.toFixed(2) : ''}
                                 placeholder="0.00"
                               />
                             </div>
