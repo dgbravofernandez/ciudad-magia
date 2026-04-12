@@ -40,6 +40,7 @@ type NavItem = {
 // director_deportivo (supercoordinador) → jugadores (sin importar/sync) + entrenadores (solo cuerpo técnico)
 // coordinador      → jugadores (sin importar/sync)
 const ADMIN_ONLY = ['admin', 'direccion']
+const CONTABILIDAD_ROLES = ['admin', 'direccion', 'director_deportivo']
 const JUGADORES_ROLES = ['admin', 'direccion', 'director_deportivo', 'coordinador']
 const ENTRENADORES_ROLES = ['admin', 'direccion', 'director_deportivo']
 
@@ -81,7 +82,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Contabilidad',
     href: '/contabilidad',
     icon: DollarSign,
-    requiredRole: ADMIN_ONLY,
+    requiredRole: CONTABILIDAD_ROLES,
     children: [
       { label: 'Pagos', href: '/contabilidad/pagos' },
       { label: 'Gastos', href: '/contabilidad/gastos' },

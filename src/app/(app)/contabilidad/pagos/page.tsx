@@ -14,10 +14,9 @@ export default async function PagosPage() {
 
   /* ── clubId with fallback ── */
   let clubId = await getClubId()
-  if (!clubId) {
-    const headersList = await headers()
-    clubId = headersList.get('x-club-id') ?? ''
-  }
+  const headersList = await headers()
+  if (!clubId) clubId = headersList.get('x-club-id') ?? ''
+
   if (!clubId) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -30,6 +29,20 @@ export default async function PagosPage() {
   if (!clubId) {
     const { data: anyClub } = await sb.from('clubs').select('id').limit(1).single()
     clubId = anyClub?.id ?? ''
+  }
+
+  /* ── Resolve roles for permission check ── */
+  const memberRoles = JSON.parse(headersList.get('x-user-roles') ?? '[]') as string[]
+  let canRegisterPayments = memberRoles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))
+  if (!canRegisterPayments && memberRoles.length === 0) {
+    const memberId = headersList.get('x-member-id') ?? ''
+    if (memberId) {
+      const { data: roles } = await sb
+        .from('club_member_roles').select('role').eq('member_id', memberId)
+      canRegisterPayments = (roles ?? []).some((r: { role: string }) =>
+        ['admin', 'direccion', 'director_deportivo'].includes(r.role)
+      )
+    }
   }
 
   const now = new Date()
@@ -68,7 +81,7 @@ export default async function PagosPage() {
 
   const uniqueDebtors = new Set((playersWithDebt ?? []).map((p: { player_id: string }) => p.player_id)).size
 
-  // All players (no nested joins — fetch teams separately)
+  // All players with team assigned (no nested joins)
   const season = getCurrentSeason()
   const { data: players } = await sb
     .from('players')
@@ -102,6 +115,15 @@ export default async function PagosPage() {
     .eq('season', season)
     .order('created_at', { ascending: false })
 
+  // Fetch quota config
+  const { data: settings } = await sb
+    .from('club_settings')
+    .select('quota_amounts')
+    .eq('club_id', clubId)
+    .single()
+
+  const quotaAmounts = settings?.quota_amounts ?? { default: 0, teams: {} }
+
   return (
     <div className="flex flex-col h-full">
       <Topbar title="Pagos de Cuotas" />
@@ -113,6 +135,8 @@ export default async function PagosPage() {
           playersWithDebtCount={uniqueDebtors}
           players={enrichedPlayers}
           payments={seasonPayments ?? []}
+          canRegisterPayments={canRegisterPayments}
+          quotaAmounts={quotaAmounts}
         />
       </div>
     </div>

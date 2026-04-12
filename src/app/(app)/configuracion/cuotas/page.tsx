@@ -2,13 +2,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getClubId } from '@/lib/supabase/get-club-id'
 import { headers } from 'next/headers'
-import { ConfiguracionPage } from '@/features/configuracion/components/ConfiguracionPage'
+import { CuotasConfig } from '@/features/configuracion/components/CuotasConfig'
 import { Topbar } from '@/components/layout/Topbar'
 import type { Metadata } from 'next'
 
-export const metadata: Metadata = { title: 'Configuracion' }
+export const metadata: Metadata = { title: 'Configuracion de Cuotas' }
 
-export default async function Configuracion() {
+export default async function CuotasPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
 
@@ -27,16 +27,20 @@ export default async function Configuracion() {
     }
   }
 
-  const [settingsRes, membersRes] = await Promise.all([
+  const [settingsRes, teamsRes] = await Promise.all([
     sb.from('club_settings').select('*').eq('club_id', clubId).single(),
-    sb.from('club_members').select('*, club_member_roles(role, team_id)').eq('club_id', clubId),
+    sb.from('teams').select('id, name').eq('club_id', clubId).eq('active', true).order('name'),
   ])
 
   return (
     <div className="flex flex-col h-full">
-      <Topbar title="Configuracion" />
-      <div className="flex-1">
-        <ConfiguracionPage settings={settingsRes.data} members={membersRes.data ?? []} clubId={clubId} />
+      <Topbar title="Configuracion de Cuotas" />
+      <div className="flex-1 p-6">
+        <CuotasConfig
+          clubId={clubId}
+          settings={settingsRes.data}
+          teams={teamsRes.data ?? []}
+        />
       </div>
     </div>
   )
