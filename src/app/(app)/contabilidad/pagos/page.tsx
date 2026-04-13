@@ -7,6 +7,7 @@ import { Topbar } from '@/components/layout/Topbar'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Pagos de Cuotas' }
+export const maxDuration = 30
 
 export default async function PagosPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

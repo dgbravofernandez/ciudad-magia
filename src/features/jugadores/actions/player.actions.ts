@@ -622,24 +622,30 @@ export async function sendTrialLetter(
   const playerName = `${player.first_name} ${player.last_name}`
   const currentDate = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
 
-  // Generate PDF
+  // Generate PDF with timeout — cold starts on Vercel can be slow
   let pdfBuffer: Buffer | null = null
   try {
-    const { renderToBuffer } = await import('@react-pdf/renderer')
-    const { TrialLetterPDF } = await import('@/features/jugadores/components/TrialLetterPDF')
-    const React = await import('react')
-    const doc = React.createElement(TrialLetterPDF, {
-      clubName,
-      playerName,
-      playerDob: player.birth_date,
-      tutorName: player.tutor_name,
-      trialDate,
-      clubDestino,
-      currentDate,
-    })
-    pdfBuffer = await renderToBuffer(doc as React.ReactElement)
+    const pdfPromise = (async () => {
+      const { renderToBuffer } = await import('@react-pdf/renderer')
+      const { TrialLetterPDF } = await import('@/features/jugadores/components/TrialLetterPDF')
+      const React = await import('react')
+      const doc = React.createElement(TrialLetterPDF, {
+        clubName,
+        playerName,
+        playerDob: player.birth_date,
+        tutorName: player.tutor_name,
+        trialDate,
+        clubDestino,
+        currentDate,
+      })
+      return await renderToBuffer(doc as React.ReactElement)
+    })()
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('PDF timeout')), 12000)
+    )
+    pdfBuffer = await Promise.race([pdfPromise, timeout])
   } catch (pdfErr) {
-    console.error('[sendTrialLetter] PDF generation failed:', pdfErr)
+    console.error('[sendTrialLetter] PDF generation failed/timeout:', pdfErr)
     // Continue without PDF — email will still be sent
   }
 

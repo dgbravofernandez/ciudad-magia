@@ -6,6 +6,7 @@ import { headers } from 'next/headers'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Seguimiento de inscripciones' }
+export const maxDuration = 30
 
 export default async function InscripcionesPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
