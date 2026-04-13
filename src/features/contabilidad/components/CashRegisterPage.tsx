@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Lock, CheckCircle, AlertTriangle, FileText } from 'lucide-react'
+import { Lock, CheckCircle, AlertTriangle, FileText, Download } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatDate } from '@/lib/utils/currency'
 import { closeCash } from '@/features/contabilidad/actions/accounting.actions'
@@ -115,13 +115,56 @@ export function CashRegisterPage({
   const totalIncome = incomeMovements.reduce((s, m) => s + m.amount, 0)
   const totalExpense = expenseMovements.reduce((s, m) => s + m.amount, 0)
 
+  function exportCSV() {
+    const BOM = '\uFEFF'
+    const header = 'Nombre,Equipo,Cantidad,Forma de Pago,Fecha,Tipo\n'
+    const rows = movements.map((m) => {
+      const detail = m.related_payment_id ? detailMap[m.related_payment_id] : null
+      const name = detail?.player_name || m.description
+      const team = detail?.team_name || ''
+      const amount = m.amount.toFixed(2)
+      const method = METHOD_LABELS[m.payment_method] ?? m.payment_method
+      const date = m.movement_date
+      const type = m.type === 'income' ? 'Ingreso' : 'Gasto'
+      return `"${name}","${team}",${amount},"${method}",${date},"${type}"`
+    }).join('\n')
+
+    // Add summary rows
+    const summary = [
+      '',
+      `"TOTAL INGRESOS",,${totalIncome.toFixed(2)},,,`,
+      `"TOTAL GASTOS",,${totalExpense.toFixed(2)},,,`,
+      `"EFECTIVO (SISTEMA)",,${systemCash.toFixed(2)},,,`,
+      `"TARJETA (SISTEMA)",,${systemCard.toFixed(2)},,,`,
+      `"PERIODO","${periodStart} a ${periodEnd}",,,,`,
+    ].join('\n')
+
+    const csv = BOM + header + rows + '\n' + summary
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Arqueo_${periodStart}_${periodEnd}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('CSV descargado')
+  }
+
   return (
     <div className="space-y-6">
       {/* Period info */}
       <div className="card p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <FileText className="w-5 h-5 text-muted-foreground" />
-          <h3 className="font-semibold text-lg">Resumen del periodo</h3>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-muted-foreground" />
+            <h3 className="font-semibold text-lg">Resumen del periodo</h3>
+          </div>
+          {movements.length > 0 && (
+            <button onClick={exportCSV} className="btn-secondary gap-2 flex items-center text-sm">
+              <Download className="w-4 h-4" />
+              Exportar CSV
+            </button>
+          )}
         </div>
         <p className="text-sm text-muted-foreground mb-4">
           Desde <strong>{formatDate(periodStart)}</strong> hasta <strong>{formatDate(periodEnd)}</strong>

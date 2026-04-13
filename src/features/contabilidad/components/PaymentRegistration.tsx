@@ -13,6 +13,7 @@ import {
   Square,
   Mail,
   ShieldAlert,
+  Receipt,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatDate } from '@/lib/utils/currency'
@@ -98,6 +99,18 @@ export function PaymentRegistration({
 
   const installments = quotaAmounts?.installments ?? []
   const earlyDiscount = quotaAmounts?.earlyPayDiscount ?? 0
+
+  // Player lookup map
+  const playerMap = useMemo(() => {
+    const map: Record<string, PlayerRow> = {}
+    for (const p of players) map[p.id] = p
+    return map
+  }, [players])
+
+  // Recent paid payments for receipt history
+  const recentPaidPayments = useMemo(() => {
+    return payments.filter(p => p.status === 'paid').slice(0, 20)
+  }, [payments])
 
   // Pending players for table
   const pendingPlayers = useMemo(() => {
@@ -463,6 +476,57 @@ export function PaymentRegistration({
               No se encontraron jugadores con equipo asignado
             </p>
           )}
+        </div>
+      )}
+
+      {/* Recent payments (receipt history) */}
+      {recentPaidPayments.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-5 py-4 border-b">
+            <div className="flex items-center gap-2">
+              <Receipt className="w-4 h-4 text-muted-foreground" />
+              <h3 className="font-semibold">Ultimos pagos registrados</h3>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Jugador</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Equipo</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Concepto</th>
+                  <th className="text-right px-4 py-3 font-medium text-muted-foreground">Importe</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Forma pago</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Fecha</th>
+                  <th className="text-center px-4 py-3 font-medium text-muted-foreground">Recibo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentPaidPayments.map((p) => {
+                  const player = playerMap[p.player_id]
+                  return (
+                    <tr key={p.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3 font-medium">
+                        {player ? `${player.first_name} ${player.last_name}` : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{player?.teams?.name ?? '—'}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{p.concept ?? 'Cuota'}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-green-600">{formatCurrency(p.amount_paid)}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{METHOD_LABELS[p.payment_method ?? ''] ?? p.payment_method ?? '—'}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{p.payment_date ? formatDate(p.payment_date) : '—'}</td>
+                      <td className="px-4 py-3 text-center">
+                        {p.email_sent ? (
+                          <span className="text-green-600 text-xs font-medium">Enviado</span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
