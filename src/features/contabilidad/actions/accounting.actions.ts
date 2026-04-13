@@ -227,13 +227,11 @@ async function sendPaymentReceiptEmail(params: {
   concept: string
   clubId: string
 }) {
-  const { renderToBuffer } = await import('@react-pdf/renderer')
-  const { PaymentReceiptPDF } = await import('@/features/contabilidad/components/PaymentReceiptPDF')
-  const { createElement } = await import('react')
+  const { generateReceiptPDF } = await import('@/lib/pdf/generate-receipt')
 
   const receiptNumber = `REC-${params.paymentId.slice(0, 8).toUpperCase()}`
 
-  const pdfElement = createElement(PaymentReceiptPDF, {
+  const pdfBuffer = await generateReceiptPDF({
     playerName: params.playerName,
     teamName: params.teamName,
     amount: params.amount,
@@ -242,8 +240,6 @@ async function sendPaymentReceiptEmail(params: {
     concept: params.concept,
     receiptNumber,
   })
-
-  const pdfBuffer = await renderToBuffer(pdfElement)
 
   const { sendHtmlEmail } = await import('@/lib/email/send')
 
@@ -282,7 +278,7 @@ async function sendPaymentReceiptEmail(params: {
     `,
     attachments: [{
       filename: `Recibo_${params.playerName.replace(/\s+/g, '_')}_${params.date}.pdf`,
-      content: Buffer.from(pdfBuffer),
+      content: pdfBuffer,
       contentType: 'application/pdf',
     }],
   })
