@@ -92,83 +92,25 @@ export async function registerPayment(data: {
 
   if (movementError) return { success: false, error: movementError.message }
 
-  // Generate PDF receipt and send email
-  let emailSent = false
-  if (data.tutorEmail) {
-    try {
-      const { renderToBuffer } = await import('@react-pdf/renderer')
-      const { PaymentReceiptPDF } = await import('@/features/contabilidad/components/PaymentReceiptPDF')
-      const { createElement } = await import('react')
+  revalidatePath('/contabilidad/pagos')
 
-      const receiptNumber = `REC-${payment.id.slice(0, 8).toUpperCase()}`
-      const concept = data.concept ?? 'Cuota mensual'
-
-      const pdfElement = createElement(PaymentReceiptPDF, {
-        playerName: data.playerName,
-        teamName: data.teamName,
-        amount: data.amount,
-        method: dbMethod,
-        date: data.date,
-        concept,
-        receiptNumber,
-      })
-
-      const pdfBuffer = await renderToBuffer(pdfElement)
-
-      const { sendHtmlEmail } = await import('@/lib/email/send')
-
-      const formattedAmount = new Intl.NumberFormat('es-ES', {
-        style: 'currency',
-        currency: 'EUR',
-      }).format(data.amount)
-
-      const formattedDate = new Intl.DateTimeFormat('es-ES', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-      }).format(new Date(data.date))
-
-      await sendHtmlEmail({
-        to: data.tutorEmail,
-        subject: `Confirmacion de pago - ${data.playerName}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #1a1a1a;">Escuela de Futbol Ciudad de Getafe</h2>
-            <p>Estimada familia,</p>
-            <p>Le confirmamos que hemos recibido el pago correspondiente a <strong>${data.playerName}</strong> con los siguientes datos:</p>
-            <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Concepto:</td><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">${concept}</td></tr>
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Importe:</td><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold; color: #16a34a;">${formattedAmount}</td></tr>
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Fecha:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${formattedDate}</td></tr>
-              <tr><td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Equipo:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${data.teamName}</td></tr>
-            </table>
-            <p>Adjuntamos el justificante de pago en formato PDF para sus registros.</p>
-            <p>Muchas gracias por su confianza.</p>
-            <p style="margin-top: 20px; color: #666; font-size: 12px;">
-              Atentamente,<br/>
-              <strong>Escuela de Futbol Ciudad de Getafe</strong>
-            </p>
-          </div>
-        `,
-        attachments: [{
-          filename: `Recibo_${data.playerName.replace(/\s+/g, '_')}_${data.date}.pdf`,
-          content: Buffer.from(pdfBuffer),
-          contentType: 'application/pdf',
-        }],
-      })
-
-      emailSent = true
-
-      // Mark email as sent
-      await sb.from('quota_payments').update({ email_sent: true }).eq('id', payment.id)
-    } catch (err) {
-      console.error('[accounting] PDF/email error:', err)
-      // Payment registered successfully, email failed — not a fatal error
-    }
+  // Fire-and-forget: generate PDF receipt and send email in background
+  // This avoids blocking the UI while the PDF renders and email sends
+  if (data.tutorEmail && payment?.id) {
+    sendPaymentReceiptEmail({
+      paymentId: payment.id,
+      tutorEmail: data.tutorEmail,
+      playerName: data.playerName,
+      teamName: data.teamName,
+      amount: data.amount,
+      method: dbMethod,
+      date: data.date,
+      concept: data.concept ?? 'Cuota mensual',
+      clubId: data.clubId,
+    }).catch((err) => console.error('[accounting] Background email error:', err))
   }
 
-  revalidatePath('/contabilidad/pagos')
-  return { success: true, paymentId: payment?.id, emailSent }
+  return { success: true, paymentId: payment?.id }
 }
 
 export async function sendPendingReminders(playerIds: string[]) {
@@ -263,7 +205,83 @@ export async function closeCash(data: {
   return { success: true }
 }
 
-// Not a server action — not exported from this file. Use getCurrentSeason from currency utils.
+async function sendPaymentReceiptEmail(params: {
+  paymentId: string
+  tutorEmail: string
+  playerName: string
+  teamName: string
+  amount: number
+  method: string
+  date: string
+  concept: string
+  clubId: string
+}) {
+  const { renderToBuffer } = await import('@react-pdf/renderer')
+  const { PaymentReceiptPDF } = await import('@/features/contabilidad/components/PaymentReceiptPDF')
+  const { createElement } = await import('react')
+
+  const receiptNumber = `REC-${params.paymentId.slice(0, 8).toUpperCase()}`
+
+  const pdfElement = createElement(PaymentReceiptPDF, {
+    playerName: params.playerName,
+    teamName: params.teamName,
+    amount: params.amount,
+    method: params.method,
+    date: params.date,
+    concept: params.concept,
+    receiptNumber,
+  })
+
+  const pdfBuffer = await renderToBuffer(pdfElement)
+
+  const { sendHtmlEmail } = await import('@/lib/email/send')
+
+  const formattedAmount = new Intl.NumberFormat('es-ES', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(params.amount)
+
+  const formattedDate = new Intl.DateTimeFormat('es-ES', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(params.date))
+
+  await sendHtmlEmail({
+    to: params.tutorEmail,
+    subject: `Confirmacion de pago - ${params.playerName}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #1a1a1a;">Escuela de Futbol Ciudad de Getafe</h2>
+        <p>Estimada familia,</p>
+        <p>Le confirmamos que hemos recibido el pago correspondiente a <strong>${params.playerName}</strong> con los siguientes datos:</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Concepto:</td><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">${params.concept}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Importe:</td><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold; color: #16a34a;">${formattedAmount}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Fecha:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${formattedDate}</td></tr>
+          <tr><td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Equipo:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${params.teamName}</td></tr>
+        </table>
+        <p>Adjuntamos el justificante de pago en formato PDF para sus registros.</p>
+        <p>Muchas gracias por su confianza.</p>
+        <p style="margin-top: 20px; color: #666; font-size: 12px;">
+          Atentamente,<br/>
+          <strong>Escuela de Futbol Ciudad de Getafe</strong>
+        </p>
+      </div>
+    `,
+    attachments: [{
+      filename: `Recibo_${params.playerName.replace(/\s+/g, '_')}_${params.date}.pdf`,
+      content: Buffer.from(pdfBuffer),
+      contentType: 'application/pdf',
+    }],
+  })
+
+  // Mark email as sent in DB
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  await sb.from('quota_payments').update({ email_sent: true }).eq('id', params.paymentId)
+}
+
 function getCurrentSeason(): string {
   const now = new Date()
   const year = now.getFullYear()
