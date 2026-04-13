@@ -92,25 +92,36 @@ export async function registerPayment(data: {
 
   if (movementError) return { success: false, error: movementError.message }
 
-  revalidatePath('/contabilidad/pagos')
-
-  // Fire-and-forget: generate PDF receipt and send email in background
-  // This avoids blocking the UI while the PDF renders and email sends
+  // Send PDF receipt email — must await (Vercel kills serverless after response)
+  // Use a timeout so the UI doesn't hang forever if email is slow
+  let emailSent = false
   if (data.tutorEmail && payment?.id) {
-    sendPaymentReceiptEmail({
-      paymentId: payment.id,
-      tutorEmail: data.tutorEmail,
-      playerName: data.playerName,
-      teamName: data.teamName,
-      amount: data.amount,
-      method: dbMethod,
-      date: data.date,
-      concept: data.concept ?? 'Cuota mensual',
-      clubId: data.clubId,
-    }).catch((err) => console.error('[accounting] Background email error:', err))
+    try {
+      const emailPromise = sendPaymentReceiptEmail({
+        paymentId: payment.id,
+        tutorEmail: data.tutorEmail,
+        playerName: data.playerName,
+        teamName: data.teamName,
+        amount: data.amount,
+        method: dbMethod,
+        date: data.date,
+        concept: data.concept ?? 'Cuota mensual',
+        clubId: data.clubId,
+      })
+      // 15s timeout — enough for PDF + email, won't hang forever
+      const timeout = new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('Email timeout')), 15000)
+      )
+      await Promise.race([emailPromise, timeout])
+      emailSent = true
+    } catch (err) {
+      console.error('[accounting] PDF/email error:', err)
+      // Payment already registered — email failure is not fatal
+    }
   }
 
-  return { success: true, paymentId: payment?.id }
+  revalidatePath('/contabilidad/pagos')
+  return { success: true, paymentId: payment?.id, emailSent }
 }
 
 export async function sendPendingReminders(playerIds: string[]) {
