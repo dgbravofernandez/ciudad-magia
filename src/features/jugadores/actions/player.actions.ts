@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { sendHtmlEmail } from '@/lib/email/send'
+import { generateTrialLetterPDF } from '@/lib/pdf/generate-trial-letter'
 
 export async function updateInscriptionStatus(
   playerId: string,
@@ -625,7 +626,6 @@ export async function sendTrialLetter(
   // Generate PDF using pdf-lib (pure JS, no native deps — works on Vercel serverless)
   let pdfBuffer: Buffer | null = null
   try {
-    const { generateTrialLetterPDF } = await import('@/lib/pdf/generate-trial-letter')
     pdfBuffer = await generateTrialLetterPDF({
       clubName,
       playerName,

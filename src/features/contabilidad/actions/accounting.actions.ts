@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getClubId } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
+import { generateReceiptPDF } from '@/lib/pdf/generate-receipt'
+import { sendHtmlEmail } from '@/lib/email/send'
 
 // Map Spanish UI labels to DB enum values
 const METHOD_MAP: Record<string, string> = {
@@ -227,7 +229,7 @@ async function sendPaymentReceiptEmail(params: {
   concept: string
   clubId: string
 }) {
-  const { generateReceiptPDF } = await import('@/lib/pdf/generate-receipt')
+  console.log('[receipt] Starting PDF generation for', params.playerName)
 
   const receiptNumber = `REC-${params.paymentId.slice(0, 8).toUpperCase()}`
 
@@ -241,7 +243,7 @@ async function sendPaymentReceiptEmail(params: {
     receiptNumber,
   })
 
-  const { sendHtmlEmail } = await import('@/lib/email/send')
+  console.log('[receipt] PDF generated:', pdfBuffer.length, 'bytes')
 
   const formattedAmount = new Intl.NumberFormat('es-ES', {
     style: 'currency',
@@ -254,7 +256,9 @@ async function sendPaymentReceiptEmail(params: {
     year: 'numeric',
   }).format(new Date(params.date))
 
-  await sendHtmlEmail({
+  console.log('[receipt] Sending email to', params.tutorEmail)
+
+  const result = await sendHtmlEmail({
     to: params.tutorEmail,
     subject: `Confirmacion de pago - ${params.playerName}`,
     html: `
@@ -283,10 +287,13 @@ async function sendPaymentReceiptEmail(params: {
     }],
   })
 
-  // Mark email as sent in DB
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
-  await sb.from('quota_payments').update({ email_sent: true }).eq('id', params.paymentId)
+  console.log('[receipt] Email result:', result)
+
+  if (result.sent) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+    await sb.from('quota_payments').update({ email_sent: true }).eq('id', params.paymentId)
+  }
 }
 
 function getCurrentSeason(): string {
