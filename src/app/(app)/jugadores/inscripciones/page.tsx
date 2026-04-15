@@ -46,8 +46,11 @@ export default async function InscripcionesPage() {
       .from('players')
       .select('*, teams:team_id(id, name), next_team:next_team_id(id, name)')
       .eq('club_id', clubId)
-      .neq('status', 'low')
-      .order('last_name'),
+      // Include rows where status IS NULL or status != 'low'
+      // (PostgREST .neq excludes NULL values, so we use .or() instead)
+      .or('status.is.null,status.neq.low')
+      .order('last_name')
+      .limit(2000),
     sb
       .from('teams')
       .select('id, name')

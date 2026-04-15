@@ -126,6 +126,63 @@ export async function registerPayment(data: {
   return { success: true, paymentId: payment?.id, emailSent }
 }
 
+export async function deletePayment(paymentId: string) {
+  const { sb } = await resolveClubAndMember()
+
+  // Delete related cash_movement first (FK)
+  const { error: movementError } = await sb
+    .from('cash_movements')
+    .delete()
+    .eq('related_payment_id', paymentId)
+
+  if (movementError) return { success: false, error: movementError.message }
+
+  const { error } = await sb.from('quota_payments').delete().eq('id', paymentId)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/contabilidad/pagos')
+  return { success: true }
+}
+
+export async function updatePayment(data: {
+  paymentId: string
+  amount: number
+  method: string
+  date: string
+  notes: string
+}) {
+  const { sb } = await resolveClubAndMember()
+  const dbMethod = toDbMethod(data.method)
+
+  const { error: paymentError } = await sb
+    .from('quota_payments')
+    .update({
+      amount_due: data.amount,
+      amount_paid: data.amount,
+      payment_date: data.date,
+      payment_method: dbMethod,
+      notes: data.notes || null,
+    })
+    .eq('id', data.paymentId)
+
+  if (paymentError) return { success: false, error: paymentError.message }
+
+  // Update related cash_movement too
+  const { error: movementError } = await sb
+    .from('cash_movements')
+    .update({
+      amount: data.amount,
+      payment_method: dbMethod,
+      movement_date: data.date,
+    })
+    .eq('related_payment_id', data.paymentId)
+
+  if (movementError) return { success: false, error: movementError.message }
+
+  revalidatePath('/contabilidad/pagos')
+  return { success: true }
+}
+
 export async function sendPendingReminders(playerIds: string[]) {
   const { sb, clubId, memberId } = await resolveClubAndMember()
 

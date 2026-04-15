@@ -415,7 +415,9 @@ export async function previewInscriptionSync(
       .from('players')
       .select('id, first_name, last_name, tutor_email, forms_link, wants_to_continue')
       .eq('club_id', clubId)
-      .eq('status', 'active')
+      // Include all non-low players (status NULL or not 'low')
+      .or('status.is.null,status.neq.low')
+      .limit(2000)
 
     if (!players?.length) return { matches: [], unmatched: 0, error: 'no_players' }
 

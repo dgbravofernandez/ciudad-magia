@@ -14,10 +14,18 @@ import {
   Mail,
   ShieldAlert,
   Receipt,
+  Pencil,
+  Trash2,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatDate } from '@/lib/utils/currency'
-import { registerPayment, sendPendingReminders } from '@/features/contabilidad/actions/accounting.actions'
+import {
+  registerPayment,
+  sendPendingReminders,
+  deletePayment,
+  updatePayment,
+} from '@/features/contabilidad/actions/accounting.actions'
 
 interface PlayerRow {
   id: string
@@ -40,6 +48,7 @@ interface Payment {
   notes: string | null
   created_at: string
   concept: string | null
+  email_sent?: boolean | null
 }
 
 interface Props {
@@ -85,6 +94,11 @@ export function PaymentRegistration({
   const [selectedMethod, setSelectedMethod] = useState<string>('cash')
   const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null)
+  const [editAmount, setEditAmount] = useState('')
+  const [editDate, setEditDate] = useState('')
+  const [editMethod, setEditMethod] = useState('cash')
+  const [editNotes, setEditNotes] = useState('')
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -220,6 +234,58 @@ export function PaymentRegistration({
         setExpandedPlayerId(null)
       } else {
         toast.error(result.error ?? 'Error al registrar el pago')
+      }
+    })
+  }
+
+  function openEditModal(p: Payment) {
+    setEditingPayment(p)
+    setEditAmount(p.amount_paid.toString())
+    setEditDate(p.payment_date ?? today)
+    setEditMethod(p.payment_method ?? 'cash')
+    setEditNotes(p.notes ?? '')
+  }
+
+  function closeEditModal() {
+    setEditingPayment(null)
+  }
+
+  function handleUpdatePayment() {
+    if (!editingPayment) return
+    const amount = parseFloat(editAmount)
+    if (!amount || amount <= 0) {
+      toast.error('Introduce un importe valido')
+      return
+    }
+    startTransition(async () => {
+      const result = await updatePayment({
+        paymentId: editingPayment.id,
+        amount,
+        method: editMethod,
+        date: editDate,
+        notes: editNotes,
+      })
+      if (result.success) {
+        toast.success('Pago modificado correctamente')
+        closeEditModal()
+      } else {
+        toast.error(result.error ?? 'Error al modificar el pago')
+      }
+    })
+  }
+
+  function handleDeletePayment(p: Payment) {
+    const player = playerMap[p.player_id]
+    const name = player ? `${player.first_name} ${player.last_name}` : 'este jugador'
+    if (!confirm(`Borrar el pago de ${formatCurrency(p.amount_paid)} de ${name}? Esta accion no se puede deshacer.`)) {
+      return
+    }
+    startTransition(async () => {
+      const result = await deletePayment(p.id)
+      if (result.success) {
+        toast.success('Pago borrado correctamente')
+      } else {
+        toast.error(result.error ?? 'Error al borrar el pago')
       }
     })
   }
@@ -499,6 +565,9 @@ export function PaymentRegistration({
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Forma pago</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Fecha</th>
                   <th className="text-center px-4 py-3 font-medium text-muted-foreground">Recibo</th>
+                  {canRegisterPayments && (
+                    <th className="text-center px-4 py-3 font-medium text-muted-foreground">Acciones</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -521,6 +590,30 @@ export function PaymentRegistration({
                           <span className="text-muted-foreground text-xs">—</span>
                         )}
                       </td>
+                      {canRegisterPayments && (
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => openEditModal(p)}
+                              className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                              title="Modificar pago"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => handleDeletePayment(p)}
+                              className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
+                              title="Borrar pago"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   )
                 })}
@@ -599,6 +692,110 @@ export function PaymentRegistration({
           </table>
         </div>
       </div>
+
+      {/* Edit payment modal */}
+      {editingPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeEditModal}>
+          <div
+            className="bg-background rounded-xl shadow-xl w-full max-w-md p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Modificar pago</h3>
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="p-1 rounded hover:bg-muted text-muted-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {(() => {
+              const player = playerMap[editingPayment.player_id]
+              return player ? (
+                <p className="text-sm text-muted-foreground">
+                  {player.first_name} {player.last_name} — {player.teams?.name ?? 'Sin equipo'}
+                </p>
+              ) : null
+            })()}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="label">Importe</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="input w-full"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="label">Fecha</label>
+                <input
+                  type="date"
+                  className="input w-full"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="label">Forma de pago</label>
+              <div className="grid grid-cols-3 gap-2">
+                {PAYMENT_METHODS.map((m) => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => setEditMethod(m.value)}
+                    className={cn(
+                      'p-2 rounded-lg border text-sm font-medium transition-colors',
+                      editMethod === m.value
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:border-muted-foreground'
+                    )}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="label">Notas</label>
+              <input
+                type="text"
+                className="input w-full"
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="Observaciones..."
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="btn-secondary flex-1"
+                disabled={isPending}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdatePayment}
+                className="btn-primary flex-1"
+                disabled={isPending}
+              >
+                {isPending ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
