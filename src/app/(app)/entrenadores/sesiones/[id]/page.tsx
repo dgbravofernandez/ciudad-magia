@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
-import { headers } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubContext } from '@/lib/supabase/get-club-id'
 import { Topbar } from '@/components/layout/Topbar'
 import { AttendanceGrid } from '@/features/entrenadores/components/AttendanceGrid'
 import { SessionExercisePicker } from '@/features/entrenadores/components/SessionExercisePicker'
@@ -11,16 +11,16 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Sesion' }
 
+export const dynamic = 'force-dynamic'
+
 export default async function SessionDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-
-  const supabase = await createClient()
+  const { clubId } = await getClubContext()
+  const supabase = createAdminClient()
 
   const { data: session } = await supabase
     .from('sessions')
@@ -49,7 +49,7 @@ export default async function SessionDetailPage({
           .eq('team_id', session.team_id)
           .or('status.is.null,status.neq.low')
           .order('last_name')
-      : Promise.resolve({ data: [] as any[] }),
+      : Promise.resolve({ data: [] as any[] }), // eslint-disable-line @typescript-eslint/no-explicit-any
     // Get existing attendance
     supabase
       .from('session_attendance')
@@ -91,6 +91,7 @@ export default async function SessionDetailPage({
   const isCompleted = !session.is_live && Object.keys(attendanceMap).length > 0
 
   // Session objectives
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const objectives: string[] = (session as any).objectives ?? []
 
   return (
@@ -102,11 +103,14 @@ export default async function SessionDetailPage({
           <div className="flex items-start justify-between flex-wrap gap-3">
             <div>
               <h2 className="text-xl font-semibold">
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                 {(session as any).teams?.name ?? 'Equipo'} — {typeLabel[session.session_type] ?? session.session_type}
               </h2>
               <p className="text-muted-foreground mt-1">{formatDate(session.session_date)}</p>
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               {(session as any).end_time && (
                 <p className="text-sm text-muted-foreground">
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   Fin: {(session as any).end_time}
                 </p>
               )}

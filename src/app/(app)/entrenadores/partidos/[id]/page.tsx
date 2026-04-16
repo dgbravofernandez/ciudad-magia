@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
-import { headers } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubContext } from '@/lib/supabase/get-club-id'
 import { Topbar } from '@/components/layout/Topbar'
 import { LiveMatch } from '@/features/entrenadores/components/LiveMatch'
 import { notFound } from 'next/navigation'
@@ -7,16 +7,16 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Partido' }
 
+export const dynamic = 'force-dynamic'
+
 export default async function PartidoDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-
-  const supabase = await createClient()
+  const { clubId } = await getClubContext()
+  const supabase = createAdminClient()
 
   const { data: session } = await supabase
     .from('sessions')

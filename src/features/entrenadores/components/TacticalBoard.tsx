@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { Stage, Layer, Rect, Circle, Line, Arc, Text, Arrow, RegularPolygon } from 'react-konva'
 
 /* ------------------------------------------------------------------ */
@@ -85,6 +85,11 @@ interface TacticalBoardProps {
   onExport?: (dataUrl: string) => void
 }
 
+export interface TacticalBoardHandle {
+  /** Returns a PNG data URL of the current canvas (or null if no shapes drawn). */
+  exportImage: () => string | null
+}
+
 /* ------------------------------------------------------------------ */
 /*  PITCH DRAWING HELPERS                                              */
 /* ------------------------------------------------------------------ */
@@ -154,7 +159,10 @@ function HalfPitch() {
 /*  COMPONENT                                                          */
 /* ------------------------------------------------------------------ */
 
-export function TacticalBoard({ onExport }: TacticalBoardProps) {
+export const TacticalBoard = forwardRef<TacticalBoardHandle, TacticalBoardProps>(function TacticalBoard(
+  { onExport },
+  ref,
+) {
   const stageRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [tool, setTool] = useState<Tool>('player_naranja')
   const [shapes, setShapes] = useState<Shape[]>([])
@@ -247,6 +255,21 @@ export function TacticalBoard({ onExport }: TacticalBoardProps) {
     const dataUrl = stageRef.current.toDataURL({ pixelRatio: 2 })
     onExport(dataUrl)
   }
+
+  // Expose imperative export so parent can grab the image at submit time
+  // (avoids requiring the user to remember clicking "Exportar imagen")
+  useImperativeHandle(ref, () => ({
+    exportImage: () => {
+      if (!stageRef.current) return null
+      // Only export if there is actually something drawn beyond the empty pitch
+      if (shapes.length === 0) return null
+      try {
+        return stageRef.current.toDataURL({ pixelRatio: 2 })
+      } catch {
+        return null
+      }
+    },
+  }), [shapes.length])
 
   const isDraw = tool === 'arrow_solid' || tool === 'arrow_dashed'
 
@@ -589,4 +612,5 @@ export function TacticalBoard({ onExport }: TacticalBoardProps) {
       </div>
     </div>
   )
-}
+})
+TacticalBoard.displayName = 'TacticalBoard'

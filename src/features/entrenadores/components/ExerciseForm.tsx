@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
 import { createExercise } from '@/features/entrenadores/actions/session.actions'
+import type { TacticalBoardHandle } from './TacticalBoard'
 
 // Dynamically import TacticalBoard to avoid SSR issues with Konva
 const TacticalBoard = dynamic(
@@ -27,6 +28,7 @@ export function ExerciseForm({ categories }: ExerciseFormProps) {
   const [isPending, startTransition] = useTransition()
   const [canvasImageUrl, setCanvasImageUrl] = useState<string>('')
   const formRef = useRef<HTMLFormElement>(null)
+  const boardRef = useRef<TacticalBoardHandle>(null)
 
   function handleExport(dataUrl: string) {
     setCanvasImageUrl(dataUrl)
@@ -37,9 +39,15 @@ export function ExerciseForm({ categories }: ExerciseFormProps) {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
 
-    // Attach canvas image if available
-    if (canvasImageUrl) {
-      formData.set('canvas_image_url', canvasImageUrl)
+    // Auto-export the tactical board image at submit time so the user
+    // doesn't need to remember clicking "Exportar imagen" first.
+    let imageToSave = canvasImageUrl
+    if (!imageToSave && boardRef.current) {
+      const auto = boardRef.current.exportImage()
+      if (auto) imageToSave = auto
+    }
+    if (imageToSave) {
+      formData.set('canvas_image_url', imageToSave)
     }
 
     startTransition(async () => {
@@ -48,6 +56,7 @@ export function ExerciseForm({ categories }: ExerciseFormProps) {
         toast.success('Ejercicio guardado correctamente')
         router.push(`/entrenadores/ejercicios`)
       } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         toast.error((result as any).error ?? 'Error al guardar el ejercicio')
       }
     })
@@ -223,7 +232,7 @@ export function ExerciseForm({ categories }: ExerciseFormProps) {
           )}
         </div>
 
-        <TacticalBoard onExport={handleExport} />
+        <TacticalBoard ref={boardRef} onExport={handleExport} />
 
         {canvasImageUrl && (
           <input type="hidden" name="canvas_image_url" value={canvasImageUrl} />

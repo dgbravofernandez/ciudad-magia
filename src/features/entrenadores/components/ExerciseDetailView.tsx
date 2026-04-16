@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
+import type { TacticalBoardHandle } from './TacticalBoard'
 import {
   ArrowLeft,
   Pencil,
@@ -69,6 +70,7 @@ export function ExerciseDetailView({
   const [isPending, startTransition] = useTransition()
   const [isEditing, setIsEditing] = useState(false)
   const [canvasImageUrl, setCanvasImageUrl] = useState(exercise.canvas_image_url ?? '')
+  const boardRef = useRef<TacticalBoardHandle>(null)
 
   function handleDelete() {
     if (!confirm('Eliminar este ejercicio permanentemente?')) return
@@ -91,9 +93,18 @@ export function ExerciseDetailView({
   function handleSubmitEdit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
-    if (canvasImageUrl) {
-      formData.set('canvas_image_url', canvasImageUrl)
+
+    // Auto-export the tactical board image at submit time so the user
+    // doesn't need to remember clicking "Exportar imagen" first.
+    let imageToSave = canvasImageUrl
+    if (boardRef.current) {
+      const auto = boardRef.current.exportImage()
+      if (auto) imageToSave = auto
     }
+    if (imageToSave) {
+      formData.set('canvas_image_url', imageToSave)
+    }
+
     startTransition(async () => {
       const result = await updateExercise(exercise.id, formData)
       if (result.success) {
@@ -277,7 +288,7 @@ export function ExerciseDetailView({
               )}
             </div>
 
-            <TacticalBoard onExport={handleExport} />
+            <TacticalBoard ref={boardRef} onExport={handleExport} />
 
             {canvasImageUrl && (
               <input type="hidden" name="canvas_image_url" value={canvasImageUrl} />

@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
-import { headers } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubContext } from '@/lib/supabase/get-club-id'
 import { Topbar } from '@/components/layout/Topbar'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
@@ -9,13 +9,11 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Partidos' }
 
-export default async function PartidosPage() {
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-  const memberRoles = JSON.parse(headersList.get('x-user-roles') ?? '[]') as string[]
-  const memberId = headersList.get('x-member-id')!
+export const dynamic = 'force-dynamic'
 
-  const supabase = await createClient()
+export default async function PartidosPage() {
+  const { clubId, memberId, roles: memberRoles } = await getClubContext()
+  const supabase = createAdminClient()
 
   let query = supabase
     .from('sessions')
