@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
-import { headers } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubContext } from '@/lib/supabase/get-club-id'
 import { notFound } from 'next/navigation'
 import { Topbar } from '@/components/layout/Topbar'
 import { ExerciseDetailView } from '@/features/entrenadores/components/ExerciseDetailView'
@@ -13,15 +13,10 @@ interface Props {
 
 export default async function ExerciseDetailPage({ params }: Props) {
   const { id } = await params
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-  const memberId = headersList.get('x-member-id')!
-  const rolesRaw = headersList.get('x-user-roles') ?? '[]'
-  const roles = JSON.parse(rolesRaw) as string[]
+  const { clubId, memberId, roles } = await getClubContext()
+  const supabase = createAdminClient()
 
   const isAdmin = roles.some((r) => ['admin', 'direccion'].includes(r))
-
-  const supabase = await createClient()
 
   const [{ data: exercise }, { data: categories }] = await Promise.all([
     supabase

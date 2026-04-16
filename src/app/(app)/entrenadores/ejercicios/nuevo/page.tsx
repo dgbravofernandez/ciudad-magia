@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
-import { headers } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubContext } from '@/lib/supabase/get-club-id'
 import { Topbar } from '@/components/layout/Topbar'
 import { ExerciseForm } from '@/features/entrenadores/components/ExerciseForm'
 import type { Metadata } from 'next'
@@ -7,10 +7,8 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = { title: 'Nuevo Ejercicio' }
 
 export default async function NuevoEjercicioPage() {
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-
-  const supabase = await createClient()
+  const { clubId } = await getClubContext()
+  const supabase = createAdminClient()
 
   const { data: categories } = await supabase
     .from('exercise_categories')

@@ -1,14 +1,12 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubContext } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
-import { headers } from 'next/headers'
 
 export async function createSession(formData: FormData) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-  const memberId = headersList.get('x-member-id')!
+  const { clubId, memberId } = await getClubContext()
 
   const sessionType = formData.get('session_type') as string
   const teamIdRaw = (formData.get('team_id') as string) || ''
@@ -74,8 +72,7 @@ export async function updateSessionAttendance(
   attendance: AttendanceRecord[]
 ) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
+  const { clubId } = await getClubContext()
 
   // Verify session belongs to club
   const { data: session } = await supabase
@@ -85,7 +82,7 @@ export async function updateSessionAttendance(
     .eq('club_id', clubId)
     .single()
 
-  if (!session) return { success: false, error: 'Sesión no encontrada' }
+  if (!session) return { success: false, error: 'Sesion no encontrada' }
 
   const records = attendance.map((a) => ({
     session_id: sessionId,
@@ -120,8 +117,7 @@ export interface MatchEvent {
 
 export async function addMatchEvent(sessionId: string, event: MatchEvent) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
+  const { clubId } = await getClubContext()
 
   const { data: session } = await supabase
     .from('sessions')
@@ -130,7 +126,7 @@ export async function addMatchEvent(sessionId: string, event: MatchEvent) {
     .eq('club_id', clubId)
     .single()
 
-  if (!session) return { success: false, error: 'Sesión no encontrada' }
+  if (!session) return { success: false, error: 'Sesion no encontrada' }
 
   const { data: matchEvent, error } = await supabase
     .from('match_events')
@@ -167,8 +163,7 @@ export async function addMatchEvent(sessionId: string, event: MatchEvent) {
 
 export async function completeSession(sessionId: string) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
+  const { clubId } = await getClubContext()
 
   const { data: session } = await supabase
     .from('sessions')
@@ -177,7 +172,7 @@ export async function completeSession(sessionId: string) {
     .eq('club_id', clubId)
     .single()
 
-  if (!session) return { success: false, error: 'Sesión no encontrada' }
+  if (!session) return { success: false, error: 'Sesion no encontrada' }
 
   // Mark session as completed (not live)
   const { error } = await supabase
@@ -247,9 +242,7 @@ function parseInt0(v: FormDataEntryValue | null): number | null {
 
 export async function createExercise(formData: FormData) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-  const memberId = headersList.get('x-member-id')!
+  const { clubId, memberId } = await getClubContext()
 
   const tagsRaw = formData.get('objective_tags') as string
   const tags = tagsRaw ? tagsRaw.split(',').map((t) => t.trim()).filter(Boolean) : []
@@ -286,11 +279,7 @@ export async function createExercise(formData: FormData) {
 
 export async function updateExercise(exerciseId: string, formData: FormData) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-  const memberId = headersList.get('x-member-id')!
-  const rolesRaw = headersList.get('x-user-roles') ?? '[]'
-  const roles = JSON.parse(rolesRaw) as string[]
+  const { clubId, memberId, roles } = await getClubContext()
   const isAdmin = roles.some((r) => ['admin', 'direccion'].includes(r))
 
   // Ownership check: only author or admin can edit
@@ -342,11 +331,7 @@ export async function updateExercise(exerciseId: string, formData: FormData) {
 
 export async function deleteExercise(exerciseId: string) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-  const memberId = headersList.get('x-member-id')!
-  const rolesRaw = headersList.get('x-user-roles') ?? '[]'
-  const roles = JSON.parse(rolesRaw) as string[]
+  const { clubId, memberId, roles } = await getClubContext()
   const isAdmin = roles.some((r) => ['admin', 'direccion'].includes(r))
 
   const { data: existing } = await supabase
@@ -370,8 +355,7 @@ export async function deleteExercise(exerciseId: string) {
 
 export async function toggleExerciseFavorite(exerciseId: string) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const memberId = headersList.get('x-member-id')!
+  const { memberId } = await getClubContext()
 
   // Check if already favorited
   const { data: existing } = await supabase
@@ -402,13 +386,10 @@ export async function toggleExerciseFavorite(exerciseId: string) {
 
 export async function createExerciseCategory(name: string, color: string) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-  const rolesRaw = headersList.get('x-user-roles') ?? '[]'
-  const roles = JSON.parse(rolesRaw) as string[]
+  const { clubId, roles } = await getClubContext()
   const canCreate = roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))
 
-  if (!canCreate) return { success: false, error: 'Solo admin/dirección/director deportivo puede crear categorías' }
+  if (!canCreate) return { success: false, error: 'Solo admin/direccion/director deportivo puede crear categorias' }
   if (!name.trim()) return { success: false, error: 'Nombre requerido' }
 
   // Compute next sort_order
@@ -434,10 +415,7 @@ export async function createExerciseCategory(name: string, color: string) {
 
 export async function deleteExerciseCategory(categoryId: string) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-  const rolesRaw = headersList.get('x-user-roles') ?? '[]'
-  const roles = JSON.parse(rolesRaw) as string[]
+  const { clubId, roles } = await getClubContext()
   const canDelete = roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))
 
   if (!canDelete) return { success: false, error: 'No tienes permiso' }
@@ -461,8 +439,7 @@ export async function addSessionExercise(
   notes?: string
 ) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
+  const { clubId } = await getClubContext()
 
   const { data: session } = await supabase
     .from('sessions')
@@ -489,8 +466,7 @@ export async function addSessionExercise(
 
 export async function removeSessionExercise(sessionId: string, slotOrder: number) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
+  const { clubId } = await getClubContext()
 
   const { data: session } = await supabase
     .from('sessions')
@@ -515,8 +491,7 @@ export async function removeSessionExercise(sessionId: string, slotOrder: number
 
 export async function updateSessionObjectives(sessionId: string, objectives: string[]) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
+  const { clubId } = await getClubContext()
 
   const { error } = await supabase
     .from('sessions')
@@ -535,8 +510,7 @@ export async function updatePlayerBibs(
   assignments: { player_id: string; group_color: 'orange' | 'pink' | 'white' | null; is_goalkeeper: boolean }[]
 ) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
+  const { clubId } = await getClubContext()
 
   const { data: session } = await supabase
     .from('sessions')
@@ -575,9 +549,7 @@ export async function saveScoutingReport(
   }
 ) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-  const memberId = headersList.get('x-member-id')!
+  const { clubId, memberId } = await getClubContext()
 
   const { error } = await supabase.from('scouting_reports').insert({
     club_id: clubId,
@@ -597,9 +569,7 @@ export async function saveScoutingReport(
 
 export async function createObservation(formData: FormData) {
   const supabase = createAdminClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-  const memberId = headersList.get('x-member-id')!
+  const { clubId, memberId } = await getClubContext()
 
   const playerRatingsRaw = formData.get('player_ratings') as string
   const playerRatings = playerRatingsRaw ? JSON.parse(playerRatingsRaw) : null
