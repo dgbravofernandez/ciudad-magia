@@ -1,23 +1,21 @@
-import { createClient } from '@/lib/supabase/server'
-import { headers } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubContext } from '@/lib/supabase/get-club-id'
 import { Topbar } from '@/components/layout/Topbar'
 import { ExerciseRepository } from '@/features/entrenadores/components/ExerciseRepository'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Ejercicios' }
 
+export const dynamic = 'force-dynamic'
+
 export default async function EjerciciosPage() {
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-  const memberId = headersList.get('x-member-id')!
-  const rolesRaw = headersList.get('x-user-roles') ?? '[]'
-  const roles = JSON.parse(rolesRaw) as string[]
+  const { clubId, memberId, roles } = await getClubContext()
 
   const canManageCategories = roles.some((r) =>
     ['admin', 'direccion', 'director_deportivo'].includes(r)
   )
 
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const [{ data: categories }, { data: exercises }] = await Promise.all([
     supabase
@@ -44,7 +42,7 @@ export default async function EjerciciosPage() {
       .from('exercise_favorites')
       .select('exercise_id')
       .eq('member_id', memberId)
-    favoriteIds = (favRows ?? []).map((r: any) => r.exercise_id) // eslint-disable-line @typescript-eslint/no-explicit-any
+    favoriteIds = (favRows ?? []).map((r: { exercise_id: string }) => r.exercise_id)
   } catch {
     // Table doesn't exist yet — gracefully ignore
   }
