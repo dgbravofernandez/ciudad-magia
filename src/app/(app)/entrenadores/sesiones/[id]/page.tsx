@@ -5,6 +5,7 @@ import { AttendanceGrid } from '@/features/entrenadores/components/AttendanceGri
 import { SessionExercisePicker } from '@/features/entrenadores/components/SessionExercisePicker'
 import { PlayerBibDistribution } from '@/features/entrenadores/components/PlayerBibDistribution'
 import { SessionObjectives } from '@/features/entrenadores/components/SessionObjectives'
+import { SessionPlanningHeader } from '@/features/entrenadores/components/SessionPlanningHeader'
 import { notFound } from 'next/navigation'
 import { formatDate } from '@/lib/utils/currency'
 import type { Metadata } from 'next'
@@ -130,6 +131,16 @@ export default async function SessionDetailPage({
             </div>
           )}
         </div>
+
+        {/* Planning + PDF export */}
+        <SessionPlanningHeader
+          sessionId={id}
+          /* eslint-disable @typescript-eslint/no-explicit-any */
+          microcycle={(session as any).microcycle ?? null}
+          macrocycle={(session as any).macrocycle ?? null}
+          sessionNumber={(session as any).session_number ?? null}
+          /* eslint-enable @typescript-eslint/no-explicit-any */
+        />
 
         {/* Objectives */}
         <SessionObjectives

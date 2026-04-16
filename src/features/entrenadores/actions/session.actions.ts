@@ -489,6 +489,36 @@ export async function removeSessionExercise(sessionId: string, slotOrder: number
   return { success: true }
 }
 
+export async function updateSessionPlanning(
+  sessionId: string,
+  data: { microcycle?: string | null; macrocycle?: string | null; session_number?: number | null },
+) {
+  const supabase = createAdminClient()
+  const { clubId } = await getClubContext()
+
+  const update: Record<string, string | number | null> = {}
+  if (data.microcycle !== undefined) update.microcycle = data.microcycle?.trim() || null
+  if (data.macrocycle !== undefined) update.macrocycle = data.macrocycle?.trim() || null
+  if (data.session_number !== undefined) {
+    update.session_number = data.session_number === null || Number.isNaN(data.session_number)
+      ? null
+      : Number(data.session_number)
+  }
+
+  if (Object.keys(update).length === 0) return { success: true }
+
+  const { error } = await supabase
+    .from('sessions')
+    .update(update)
+    .eq('id', sessionId)
+    .eq('club_id', clubId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath(`/entrenadores/sesiones/${sessionId}`)
+  return { success: true }
+}
+
 export async function updateSessionObjectives(sessionId: string, objectives: string[]) {
   const supabase = createAdminClient()
   const { clubId } = await getClubContext()
