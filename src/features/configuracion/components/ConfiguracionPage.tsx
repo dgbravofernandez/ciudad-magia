@@ -3,8 +3,9 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import {
   Users, DollarSign, Calendar, UserCog, Mail, Trophy, Shirt,
-  Settings, Package, Shield, Save, ChevronRight
+  Settings, Package, Shield, Save, ChevronRight, CalendarRange
 } from 'lucide-react'
+import { SeasonManagement } from './SeasonManagement'
 
 const MODULOS = [
   { key: 'jugadores', label: 'Jugadores', desc: 'Gestión de plantilla, inscripciones y fichajes', icon: Users },
@@ -29,7 +30,7 @@ interface Props {
 }
 
 export function ConfiguracionPage({ settings, members, clubId }: Props) {
-  const [tab, setTab] = useState<'general' | 'modulos' | 'usuarios'>('general')
+  const [tab, setTab] = useState<'general' | 'modulos' | 'usuarios' | 'temporada'>('general')
   const [primaryColor, setPrimaryColor] = useState((settings?.primary_color as string) ?? '#3b82f6')
   const [siblingDiscount, setSiblingDiscount] = useState((settings?.sibling_discount_enabled as boolean) ?? false)
   const [siblingPercent, setSiblingPercent] = useState((settings?.sibling_discount_percent as number) ?? 40)
@@ -42,6 +43,7 @@ export function ConfiguracionPage({ settings, members, clubId }: Props) {
     { key: 'general', label: 'Ajustes generales', icon: Settings },
     { key: 'modulos', label: 'Módulos', icon: Package },
     { key: 'usuarios', label: 'Usuarios y roles', icon: Shield },
+    { key: 'temporada', label: 'Temporada', icon: CalendarRange },
   ] as const
 
   return (
@@ -143,6 +145,8 @@ export function ConfiguracionPage({ settings, members, clubId }: Props) {
           </div>
         </div>
       )}
+
+      {tab === 'temporada' && <SeasonManagement />}
     </div>
   )
 }
