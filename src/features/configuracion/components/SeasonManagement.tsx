@@ -22,9 +22,15 @@ export function SeasonManagement() {
   const [isPending, startTransition] = useTransition()
   const [done, setDone] = useState<{ nextSeason: string; teamsCreated: number; playersUpdated: number } | null>(null)
 
+  const [loadError, setLoadError] = useState<string | null>(null)
+
   useEffect(() => {
     getSeasonPreview()
       .then((p) => setPreview(p))
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : 'Error desconocido'
+        setLoadError(msg)
+      })
       .finally(() => setLoadingPreview(false))
   }, [])
 
@@ -122,6 +128,27 @@ export function SeasonManagement() {
       <div className="animate-pulse space-y-4">
         <div className="h-8 bg-muted rounded w-48" />
         <div className="h-32 bg-muted rounded" />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="card p-6 max-w-xl border-amber-200 bg-amber-50 space-y-2">
+        <div className="flex items-center gap-2 text-amber-700">
+          <AlertTriangle className="w-5 h-5" />
+          <p className="font-semibold">Migración pendiente</p>
+        </div>
+        <p className="text-sm text-amber-700">
+          La gestión de temporada requiere la migración <code className="bg-amber-100 px-1.5 py-0.5 rounded text-xs">009_season_management.sql</code>.
+        </p>
+        <p className="text-xs text-amber-600 mt-2">
+          Aplica este SQL en Supabase y recarga la página:
+        </p>
+        <pre className="text-xs bg-white border border-amber-200 rounded p-2 overflow-x-auto">
+ALTER TABLE club_settings ADD COLUMN IF NOT EXISTS current_season TEXT DEFAULT &apos;2025/26&apos;;
+        </pre>
+        <p className="text-xs text-muted-foreground mt-2 break-all">Detalle: {loadError}</p>
       </div>
     )
   }
