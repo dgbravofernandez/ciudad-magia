@@ -9,10 +9,17 @@ export const metadata: Metadata = { title: 'Ejercicios' }
 export default async function EjerciciosPage() {
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
+  const memberId = headersList.get('x-member-id')!
+  const rolesRaw = headersList.get('x-user-roles') ?? '[]'
+  const roles = JSON.parse(rolesRaw) as string[]
+
+  const canManageCategories = roles.some((r) =>
+    ['admin', 'direccion', 'director_deportivo'].includes(r)
+  )
 
   const supabase = await createClient()
 
-  const [{ data: categories }, { data: exercises }] = await Promise.all([
+  const [{ data: categories }, { data: exercises }, { data: favRows }] = await Promise.all([
     supabase
       .from('exercise_categories')
       .select('*')
@@ -28,7 +35,13 @@ export default async function EjerciciosPage() {
       .eq('club_id', clubId)
       .order('created_at', { ascending: false })
       .limit(200),
+    supabase
+      .from('exercise_favorites')
+      .select('exercise_id')
+      .eq('member_id', memberId),
   ])
+
+  const favoriteIds = (favRows ?? []).map((r) => r.exercise_id)
 
   return (
     <div className="flex flex-col h-full">
@@ -37,6 +50,8 @@ export default async function EjerciciosPage() {
         <ExerciseRepository
           exercises={exercises ?? []}
           categories={categories ?? []}
+          favoriteIds={favoriteIds}
+          canManageCategories={canManageCategories}
         />
       </div>
     </div>

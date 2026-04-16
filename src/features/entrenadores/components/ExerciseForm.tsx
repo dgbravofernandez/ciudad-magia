@@ -103,6 +103,21 @@ export function ExerciseForm({ categories }: ExerciseFormProps) {
           )}
         </div>
 
+        {/* Subcategory (free text) */}
+        <div className="space-y-1">
+          <label className="label" htmlFor="subcategory">
+            Subcategoría
+            <span className="text-muted-foreground font-normal ml-1">(texto libre)</span>
+          </label>
+          <input
+            id="subcategory"
+            name="subcategory"
+            type="text"
+            placeholder="Ej: Salida de balón, Rondo 4v2, Finalización 1v1..."
+            className="input w-full"
+          />
+        </div>
+
         {/* Description */}
         <div className="space-y-1">
           <label className="label" htmlFor="description">Descripción</label>
@@ -112,6 +127,55 @@ export function ExerciseForm({ categories }: ExerciseFormProps) {
             rows={4}
             placeholder="Describe el ejercicio, objetivos, variantes..."
             className="input w-full resize-none"
+          />
+        </div>
+
+        {/* Duration + players grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <label className="label" htmlFor="duration_min">Duración (min)</label>
+            <input
+              id="duration_min"
+              name="duration_min"
+              type="number"
+              min="0"
+              placeholder="15"
+              className="input w-full"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="label" htmlFor="players_min">Jugadores mín.</label>
+            <input
+              id="players_min"
+              name="players_min"
+              type="number"
+              min="0"
+              placeholder="6"
+              className="input w-full"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="label" htmlFor="players_max">Jugadores máx.</label>
+            <input
+              id="players_max"
+              name="players_max"
+              type="number"
+              min="0"
+              placeholder="12"
+              className="input w-full"
+            />
+          </div>
+        </div>
+
+        {/* Material */}
+        <div className="space-y-1">
+          <label className="label" htmlFor="material">Material necesario</label>
+          <input
+            id="material"
+            name="material"
+            type="text"
+            placeholder="Ej: 8 conos, 4 petos, 2 porterías, 6 balones..."
+            className="input w-full"
           />
         </div>
 

@@ -13,8 +13,16 @@ export async function createSession(formData: FormData) {
   const sessionType = formData.get('session_type') as string
   const teamIdRaw = (formData.get('team_id') as string) || ''
   const sessionDate = formData.get('session_date') as string
+  const endTimeRaw = (formData.get('end_time') as string) || null
   const opponent = (formData.get('opponent') as string) || null
   const notesRaw = (formData.get('notes') as string) || null
+
+  // Objectives: comma-separated free list
+  const objectivesRaw = (formData.get('objectives') as string) || ''
+  const objectives = objectivesRaw
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
 
   // If teamIdRaw is not a UUID, it's a manual team name — store in notes
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -29,6 +37,8 @@ export async function createSession(formData: FormData) {
       team_id: teamId,
       session_type: sessionType,
       session_date: sessionDate,
+      end_time: endTimeRaw || null,
+      objectives,
       opponent,
       notes,
       logged_by: memberId,
@@ -224,6 +234,13 @@ export async function completeSession(sessionId: string) {
   return { success: true }
 }
 
+function parseInt0(v: FormDataEntryValue | null): number | null {
+  const s = (v as string) ?? ''
+  if (!s.trim()) return null
+  const n = parseInt(s, 10)
+  return Number.isFinite(n) ? n : null
+}
+
 export async function createExercise(formData: FormData) {
   const supabase = await createClient()
   const headersList = await headers()
@@ -243,6 +260,11 @@ export async function createExercise(formData: FormData) {
       title: formData.get('title') as string,
       description: (formData.get('description') as string) || null,
       category_id: (formData.get('category_id') as string) || null,
+      subcategory: (formData.get('subcategory') as string) || null,
+      duration_min: parseInt0(formData.get('duration_min')),
+      players_min: parseInt0(formData.get('players_min')),
+      players_max: parseInt0(formData.get('players_max')),
+      material: (formData.get('material') as string) || null,
       objective_tags: tags,
       canvas_data: canvasData,
       canvas_image_url: (formData.get('canvas_image_url') as string) || null,
@@ -256,6 +278,287 @@ export async function createExercise(formData: FormData) {
 
   revalidatePath('/entrenadores/ejercicios')
   return { success: true, exercise }
+}
+
+export async function updateExercise(exerciseId: string, formData: FormData) {
+  const supabase = await createClient()
+  const headersList = await headers()
+  const clubId = headersList.get('x-club-id')!
+  const memberId = headersList.get('x-member-id')!
+  const rolesRaw = headersList.get('x-user-roles') ?? '[]'
+  const roles = JSON.parse(rolesRaw) as string[]
+  const isAdmin = roles.some((r) => ['admin', 'direccion'].includes(r))
+
+  // Ownership check: only author or admin can edit
+  const { data: existing, error: fetchErr } = await supabase
+    .from('exercises')
+    .select('id, author_id, club_id')
+    .eq('id', exerciseId)
+    .eq('club_id', clubId)
+    .single()
+
+  if (fetchErr || !existing) return { success: false, error: 'Ejercicio no encontrado' }
+  if (!isAdmin && existing.author_id !== memberId) {
+    return { success: false, error: 'No tienes permiso para editar este ejercicio' }
+  }
+
+  const tagsRaw = formData.get('objective_tags') as string
+  const tags = tagsRaw ? tagsRaw.split(',').map((t) => t.trim()).filter(Boolean) : []
+
+  const canvasDataRaw = formData.get('canvas_data') as string
+  const canvasData = canvasDataRaw ? JSON.parse(canvasDataRaw) : undefined
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updateData: Record<string, any> = {
+    title: formData.get('title') as string,
+    description: (formData.get('description') as string) || null,
+    category_id: (formData.get('category_id') as string) || null,
+    subcategory: (formData.get('subcategory') as string) || null,
+    duration_min: parseInt0(formData.get('duration_min')),
+    players_min: parseInt0(formData.get('players_min')),
+    players_max: parseInt0(formData.get('players_max')),
+    material: (formData.get('material') as string) || null,
+    objective_tags: tags,
+  }
+  if (canvasData !== undefined) updateData.canvas_data = canvasData
+  const newImage = formData.get('canvas_image_url') as string
+  if (newImage) updateData.canvas_image_url = newImage
+
+  const { error } = await supabase
+    .from('exercises')
+    .update(updateData)
+    .eq('id', exerciseId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/entrenadores/ejercicios')
+  revalidatePath(`/entrenadores/ejercicios/${exerciseId}`)
+  return { success: true }
+}
+
+export async function deleteExercise(exerciseId: string) {
+  const supabase = await createClient()
+  const headersList = await headers()
+  const clubId = headersList.get('x-club-id')!
+  const memberId = headersList.get('x-member-id')!
+  const rolesRaw = headersList.get('x-user-roles') ?? '[]'
+  const roles = JSON.parse(rolesRaw) as string[]
+  const isAdmin = roles.some((r) => ['admin', 'direccion'].includes(r))
+
+  const { data: existing } = await supabase
+    .from('exercises')
+    .select('id, author_id, club_id')
+    .eq('id', exerciseId)
+    .eq('club_id', clubId)
+    .single()
+
+  if (!existing) return { success: false, error: 'Ejercicio no encontrado' }
+  if (!isAdmin && existing.author_id !== memberId) {
+    return { success: false, error: 'No tienes permiso para borrar este ejercicio' }
+  }
+
+  const { error } = await supabase.from('exercises').delete().eq('id', exerciseId)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/entrenadores/ejercicios')
+  return { success: true }
+}
+
+export async function toggleExerciseFavorite(exerciseId: string) {
+  const supabase = await createClient()
+  const headersList = await headers()
+  const memberId = headersList.get('x-member-id')!
+
+  // Check if already favorited
+  const { data: existing } = await supabase
+    .from('exercise_favorites')
+    .select('exercise_id')
+    .eq('member_id', memberId)
+    .eq('exercise_id', exerciseId)
+    .maybeSingle()
+
+  if (existing) {
+    const { error } = await supabase
+      .from('exercise_favorites')
+      .delete()
+      .eq('member_id', memberId)
+      .eq('exercise_id', exerciseId)
+    if (error) return { success: false, error: error.message, favorited: true }
+    revalidatePath('/entrenadores/ejercicios')
+    return { success: true, favorited: false }
+  } else {
+    const { error } = await supabase
+      .from('exercise_favorites')
+      .insert({ member_id: memberId, exercise_id: exerciseId })
+    if (error) return { success: false, error: error.message, favorited: false }
+    revalidatePath('/entrenadores/ejercicios')
+    return { success: true, favorited: true }
+  }
+}
+
+export async function createExerciseCategory(name: string, color: string) {
+  const supabase = await createClient()
+  const headersList = await headers()
+  const clubId = headersList.get('x-club-id')!
+  const rolesRaw = headersList.get('x-user-roles') ?? '[]'
+  const roles = JSON.parse(rolesRaw) as string[]
+  const canCreate = roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))
+
+  if (!canCreate) return { success: false, error: 'Solo admin/dirección/director deportivo puede crear categorías' }
+  if (!name.trim()) return { success: false, error: 'Nombre requerido' }
+
+  // Compute next sort_order
+  const { data: last } = await supabase
+    .from('exercise_categories')
+    .select('sort_order')
+    .eq('club_id', clubId)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const sortOrder = (last?.sort_order ?? 0) + 1
+
+  const { error } = await supabase
+    .from('exercise_categories')
+    .insert({ club_id: clubId, name: name.trim(), color, sort_order: sortOrder })
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/entrenadores/ejercicios')
+  return { success: true }
+}
+
+export async function deleteExerciseCategory(categoryId: string) {
+  const supabase = await createClient()
+  const headersList = await headers()
+  const clubId = headersList.get('x-club-id')!
+  const rolesRaw = headersList.get('x-user-roles') ?? '[]'
+  const roles = JSON.parse(rolesRaw) as string[]
+  const canDelete = roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))
+
+  if (!canDelete) return { success: false, error: 'No tienes permiso' }
+
+  const { error } = await supabase
+    .from('exercise_categories')
+    .delete()
+    .eq('id', categoryId)
+    .eq('club_id', clubId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/entrenadores/ejercicios')
+  return { success: true }
+}
+
+export async function addSessionExercise(
+  sessionId: string,
+  exerciseId: string,
+  slotOrder: number,
+  notes?: string
+) {
+  const supabase = await createClient()
+  const headersList = await headers()
+  const clubId = headersList.get('x-club-id')!
+
+  const { data: session } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('id', sessionId)
+    .eq('club_id', clubId)
+    .single()
+
+  if (!session) return { success: false, error: 'Sesion no encontrada' }
+
+  // Upsert: if slot already exists, replace
+  const { error } = await supabase
+    .from('session_exercises')
+    .upsert(
+      { session_id: sessionId, exercise_id: exerciseId, slot_order: slotOrder, notes: notes || null },
+      { onConflict: 'session_id,slot_order' }
+    )
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath(`/entrenadores/sesiones/${sessionId}`)
+  return { success: true }
+}
+
+export async function removeSessionExercise(sessionId: string, slotOrder: number) {
+  const supabase = await createClient()
+  const headersList = await headers()
+  const clubId = headersList.get('x-club-id')!
+
+  const { data: session } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('id', sessionId)
+    .eq('club_id', clubId)
+    .single()
+
+  if (!session) return { success: false, error: 'Sesion no encontrada' }
+
+  const { error } = await supabase
+    .from('session_exercises')
+    .delete()
+    .eq('session_id', sessionId)
+    .eq('slot_order', slotOrder)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath(`/entrenadores/sesiones/${sessionId}`)
+  return { success: true }
+}
+
+export async function updateSessionObjectives(sessionId: string, objectives: string[]) {
+  const supabase = await createClient()
+  const headersList = await headers()
+  const clubId = headersList.get('x-club-id')!
+
+  const { error } = await supabase
+    .from('sessions')
+    .update({ objectives })
+    .eq('id', sessionId)
+    .eq('club_id', clubId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath(`/entrenadores/sesiones/${sessionId}`)
+  return { success: true }
+}
+
+export async function updatePlayerBibs(
+  sessionId: string,
+  assignments: { player_id: string; group_color: 'orange' | 'pink' | 'white' | null; is_goalkeeper: boolean }[]
+) {
+  const supabase = await createClient()
+  const headersList = await headers()
+  const clubId = headersList.get('x-club-id')!
+
+  const { data: session } = await supabase
+    .from('sessions')
+    .select('id')
+    .eq('id', sessionId)
+    .eq('club_id', clubId)
+    .single()
+
+  if (!session) return { success: false, error: 'Sesion no encontrada' }
+
+  // Upsert attendance rows with bib/goalkeeper info
+  const records = assignments.map((a) => ({
+    session_id: sessionId,
+    player_id: a.player_id,
+    group_color: a.group_color,
+    is_goalkeeper: a.is_goalkeeper,
+  }))
+
+  const { error } = await supabase
+    .from('session_attendance')
+    .upsert(records, { onConflict: 'session_id,player_id' })
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath(`/entrenadores/sesiones/${sessionId}`)
+  return { success: true }
 }
 
 export async function saveScoutingReport(

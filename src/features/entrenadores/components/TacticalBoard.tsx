@@ -1,24 +1,65 @@
 'use client'
 
 import React, { useState, useRef, useCallback } from 'react'
-import { Stage, Layer, Rect, Circle, Line, Arc, Text, Arrow } from 'react-konva'
+import { Stage, Layer, Rect, Circle, Line, Arc, Text, Arrow, RegularPolygon } from 'react-konva'
 
-const PITCH_W = 800
-const PITCH_H = 520
+/* ------------------------------------------------------------------ */
+/*  CONSTANTS                                                          */
+/* ------------------------------------------------------------------ */
+
+const FULL_W = 800
+const FULL_H = 520
+const HALF_W = 800
+const HALF_H = 520
+
 const PITCH_GREEN = '#2d7a3e'
 const LINE_COLOR = 'white'
 const LINE_W = 2
 
-const HOME_COLOR = '#3b82f6'
-const AWAY_COLOR = '#ef4444'
+const BIB_COLORS: Record<string, string> = {
+  naranja: '#f97316',
+  rosa: '#ec4899',
+  blanco: '#f1f5f9',
+}
 
-type Tool = 'home' | 'away' | 'arrow' | 'eraser' | 'clear'
+const ARROW_COLORS = ['#ffffff', '#facc15', '#ef4444', '#3b82f6', '#22c55e']
+
+/* ------------------------------------------------------------------ */
+/*  TYPES                                                              */
+/* ------------------------------------------------------------------ */
+
+type PlayerBib = 'naranja' | 'rosa' | 'blanco'
+type ElementTool = 'player_naranja' | 'player_rosa' | 'player_blanco' | 'cone' | 'ball' | 'goal'
+type DrawTool = 'arrow_solid' | 'arrow_dashed'
+type ActionTool = 'eraser'
+type Tool = ElementTool | DrawTool | ActionTool
 
 interface PlayerShape {
   kind: 'player'
   id: string
-  team: 'home' | 'away'
+  bib: PlayerBib
   number: number
+  x: number
+  y: number
+}
+
+interface ConeShape {
+  kind: 'cone'
+  id: string
+  x: number
+  y: number
+}
+
+interface BallShape {
+  kind: 'ball'
+  id: string
+  x: number
+  y: number
+}
+
+interface GoalShape {
+  kind: 'goal'
+  id: string
   x: number
   y: number
 }
@@ -27,9 +68,13 @@ interface ArrowShape {
   kind: 'arrow'
   id: string
   points: number[]
+  dashed: boolean
+  color: string
 }
 
-type Shape = PlayerShape | ArrowShape
+type Shape = PlayerShape | ConeShape | BallShape | GoalShape | ArrowShape
+
+type FieldMode = 'full' | 'half'
 
 interface ArrowDraft {
   x1: number
@@ -40,32 +85,115 @@ interface TacticalBoardProps {
   onExport?: (dataUrl: string) => void
 }
 
+/* ------------------------------------------------------------------ */
+/*  PITCH DRAWING HELPERS                                              */
+/* ------------------------------------------------------------------ */
+
+function FullPitch() {
+  return (
+    <>
+      <Rect x={0} y={0} width={FULL_W} height={FULL_H} fill={PITCH_GREEN} />
+      <Rect x={10} y={10} width={FULL_W - 20} height={FULL_H - 20} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      {/* Center line */}
+      <Line points={[FULL_W / 2, 10, FULL_W / 2, FULL_H - 10]} stroke={LINE_COLOR} strokeWidth={LINE_W} />
+      {/* Center circle */}
+      <Circle x={FULL_W / 2} y={FULL_H / 2} radius={65} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      <Circle x={FULL_W / 2} y={FULL_H / 2} radius={4} fill={LINE_COLOR} />
+      {/* Left penalty box */}
+      <Rect x={10} y={(FULL_H - 260) / 2} width={120} height={260} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      {/* Right penalty box */}
+      <Rect x={FULL_W - 130} y={(FULL_H - 260) / 2} width={120} height={260} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      {/* Left 6-yard box */}
+      <Rect x={10} y={(FULL_H - 120) / 2} width={40} height={120} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      {/* Right 6-yard box */}
+      <Rect x={FULL_W - 50} y={(FULL_H - 120) / 2} width={40} height={120} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      {/* Left goal */}
+      <Rect x={2} y={(FULL_H - 60) / 2} width={8} height={60} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      {/* Right goal */}
+      <Rect x={FULL_W - 10} y={(FULL_H - 60) / 2} width={8} height={60} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      {/* Penalty spots */}
+      <Circle x={10 + 90} y={FULL_H / 2} radius={4} fill={LINE_COLOR} />
+      <Circle x={FULL_W - 10 - 90} y={FULL_H / 2} radius={4} fill={LINE_COLOR} />
+      {/* Corner arcs */}
+      <Arc x={10} y={10} innerRadius={0} outerRadius={12} angle={90} rotation={0} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      <Arc x={FULL_W - 10} y={10} innerRadius={0} outerRadius={12} angle={90} rotation={90} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      <Arc x={FULL_W - 10} y={FULL_H - 10} innerRadius={0} outerRadius={12} angle={90} rotation={180} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      <Arc x={10} y={FULL_H - 10} innerRadius={0} outerRadius={12} angle={90} rotation={270} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+    </>
+  )
+}
+
+function HalfPitch() {
+  const W = HALF_W
+  const H = HALF_H
+  return (
+    <>
+      <Rect x={0} y={0} width={W} height={H} fill={PITCH_GREEN} />
+      {/* Outer */}
+      <Rect x={10} y={10} width={W - 20} height={H - 20} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      {/* Bottom line acts as center; top is goal line */}
+      {/* Penalty box (centered top) */}
+      <Rect x={(W - 320) / 2} y={10} width={320} height={120} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      {/* 6-yard box */}
+      <Rect x={(W - 160) / 2} y={10} width={160} height={40} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      {/* Goal */}
+      <Rect x={(W - 80) / 2} y={2} width={80} height={8} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      {/* Penalty spot */}
+      <Circle x={W / 2} y={10 + 90} radius={4} fill={LINE_COLOR} />
+      {/* Center arc at bottom */}
+      <Arc x={W / 2} y={H - 10} innerRadius={0} outerRadius={65} angle={180} rotation={180} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      <Circle x={W / 2} y={H - 10} radius={4} fill={LINE_COLOR} />
+      {/* Corner arcs */}
+      <Arc x={10} y={10} innerRadius={0} outerRadius={12} angle={90} rotation={0} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+      <Arc x={W - 10} y={10} innerRadius={0} outerRadius={12} angle={90} rotation={90} stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent" />
+    </>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  COMPONENT                                                          */
+/* ------------------------------------------------------------------ */
+
 export function TacticalBoard({ onExport }: TacticalBoardProps) {
-  const stageRef = useRef<any>(null)
-  const [tool, setTool] = useState<Tool>('home')
+  const stageRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [tool, setTool] = useState<Tool>('player_naranja')
   const [shapes, setShapes] = useState<Shape[]>([])
   const [arrowDraft, setArrowDraft] = useState<ArrowDraft | null>(null)
+  const [arrowColor, setArrowColor] = useState(ARROW_COLORS[0])
+  const [fieldMode, setFieldMode] = useState<FieldMode>('full')
 
-  const homeCount = shapes.filter((s) => s.kind === 'player' && s.team === 'home').length
-  const awayCount = shapes.filter((s) => s.kind === 'player' && s.team === 'away').length
+  const pitchW = fieldMode === 'full' ? FULL_W : HALF_W
+  const pitchH = fieldMode === 'full' ? FULL_H : HALF_H
 
+  // Counts per bib
+  const bibCounts: Record<PlayerBib, number> = {
+    naranja: shapes.filter((s) => s.kind === 'player' && s.bib === 'naranja').length,
+    rosa: shapes.filter((s) => s.kind === 'player' && s.bib === 'rosa').length,
+    blanco: shapes.filter((s) => s.kind === 'player' && s.bib === 'blanco').length,
+  }
+
+  /* ----- click handler ----- */
   const handleStageClick = useCallback(
-    (e: any) => {
-      if (tool === 'clear') return
-
+    (e: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
       const stage = e.target.getStage()
       const pos = stage.getPointerPosition()
       if (!pos) return
 
-      if (tool === 'home' || tool === 'away') {
-        const team = tool
-        const number = team === 'home' ? homeCount + 1 : awayCount + 1
-        const id = `${team}-${Date.now()}`
-        setShapes((prev) => [
-          ...prev,
-          { kind: 'player', id, team, number, x: pos.x, y: pos.y },
-        ])
-      } else if (tool === 'arrow') {
+      if (tool === 'player_naranja' || tool === 'player_rosa' || tool === 'player_blanco') {
+        const bib = tool.replace('player_', '') as PlayerBib
+        const number = bibCounts[bib] + 1
+        const id = `player-${Date.now()}`
+        setShapes((prev) => [...prev, { kind: 'player', id, bib, number, x: pos.x, y: pos.y }])
+      } else if (tool === 'cone') {
+        const id = `cone-${Date.now()}`
+        setShapes((prev) => [...prev, { kind: 'cone', id, x: pos.x, y: pos.y }])
+      } else if (tool === 'ball') {
+        const id = `ball-${Date.now()}`
+        setShapes((prev) => [...prev, { kind: 'ball', id, x: pos.x, y: pos.y }])
+      } else if (tool === 'goal') {
+        const id = `goal-${Date.now()}`
+        setShapes((prev) => [...prev, { kind: 'goal', id, x: pos.x, y: pos.y }])
+      } else if (tool === 'arrow_solid' || tool === 'arrow_dashed') {
         if (!arrowDraft) {
           setArrowDraft({ x1: pos.x, y1: pos.y })
         } else {
@@ -76,210 +204,237 @@ export function TacticalBoard({ onExport }: TacticalBoardProps) {
               kind: 'arrow',
               id,
               points: [arrowDraft.x1, arrowDraft.y1, pos.x, pos.y],
+              dashed: tool === 'arrow_dashed',
+              color: arrowColor,
             },
           ])
           setArrowDraft(null)
         }
       }
+      // eraser handled per-shape
     },
-    [tool, homeCount, awayCount, arrowDraft]
+    [tool, bibCounts, arrowDraft, arrowColor]
   )
 
-  function handleShapeClick(id: string, e: any) {
+  function handleShapeClick(id: string, e: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
     if (tool !== 'eraser') return
     e.cancelBubble = true
     setShapes((prev) => prev.filter((s) => s.id !== id))
   }
 
-  function handleDragEnd(id: string, e: any) {
+  function handleDragEnd(id: string, e: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
     const { x, y } = e.target.attrs
     setShapes((prev) =>
-      prev.map((s) => (s.id === id && s.kind === 'player' ? { ...s, x, y } : s))
+      prev.map((s) => {
+        if (s.id !== id) return s
+        if (s.kind === 'player') return { ...s, x, y }
+        if (s.kind === 'cone') return { ...s, x, y }
+        if (s.kind === 'ball') return { ...s, x, y }
+        if (s.kind === 'goal') return { ...s, x, y }
+        return s
+      })
     )
   }
 
   function handleClear() {
+    if (!confirm('Limpiar todo el tablero?')) return
     setShapes([])
     setArrowDraft(null)
   }
 
   function handleExport() {
     if (!stageRef.current || !onExport) return
-    const dataUrl = stageRef.current.toDataURL({ pixelRatio: 1 })
+    const dataUrl = stageRef.current.toDataURL({ pixelRatio: 2 })
     onExport(dataUrl)
   }
 
-  const toolButtons: { id: Tool; label: string; title: string }[] = [
-    { id: 'home', label: '🔵 Local', title: 'Añadir jugador local' },
-    { id: 'away', label: '🔴 Visitante', title: 'Añadir jugador visitante' },
-    { id: 'arrow', label: '➡️ Flecha', title: 'Dibujar flecha (clic inicio, clic fin)' },
-    { id: 'eraser', label: '🧹 Borrar', title: 'Borrar elemento' },
-    { id: 'clear', label: '🗑️ Limpiar', title: 'Limpiar todo' },
+  const isDraw = tool === 'arrow_solid' || tool === 'arrow_dashed'
+
+  /* ---------------------------------------------------------------- */
+  /*  TOOLBAR CONFIG                                                   */
+  /* ---------------------------------------------------------------- */
+
+  const toolSections: { label: string; items: { id: Tool; label: string; title: string }[] }[] = [
+    {
+      label: 'Jugadores',
+      items: [
+        { id: 'player_naranja', label: 'Naranja', title: 'Jugador peto naranja' },
+        { id: 'player_rosa', label: 'Rosa', title: 'Jugador peto rosa' },
+        { id: 'player_blanco', label: 'Blanco', title: 'Jugador peto blanco' },
+      ],
+    },
+    {
+      label: 'Objetos',
+      items: [
+        { id: 'cone', label: 'Cono', title: 'Colocar cono' },
+        { id: 'ball', label: 'Balon', title: 'Colocar balon' },
+        { id: 'goal', label: 'Porteria', title: 'Colocar mini-porteria' },
+      ],
+    },
+    {
+      label: 'Flechas',
+      items: [
+        { id: 'arrow_solid', label: 'Pase', title: 'Flecha continua (pase)' },
+        { id: 'arrow_dashed', label: 'Carrera', title: 'Flecha discontinua (carrera)' },
+      ],
+    },
+    {
+      label: '',
+      items: [
+        { id: 'eraser', label: 'Borrar', title: 'Borrar elemento (clic sobre el)' },
+      ],
+    },
   ]
 
   return (
     <div className="space-y-3">
-      {/* Toolbar */}
-      <div className="flex flex-wrap gap-2 items-center">
-        {toolButtons.map((btn) => (
+      {/* Top bar: field mode + export */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground font-medium">Campo:</span>
           <button
-            key={btn.id}
-            title={btn.title}
-            onClick={() => {
-              if (btn.id === 'clear') {
-                handleClear()
-              } else {
-                setTool(btn.id)
-                setArrowDraft(null)
-              }
-            }}
-            className={
-              tool === btn.id && btn.id !== 'clear'
-                ? 'btn-primary text-sm py-1.5 px-3'
-                : 'btn-secondary text-sm py-1.5 px-3'
-            }
+            type="button"
+            onClick={() => setFieldMode('full')}
+            className={fieldMode === 'full' ? 'btn-primary text-xs py-1 px-3' : 'btn-secondary text-xs py-1 px-3'}
           >
-            {btn.label}
+            Completo
           </button>
-        ))}
+          <button
+            type="button"
+            onClick={() => setFieldMode('half')}
+            className={fieldMode === 'half' ? 'btn-primary text-xs py-1 px-3' : 'btn-secondary text-xs py-1 px-3'}
+          >
+            Medio campo
+          </button>
+        </div>
 
-        {onExport && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleExport}
-            className="btn-ghost text-sm py-1.5 px-3 ml-auto"
+            type="button"
+            onClick={handleClear}
+            className="btn-ghost text-xs py-1 px-3 text-red-600 hover:bg-red-50"
           >
-            Exportar imagen
+            Limpiar todo
           </button>
-        )}
+          {onExport && (
+            <button
+              type="button"
+              onClick={handleExport}
+              className="btn-secondary text-xs py-1 px-3"
+            >
+              Exportar imagen
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Tool palette */}
+      <div className="flex flex-wrap items-center gap-1 p-2 bg-muted/50 rounded-lg">
+        {toolSections.map((section, si) => (
+          <React.Fragment key={si}>
+            {si > 0 && <div className="w-px h-6 bg-border mx-1" />}
+            {section.items.map((btn) => {
+              const active = tool === btn.id
+              // Color dot for player tools
+              let dotColor: string | undefined
+              if (btn.id === 'player_naranja') dotColor = BIB_COLORS.naranja
+              if (btn.id === 'player_rosa') dotColor = BIB_COLORS.rosa
+              if (btn.id === 'player_blanco') dotColor = BIB_COLORS.blanco
+
+              return (
+                <button
+                  key={btn.id}
+                  type="button"
+                  title={btn.title}
+                  onClick={() => {
+                    setTool(btn.id)
+                    setArrowDraft(null)
+                  }}
+                  className={`flex items-center gap-1.5 text-xs py-1.5 px-2.5 rounded-md transition-colors ${
+                    active
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'hover:bg-muted'
+                  }`}
+                >
+                  {dotColor && (
+                    <span
+                      className="w-3 h-3 rounded-full border border-black/20 shrink-0"
+                      style={{ backgroundColor: dotColor }}
+                    />
+                  )}
+                  {btn.id === 'cone' && <span className="text-sm">🔶</span>}
+                  {btn.id === 'ball' && <span className="text-sm">⚽</span>}
+                  {btn.id === 'goal' && <span className="text-sm">🥅</span>}
+                  {btn.id === 'arrow_solid' && <span className="text-sm">→</span>}
+                  {btn.id === 'arrow_dashed' && <span className="text-sm">⇢</span>}
+                  {btn.id === 'eraser' && <span className="text-sm">🧹</span>}
+                  {btn.label}
+                </button>
+              )
+            })}
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* Arrow color picker — only when drawing arrows */}
+      {isDraw && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Color de flecha:</span>
+          {ARROW_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setArrowColor(c)}
+              className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                arrowColor === c ? 'border-foreground scale-125' : 'border-transparent'
+              }`}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+        </div>
+      )}
 
       {arrowDraft && (
         <p className="text-xs text-muted-foreground">
-          Inicio de flecha marcado — haz clic en el destino para completarla
+          Inicio de flecha marcado — haz clic en el destino para completarla.
+          <button
+            type="button"
+            onClick={() => setArrowDraft(null)}
+            className="ml-2 underline"
+          >
+            Cancelar
+          </button>
         </p>
       )}
 
       {/* Canvas */}
-      <div className="border rounded-lg overflow-hidden" style={{ maxWidth: PITCH_W }}>
+      <div className="border rounded-lg overflow-hidden inline-block" style={{ maxWidth: pitchW }}>
         <Stage
           ref={stageRef}
-          width={PITCH_W}
-          height={PITCH_H}
+          width={pitchW}
+          height={pitchH}
           onClick={handleStageClick}
-          style={{ cursor: tool === 'eraser' ? 'crosshair' : 'default' }}
+          style={{ cursor: tool === 'eraser' ? 'crosshair' : isDraw ? 'crosshair' : 'default' }}
         >
           <Layer>
-            {/* Pitch background */}
-            <Rect x={0} y={0} width={PITCH_W} height={PITCH_H} fill={PITCH_GREEN} />
+            {/* Pitch */}
+            {fieldMode === 'full' ? <FullPitch /> : <HalfPitch />}
 
-            {/* Outer border */}
-            <Rect
-              x={10} y={10}
-              width={PITCH_W - 20} height={PITCH_H - 20}
-              stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent"
-            />
-
-            {/* Center line */}
-            <Line
-              points={[PITCH_W / 2, 10, PITCH_W / 2, PITCH_H - 10]}
-              stroke={LINE_COLOR} strokeWidth={LINE_W}
-            />
-
-            {/* Center circle r=65 */}
-            <Circle
-              x={PITCH_W / 2} y={PITCH_H / 2}
-              radius={65}
-              stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent"
-            />
-
-            {/* Center spot */}
-            <Circle x={PITCH_W / 2} y={PITCH_H / 2} radius={4} fill={LINE_COLOR} />
-
-            {/* Left penalty box: 120w x 260h centered */}
-            <Rect
-              x={10} y={(PITCH_H - 260) / 2}
-              width={120} height={260}
-              stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent"
-            />
-
-            {/* Right penalty box */}
-            <Rect
-              x={PITCH_W - 130} y={(PITCH_H - 260) / 2}
-              width={120} height={260}
-              stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent"
-            />
-
-            {/* Left 6-yard box: 40w x 120h centered */}
-            <Rect
-              x={10} y={(PITCH_H - 120) / 2}
-              width={40} height={120}
-              stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent"
-            />
-
-            {/* Right 6-yard box */}
-            <Rect
-              x={PITCH_W - 50} y={(PITCH_H - 120) / 2}
-              width={40} height={120}
-              stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent"
-            />
-
-            {/* Left goal: 8w x 60h centered */}
-            <Rect
-              x={2} y={(PITCH_H - 60) / 2}
-              width={8} height={60}
-              stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent"
-            />
-
-            {/* Right goal */}
-            <Rect
-              x={PITCH_W - 10} y={(PITCH_H - 60) / 2}
-              width={8} height={60}
-              stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent"
-            />
-
-            {/* Penalty spots */}
-            <Circle x={10 + 90} y={PITCH_H / 2} radius={4} fill={LINE_COLOR} />
-            <Circle x={PITCH_W - 10 - 90} y={PITCH_H / 2} radius={4} fill={LINE_COLOR} />
-
-            {/* Corner arcs (radius 12) */}
-            <Arc
-              x={10} y={10}
-              innerRadius={0} outerRadius={12}
-              angle={90} rotation={0}
-              stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent"
-            />
-            <Arc
-              x={PITCH_W - 10} y={10}
-              innerRadius={0} outerRadius={12}
-              angle={90} rotation={90}
-              stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent"
-            />
-            <Arc
-              x={PITCH_W - 10} y={PITCH_H - 10}
-              innerRadius={0} outerRadius={12}
-              angle={90} rotation={180}
-              stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent"
-            />
-            <Arc
-              x={10} y={PITCH_H - 10}
-              innerRadius={0} outerRadius={12}
-              angle={90} rotation={270}
-              stroke={LINE_COLOR} strokeWidth={LINE_W} fill="transparent"
-            />
-
-            {/* Arrow shapes */}
+            {/* Arrows (below everything else) */}
             {shapes
               .filter((s): s is ArrowShape => s.kind === 'arrow')
               .map((shape) => (
                 <Arrow
                   key={shape.id}
                   points={shape.points}
-                  stroke="white"
-                  strokeWidth={2}
-                  fill="white"
+                  stroke={shape.color}
+                  strokeWidth={2.5}
+                  fill={shape.color}
                   pointerLength={10}
                   pointerWidth={8}
+                  dash={shape.dashed ? [10, 6] : undefined}
                   onClick={(e) => handleShapeClick(shape.id, e)}
+                  hitStrokeWidth={12}
                 />
               ))}
 
@@ -289,44 +444,149 @@ export function TacticalBoard({ onExport }: TacticalBoardProps) {
                 x={arrowDraft.x1}
                 y={arrowDraft.y1}
                 radius={6}
-                fill="white"
+                fill={arrowColor}
                 opacity={0.7}
               />
             )}
 
-            {/* Player shapes */}
+            {/* Cones */}
             {shapes
-              .filter((s): s is PlayerShape => s.kind === 'player')
+              .filter((s): s is ConeShape => s.kind === 'cone')
+              .map((shape) => (
+                <RegularPolygon
+                  key={shape.id}
+                  x={shape.x}
+                  y={shape.y}
+                  sides={3}
+                  radius={12}
+                  fill="#ff8c00"
+                  stroke="#cc6600"
+                  strokeWidth={1.5}
+                  draggable={tool !== 'eraser'}
+                  onClick={(e) => handleShapeClick(shape.id, e)}
+                  onDragEnd={(e) => handleDragEnd(shape.id, e)}
+                />
+              ))}
+
+            {/* Balls */}
+            {shapes
+              .filter((s): s is BallShape => s.kind === 'ball')
               .map((shape) => (
                 <React.Fragment key={shape.id}>
                   <Circle
                     x={shape.x}
                     y={shape.y}
-                    radius={18}
-                    fill={shape.team === 'home' ? HOME_COLOR : AWAY_COLOR}
-                    stroke="white"
-                    strokeWidth={2}
+                    radius={10}
+                    fill="white"
+                    stroke="#333"
+                    strokeWidth={1.5}
                     draggable={tool !== 'eraser'}
                     onClick={(e) => handleShapeClick(shape.id, e)}
                     onDragEnd={(e) => handleDragEnd(shape.id, e)}
                   />
-                  <Text
-                    x={shape.x - 9}
-                    y={shape.y - 8}
-                    text={String(shape.number)}
-                    fontSize={14}
-                    fontStyle="bold"
-                    fill="white"
-                    align="center"
-                    width={18}
+                  {/* Pentagon pattern on ball */}
+                  <Circle
+                    x={shape.x}
+                    y={shape.y}
+                    radius={4}
+                    fill="#333"
                     listening={false}
                   />
                 </React.Fragment>
               ))}
+
+            {/* Mini-goals */}
+            {shapes
+              .filter((s): s is GoalShape => s.kind === 'goal')
+              .map((shape) => (
+                <React.Fragment key={shape.id}>
+                  <Rect
+                    x={shape.x - 18}
+                    y={shape.y - 10}
+                    width={36}
+                    height={20}
+                    fill="transparent"
+                    stroke="white"
+                    strokeWidth={2.5}
+                    draggable={tool !== 'eraser'}
+                    onClick={(e) => handleShapeClick(shape.id, e)}
+                    onDragEnd={(e) => handleDragEnd(shape.id, e)}
+                  />
+                  {/* Net pattern lines */}
+                  <Line
+                    points={[shape.x - 18, shape.y - 10, shape.x - 18, shape.y + 10]}
+                    stroke="white"
+                    strokeWidth={3}
+                    listening={false}
+                  />
+                </React.Fragment>
+              ))}
+
+            {/* Players */}
+            {shapes
+              .filter((s): s is PlayerShape => s.kind === 'player')
+              .map((shape) => {
+                const color = BIB_COLORS[shape.bib]
+                const textColor = shape.bib === 'blanco' ? '#1e293b' : 'white'
+                const strokeColor = shape.bib === 'blanco' ? '#94a3b8' : 'white'
+                return (
+                  <React.Fragment key={shape.id}>
+                    <Circle
+                      x={shape.x}
+                      y={shape.y}
+                      radius={18}
+                      fill={color}
+                      stroke={strokeColor}
+                      strokeWidth={2}
+                      draggable={tool !== 'eraser'}
+                      onClick={(e) => handleShapeClick(shape.id, e)}
+                      onDragEnd={(e) => handleDragEnd(shape.id, e)}
+                      shadowColor="black"
+                      shadowBlur={4}
+                      shadowOpacity={0.3}
+                      shadowOffset={{ x: 1, y: 1 }}
+                    />
+                    <Text
+                      x={shape.x - 9}
+                      y={shape.y - 8}
+                      text={String(shape.number)}
+                      fontSize={14}
+                      fontStyle="bold"
+                      fill={textColor}
+                      align="center"
+                      width={18}
+                      listening={false}
+                    />
+                  </React.Fragment>
+                )
+              })}
           </Layer>
         </Stage>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: BIB_COLORS.naranja }} />
+          Naranja ({bibCounts.naranja})
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: BIB_COLORS.rosa }} />
+          Rosa ({bibCounts.rosa})
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full border" style={{ backgroundColor: BIB_COLORS.blanco }} />
+          Blanco ({bibCounts.blanco})
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="text-sm">🔶</span>
+          Conos ({shapes.filter((s) => s.kind === 'cone').length})
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="text-sm">⚽</span>
+          Balones ({shapes.filter((s) => s.kind === 'ball').length})
+        </span>
       </div>
     </div>
   )
 }
-
