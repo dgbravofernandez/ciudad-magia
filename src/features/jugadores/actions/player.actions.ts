@@ -102,7 +102,11 @@ export async function sendEmail(playerId: string, emailType: string) {
     coachName = coachRow?.club_members?.full_name ?? null
   }
 
-  const fallbacks = buildFallbackEmail(emailType, playerName, tutorName, teamName, player.forms_link, coachName)
+  // Birth year is used to apply the juvenile-specific message variant
+  // (born <= 2010 → cannot guarantee continuity until full juvenile renewal count is done)
+  const birthYear = player.birth_date ? new Date(player.birth_date).getFullYear() : null
+
+  const fallbacks = buildFallbackEmail(emailType, playerName, tutorName, teamName, player.forms_link, coachName, birthYear)
 
   const tokens: Record<string, string> = {
     '{{player_name}}': playerName,
@@ -166,8 +170,13 @@ function buildFallbackEmail(
   tutorName: string,
   teamName: string,
   formsLink?: string | null,
-  coachName?: string | null
+  coachName?: string | null,
+  birthYear?: number | null
 ): { subject: string; body: string } {
+  // Players born in 2010 or earlier belong to the juvenile categories,
+  // where the club cannot confirm continuity until all juvenile renewals
+  // are tallied (limited training slots / teams).
+  const isJuvenile = typeof birthYear === 'number' && birthYear <= 2010
   const CLUB = 'Escuela de Fútbol Ciudad de Getafe'
   const border = (color: string) =>
     `font-family:Arial,sans-serif;padding:25px;border:4px solid ${color};border-radius:15px;color:#333;`
@@ -236,6 +245,20 @@ function buildFallbackEmail(
         </div>`,
       }
     case 'wants_to_continue_yes':
+      if (isJuvenile) {
+        return {
+          subject: `Hemos recibido su respuesta - ${CLUB}`,
+          body: `<div style="${border('#ffcc00')}">
+            <h2>Respuesta Recibida — Categoría Juvenil</h2>
+            <p>Hola <strong>${tutorName}</strong>,</p>
+            <p>Hemos recibido su respuesta indicando que <strong>${playerName}</strong> desea continuar con nosotros la próxima temporada. ¡Muchas gracias por la confianza!</p>
+            <p>Queremos ser totalmente transparentes con usted: en las categorías juveniles tenemos una <strong>gran demanda de renovaciones</strong> y disponemos de un número limitado de equipos y franjas horarias de entrenamiento. Por ese motivo, <strong>aún no podemos asegurarle la continuidad</strong> de ${playerName} en el club.</p>
+            <p>Una vez completemos el conteo total de renovaciones de juveniles, valoraremos cuántos jugadores podemos acoger. Lamentablemente, en algunos casos podríamos no poder dar continuidad a todos los jugadores de la escuela.</p>
+            <p>Le mantendremos informado tan pronto tengamos confirmación oficial. Si tiene cualquier duda, no dude en contactar con la secretaría.</p>
+            <p>Atentamente,<br>${CLUB}</p>
+          </div>`,
+        }
+      }
       return {
         subject: `¡Contamos contigo! - ${CLUB}`,
         body: `<div style="${border('#ffcc00')}">
