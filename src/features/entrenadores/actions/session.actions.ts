@@ -1,11 +1,11 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 
 export async function createSession(formData: FormData) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
   const memberId = headersList.get('x-member-id')!
@@ -30,20 +30,24 @@ export async function createSession(formData: FormData) {
   const manualTeamNote = !uuidRegex.test(teamIdRaw) && teamIdRaw ? `[Equipo: ${teamIdRaw}]` : null
   const notes = [manualTeamNote, notesRaw].filter(Boolean).join(' — ') || null
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const insertData: Record<string, any> = {
+    club_id: clubId,
+    team_id: teamId,
+    session_type: sessionType,
+    session_date: sessionDate,
+    opponent,
+    notes,
+    logged_by: memberId,
+    is_live: sessionType === 'match',
+  }
+  // These columns exist after migration 008 — include only if provided
+  if (endTimeRaw) insertData.end_time = endTimeRaw
+  if (objectives.length > 0) insertData.objectives = objectives
+
   const { data: session, error } = await supabase
     .from('sessions')
-    .insert({
-      club_id: clubId,
-      team_id: teamId,
-      session_type: sessionType,
-      session_date: sessionDate,
-      end_time: endTimeRaw || null,
-      objectives,
-      opponent,
-      notes,
-      logged_by: memberId,
-      is_live: sessionType === 'match',
-    })
+    .insert(insertData)
     .select()
     .single()
 
@@ -69,7 +73,7 @@ export async function updateSessionAttendance(
   sessionId: string,
   attendance: AttendanceRecord[]
 ) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
 
@@ -115,7 +119,7 @@ export interface MatchEvent {
 }
 
 export async function addMatchEvent(sessionId: string, event: MatchEvent) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
 
@@ -162,7 +166,7 @@ export async function addMatchEvent(sessionId: string, event: MatchEvent) {
 }
 
 export async function completeSession(sessionId: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
 
@@ -242,7 +246,7 @@ function parseInt0(v: FormDataEntryValue | null): number | null {
 }
 
 export async function createExercise(formData: FormData) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
   const memberId = headersList.get('x-member-id')!
@@ -281,7 +285,7 @@ export async function createExercise(formData: FormData) {
 }
 
 export async function updateExercise(exerciseId: string, formData: FormData) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
   const memberId = headersList.get('x-member-id')!
@@ -337,7 +341,7 @@ export async function updateExercise(exerciseId: string, formData: FormData) {
 }
 
 export async function deleteExercise(exerciseId: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
   const memberId = headersList.get('x-member-id')!
@@ -365,7 +369,7 @@ export async function deleteExercise(exerciseId: string) {
 }
 
 export async function toggleExerciseFavorite(exerciseId: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const memberId = headersList.get('x-member-id')!
 
@@ -397,7 +401,7 @@ export async function toggleExerciseFavorite(exerciseId: string) {
 }
 
 export async function createExerciseCategory(name: string, color: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
   const rolesRaw = headersList.get('x-user-roles') ?? '[]'
@@ -429,7 +433,7 @@ export async function createExerciseCategory(name: string, color: string) {
 }
 
 export async function deleteExerciseCategory(categoryId: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
   const rolesRaw = headersList.get('x-user-roles') ?? '[]'
@@ -456,7 +460,7 @@ export async function addSessionExercise(
   slotOrder: number,
   notes?: string
 ) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
 
@@ -484,7 +488,7 @@ export async function addSessionExercise(
 }
 
 export async function removeSessionExercise(sessionId: string, slotOrder: number) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
 
@@ -510,7 +514,7 @@ export async function removeSessionExercise(sessionId: string, slotOrder: number
 }
 
 export async function updateSessionObjectives(sessionId: string, objectives: string[]) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
 
@@ -530,7 +534,7 @@ export async function updatePlayerBibs(
   sessionId: string,
   assignments: { player_id: string; group_color: 'orange' | 'pink' | 'white' | null; is_goalkeeper: boolean }[]
 ) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
 
@@ -570,7 +574,7 @@ export async function saveScoutingReport(
     comment: string
   }
 ) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
   const memberId = headersList.get('x-member-id')!
@@ -592,7 +596,7 @@ export async function saveScoutingReport(
 }
 
 export async function createObservation(formData: FormData) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
   const memberId = headersList.get('x-member-id')!

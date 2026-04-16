@@ -68,7 +68,7 @@ export default async function SessionDetailPage({
     supabase
       .from('exercises')
       .select(`
-        id, title, description, category_id, subcategory, duration_min, canvas_image_url,
+        *,
         exercise_categories:category_id(name, color)
       `)
       .eq('club_id', clubId)

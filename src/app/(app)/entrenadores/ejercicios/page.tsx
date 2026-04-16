@@ -19,7 +19,7 @@ export default async function EjerciciosPage() {
 
   const supabase = await createClient()
 
-  const [{ data: categories }, { data: exercises }, { data: favRows }] = await Promise.all([
+  const [{ data: categories }, { data: exercises }] = await Promise.all([
     supabase
       .from('exercise_categories')
       .select('*')
@@ -35,13 +35,19 @@ export default async function EjerciciosPage() {
       .eq('club_id', clubId)
       .order('created_at', { ascending: false })
       .limit(200),
-    supabase
-      .from('exercise_favorites')
-      .select('exercise_id')
-      .eq('member_id', memberId),
   ])
 
-  const favoriteIds = (favRows ?? []).map((r) => r.exercise_id)
+  // Favorites query — may fail if migration 008 has not been applied yet
+  let favoriteIds: string[] = []
+  try {
+    const { data: favRows } = await supabase
+      .from('exercise_favorites')
+      .select('exercise_id')
+      .eq('member_id', memberId)
+    favoriteIds = (favRows ?? []).map((r: any) => r.exercise_id) // eslint-disable-line @typescript-eslint/no-explicit-any
+  } catch {
+    // Table doesn't exist yet — gracefully ignore
+  }
 
   return (
     <div className="flex flex-col h-full">
