@@ -252,7 +252,8 @@ function buildFallbackEmail(
             <h2>Respuesta Recibida — Categoría Juvenil</h2>
             <p>Hola <strong>${tutorName}</strong>,</p>
             <p>Hemos recibido su respuesta indicando que <strong>${playerName}</strong> desea continuar con nosotros la próxima temporada.</p>
-            <p>En las categorías juveniles tenemos una <strong>gran demanda de renovaciones</strong> y disponemos de un número limitado de equipos y franjas horarias, por lo que <strong>aún no podemos asegurarle la continuidad</strong>.</p>
+            <p>Como <strong>procedimiento del club</strong> en las categorías juveniles, donde tenemos una gran demanda de renovaciones y disponemos de un número limitado de equipos y franjas horarias, <strong>aún no podemos asegurarle la continuidad</strong>.</p>
+            <p>Para poder optar a plaza, el jugador debe <strong>estar al corriente de pago</strong> y <strong>haber cumplido las normas internas de comportamiento</strong> del club.</p>
             <p>Una vez completemos el conteo total de renovaciones de juveniles, <strong>el coordinador se pondrá en contacto con ustedes</strong> para informarles personalmente de su situación. Lamentablemente, en algunos casos no podríamos dar continuidad a todos los jugadores de la escuela.</p>
             <p>Atentamente,<br>${CLUB}</p>
           </div>`,
