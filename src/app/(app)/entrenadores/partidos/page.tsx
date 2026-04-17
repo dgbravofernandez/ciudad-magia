@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { formatDate } from '@/lib/utils/currency'
 import { cn } from '@/lib/utils/cn'
+import { DeleteSessionButton } from '@/features/entrenadores/components/DeleteSessionButton'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Partidos' }
@@ -109,6 +110,10 @@ export default async function PartidosPage() {
                   {match.is_live && (
                     <span className="badge badge-destructive animate-pulse text-xs">En directo</span>
                   )}
+                  <DeleteSessionButton
+                    sessionId={match.id}
+                    label={`partido ${(match as { teams?: { name?: string } | null }).teams?.name ?? 'Local'} vs ${match.opponent ?? 'Rival'}`}
+                  />
                 </div>
               </Link>
             )

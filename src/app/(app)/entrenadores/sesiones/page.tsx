@@ -4,6 +4,7 @@ import { Topbar } from '@/components/layout/Topbar'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { formatDate } from '@/lib/utils/currency'
+import { DeleteSessionButton } from '@/features/entrenadores/components/DeleteSessionButton'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Sesiones' }
@@ -137,6 +138,10 @@ export default async function SesionesPage({
                 {session.is_live && (
                   <span className="badge badge-destructive animate-pulse">En directo</span>
                 )}
+                <DeleteSessionButton
+                  sessionId={session.id}
+                  label={`${typeLabel[session.session_type] ?? session.session_type} del ${formatDate(session.session_date)}`}
+                />
               </div>
             </Link>
           ))}
