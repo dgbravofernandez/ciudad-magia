@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
-import { Stage, Layer, Rect, Circle, Line, Arc, Text, Arrow, RegularPolygon } from 'react-konva'
+import { Stage, Layer, Rect, Circle, Line, Arc, Text, Arrow, RegularPolygon, Ellipse } from 'react-konva'
 
 /* ------------------------------------------------------------------ */
 /*  CONSTANTS                                                          */
@@ -29,8 +29,15 @@ const ARROW_COLORS = ['#ffffff', '#facc15', '#ef4444', '#3b82f6', '#22c55e']
 /* ------------------------------------------------------------------ */
 
 type PlayerBib = 'naranja' | 'rosa' | 'blanco'
-type ElementTool = 'player_naranja' | 'player_rosa' | 'player_blanco' | 'cone' | 'ball' | 'goal'
-type DrawTool = 'arrow_solid' | 'arrow_dashed'
+type ElementTool =
+  | 'player_naranja'
+  | 'player_rosa'
+  | 'player_blanco'
+  | 'cone'
+  | 'ball'
+  | 'goal_large'
+  | 'goal_small'
+type DrawTool = 'arrow_solid' | 'arrow_dashed' | 'line_solid' | 'line_dashed' | 'rect'
 type ActionTool = 'eraser'
 type Tool = ElementTool | DrawTool | ActionTool
 
@@ -60,6 +67,7 @@ interface BallShape {
 interface GoalShape {
   kind: 'goal'
   id: string
+  size: 'large' | 'small'
   x: number
   y: number
 }
@@ -72,11 +80,29 @@ interface ArrowShape {
   color: string
 }
 
-type Shape = PlayerShape | ConeShape | BallShape | GoalShape | ArrowShape
+interface LineShape {
+  kind: 'line'
+  id: string
+  points: number[]
+  dashed: boolean
+  color: string
+}
+
+interface RectShape {
+  kind: 'rect'
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  color: string
+}
+
+type Shape = PlayerShape | ConeShape | BallShape | GoalShape | ArrowShape | LineShape | RectShape
 
 type FieldMode = 'full' | 'half'
 
-interface ArrowDraft {
+interface TwoPointDraft {
   x1: number
   y1: number
 }
@@ -166,7 +192,7 @@ export const TacticalBoard = forwardRef<TacticalBoardHandle, TacticalBoardProps>
   const stageRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
   const [tool, setTool] = useState<Tool>('player_naranja')
   const [shapes, setShapes] = useState<Shape[]>([])
-  const [arrowDraft, setArrowDraft] = useState<ArrowDraft | null>(null)
+  const [twoPointDraft, setTwoPointDraft] = useState<TwoPointDraft | null>(null)
   const [arrowColor, setArrowColor] = useState(ARROW_COLORS[0])
   const [fieldMode, setFieldMode] = useState<FieldMode>('full')
 
@@ -198,30 +224,63 @@ export const TacticalBoard = forwardRef<TacticalBoardHandle, TacticalBoardProps>
       } else if (tool === 'ball') {
         const id = `ball-${Date.now()}`
         setShapes((prev) => [...prev, { kind: 'ball', id, x: pos.x, y: pos.y }])
-      } else if (tool === 'goal') {
+      } else if (tool === 'goal_large' || tool === 'goal_small') {
         const id = `goal-${Date.now()}`
-        setShapes((prev) => [...prev, { kind: 'goal', id, x: pos.x, y: pos.y }])
-      } else if (tool === 'arrow_solid' || tool === 'arrow_dashed') {
-        if (!arrowDraft) {
-          setArrowDraft({ x1: pos.x, y1: pos.y })
+        setShapes((prev) => [
+          ...prev,
+          { kind: 'goal', id, size: tool === 'goal_large' ? 'large' : 'small', x: pos.x, y: pos.y },
+        ])
+      } else if (
+        tool === 'arrow_solid' ||
+        tool === 'arrow_dashed' ||
+        tool === 'line_solid' ||
+        tool === 'line_dashed' ||
+        tool === 'rect'
+      ) {
+        if (!twoPointDraft) {
+          setTwoPointDraft({ x1: pos.x, y1: pos.y })
         } else {
-          const id = `arrow-${Date.now()}`
-          setShapes((prev) => [
-            ...prev,
-            {
-              kind: 'arrow',
-              id,
-              points: [arrowDraft.x1, arrowDraft.y1, pos.x, pos.y],
-              dashed: tool === 'arrow_dashed',
-              color: arrowColor,
-            },
-          ])
-          setArrowDraft(null)
+          const id = `${tool}-${Date.now()}`
+          if (tool === 'arrow_solid' || tool === 'arrow_dashed') {
+            setShapes((prev) => [
+              ...prev,
+              {
+                kind: 'arrow',
+                id,
+                points: [twoPointDraft.x1, twoPointDraft.y1, pos.x, pos.y],
+                dashed: tool === 'arrow_dashed',
+                color: arrowColor,
+              },
+            ])
+          } else if (tool === 'line_solid' || tool === 'line_dashed') {
+            setShapes((prev) => [
+              ...prev,
+              {
+                kind: 'line',
+                id,
+                points: [twoPointDraft.x1, twoPointDraft.y1, pos.x, pos.y],
+                dashed: tool === 'line_dashed',
+                color: arrowColor,
+              },
+            ])
+          } else if (tool === 'rect') {
+            const x = Math.min(twoPointDraft.x1, pos.x)
+            const y = Math.min(twoPointDraft.y1, pos.y)
+            const width = Math.abs(pos.x - twoPointDraft.x1)
+            const height = Math.abs(pos.y - twoPointDraft.y1)
+            if (width >= 4 && height >= 4) {
+              setShapes((prev) => [
+                ...prev,
+                { kind: 'rect', id, x, y, width, height, color: arrowColor },
+              ])
+            }
+          }
+          setTwoPointDraft(null)
         }
       }
       // eraser handled per-shape
     },
-    [tool, bibCounts, arrowDraft, arrowColor]
+    [tool, bibCounts, twoPointDraft, arrowColor]
   )
 
   function handleShapeClick(id: string, e: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -239,6 +298,7 @@ export const TacticalBoard = forwardRef<TacticalBoardHandle, TacticalBoardProps>
         if (s.kind === 'cone') return { ...s, x, y }
         if (s.kind === 'ball') return { ...s, x, y }
         if (s.kind === 'goal') return { ...s, x, y }
+        if (s.kind === 'rect') return { ...s, x, y }
         return s
       })
     )
@@ -247,7 +307,7 @@ export const TacticalBoard = forwardRef<TacticalBoardHandle, TacticalBoardProps>
   function handleClear() {
     if (!confirm('Limpiar todo el tablero?')) return
     setShapes([])
-    setArrowDraft(null)
+    setTwoPointDraft(null)
   }
 
   function handleExport() {
@@ -271,7 +331,12 @@ export const TacticalBoard = forwardRef<TacticalBoardHandle, TacticalBoardProps>
     },
   }), [shapes.length])
 
-  const isDraw = tool === 'arrow_solid' || tool === 'arrow_dashed'
+  const isDraw =
+    tool === 'arrow_solid' ||
+    tool === 'arrow_dashed' ||
+    tool === 'line_solid' ||
+    tool === 'line_dashed' ||
+    tool === 'rect'
 
   /* ---------------------------------------------------------------- */
   /*  TOOLBAR CONFIG                                                   */
@@ -291,14 +356,18 @@ export const TacticalBoard = forwardRef<TacticalBoardHandle, TacticalBoardProps>
       items: [
         { id: 'cone', label: 'Cono', title: 'Colocar cono' },
         { id: 'ball', label: 'Balon', title: 'Colocar balon' },
-        { id: 'goal', label: 'Porteria', title: 'Colocar mini-porteria' },
+        { id: 'goal_large', label: 'Porteria G', title: 'Porteria grande' },
+        { id: 'goal_small', label: 'Porteria P', title: 'Porteria pequena' },
       ],
     },
     {
-      label: 'Flechas',
+      label: 'Trazos',
       items: [
         { id: 'arrow_solid', label: 'Pase', title: 'Flecha continua (pase)' },
         { id: 'arrow_dashed', label: 'Carrera', title: 'Flecha discontinua (carrera)' },
+        { id: 'line_solid', label: 'Linea', title: 'Linea recta sin punta' },
+        { id: 'line_dashed', label: 'Linea -', title: 'Linea discontinua sin punta' },
+        { id: 'rect', label: 'Cuadrado', title: 'Rectangulo / zona' },
       ],
     },
     {
@@ -371,7 +440,7 @@ export const TacticalBoard = forwardRef<TacticalBoardHandle, TacticalBoardProps>
                   title={btn.title}
                   onClick={() => {
                     setTool(btn.id)
-                    setArrowDraft(null)
+                    setTwoPointDraft(null)
                   }}
                   className={`flex items-center gap-1.5 text-xs py-1.5 px-2.5 rounded-md transition-colors ${
                     active
@@ -387,9 +456,13 @@ export const TacticalBoard = forwardRef<TacticalBoardHandle, TacticalBoardProps>
                   )}
                   {btn.id === 'cone' && <span className="text-sm">🔶</span>}
                   {btn.id === 'ball' && <span className="text-sm">⚽</span>}
-                  {btn.id === 'goal' && <span className="text-sm">🥅</span>}
+                  {btn.id === 'goal_large' && <span className="text-sm">🥅</span>}
+                  {btn.id === 'goal_small' && <span className="text-xs">🥅</span>}
                   {btn.id === 'arrow_solid' && <span className="text-sm">→</span>}
                   {btn.id === 'arrow_dashed' && <span className="text-sm">⇢</span>}
+                  {btn.id === 'line_solid' && <span className="text-sm">─</span>}
+                  {btn.id === 'line_dashed' && <span className="text-sm">┄</span>}
+                  {btn.id === 'rect' && <span className="text-sm">▢</span>}
                   {btn.id === 'eraser' && <span className="text-sm">🧹</span>}
                   {btn.label}
                 </button>
@@ -399,10 +472,10 @@ export const TacticalBoard = forwardRef<TacticalBoardHandle, TacticalBoardProps>
         ))}
       </div>
 
-      {/* Arrow color picker — only when drawing arrows */}
+      {/* Color picker — only when drawing strokes/shapes */}
       {isDraw && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Color de flecha:</span>
+          <span className="text-xs text-muted-foreground">Color:</span>
           {ARROW_COLORS.map((c) => (
             <button
               key={c}
@@ -417,12 +490,12 @@ export const TacticalBoard = forwardRef<TacticalBoardHandle, TacticalBoardProps>
         </div>
       )}
 
-      {arrowDraft && (
+      {twoPointDraft && (
         <p className="text-xs text-muted-foreground">
-          Inicio de flecha marcado — haz clic en el destino para completarla.
+          Punto inicial marcado — haz clic en el destino para completar.
           <button
             type="button"
-            onClick={() => setArrowDraft(null)}
+            onClick={() => setTwoPointDraft(null)}
             className="ml-2 underline"
           >
             Cancelar
@@ -461,34 +534,91 @@ export const TacticalBoard = forwardRef<TacticalBoardHandle, TacticalBoardProps>
                 />
               ))}
 
-            {/* Arrow draft indicator */}
-            {arrowDraft && (
+            {/* Two-point draft indicator (arrows / lines / rect) */}
+            {twoPointDraft && (
               <Circle
-                x={arrowDraft.x1}
-                y={arrowDraft.y1}
+                x={twoPointDraft.x1}
+                y={twoPointDraft.y1}
                 radius={6}
                 fill={arrowColor}
                 opacity={0.7}
               />
             )}
 
-            {/* Cones */}
+            {/* Plain lines */}
             {shapes
-              .filter((s): s is ConeShape => s.kind === 'cone')
+              .filter((s): s is LineShape => s.kind === 'line')
               .map((shape) => (
-                <RegularPolygon
+                <Line
+                  key={shape.id}
+                  points={shape.points}
+                  stroke={shape.color}
+                  strokeWidth={2.5}
+                  dash={shape.dashed ? [10, 6] : undefined}
+                  lineCap="round"
+                  hitStrokeWidth={12}
+                  onClick={(e) => handleShapeClick(shape.id, e)}
+                />
+              ))}
+
+            {/* Rectangles / zones */}
+            {shapes
+              .filter((s): s is RectShape => s.kind === 'rect')
+              .map((shape) => (
+                <Rect
                   key={shape.id}
                   x={shape.x}
                   y={shape.y}
-                  sides={3}
-                  radius={12}
-                  fill="#ff8c00"
-                  stroke="#cc6600"
-                  strokeWidth={1.5}
+                  width={shape.width}
+                  height={shape.height}
+                  stroke={shape.color}
+                  strokeWidth={2.5}
+                  dash={[8, 6]}
+                  fill={shape.color}
+                  opacity={0.18}
                   draggable={tool !== 'eraser'}
                   onClick={(e) => handleShapeClick(shape.id, e)}
                   onDragEnd={(e) => handleDragEnd(shape.id, e)}
                 />
+              ))}
+
+            {/* Cones — triangle body + base ellipse + white stripe (3D look) */}
+            {shapes
+              .filter((s): s is ConeShape => s.kind === 'cone')
+              .map((shape) => (
+                <React.Fragment key={shape.id}>
+                  {/* base shadow */}
+                  <Ellipse
+                    x={shape.x}
+                    y={shape.y + 8}
+                    radiusX={11}
+                    radiusY={3}
+                    fill="rgba(0,0,0,0.35)"
+                    listening={false}
+                  />
+                  {/* cone body */}
+                  <RegularPolygon
+                    x={shape.x}
+                    y={shape.y}
+                    sides={3}
+                    radius={13}
+                    fill="#ff7a00"
+                    stroke="#a64a00"
+                    strokeWidth={1.2}
+                    draggable={tool !== 'eraser'}
+                    onClick={(e) => handleShapeClick(shape.id, e)}
+                    onDragEnd={(e) => handleDragEnd(shape.id, e)}
+                  />
+                  {/* white reflective stripe */}
+                  <Rect
+                    x={shape.x - 6}
+                    y={shape.y + 1}
+                    width={12}
+                    height={2.5}
+                    fill="#ffffff"
+                    listening={false}
+                  />
+                </React.Fragment>
               ))}
 
             {/* Balls */}
@@ -518,32 +648,85 @@ export const TacticalBoard = forwardRef<TacticalBoardHandle, TacticalBoardProps>
                 </React.Fragment>
               ))}
 
-            {/* Mini-goals */}
+            {/* Goals — large + small, drawn from the side: posts, crossbar, net */}
             {shapes
               .filter((s): s is GoalShape => s.kind === 'goal')
-              .map((shape) => (
-                <React.Fragment key={shape.id}>
-                  <Rect
-                    x={shape.x - 18}
-                    y={shape.y - 10}
-                    width={36}
-                    height={20}
-                    fill="transparent"
-                    stroke="white"
-                    strokeWidth={2.5}
-                    draggable={tool !== 'eraser'}
-                    onClick={(e) => handleShapeClick(shape.id, e)}
-                    onDragEnd={(e) => handleDragEnd(shape.id, e)}
-                  />
-                  {/* Net pattern lines */}
-                  <Line
-                    points={[shape.x - 18, shape.y - 10, shape.x - 18, shape.y + 10]}
-                    stroke="white"
-                    strokeWidth={3}
-                    listening={false}
-                  />
-                </React.Fragment>
-              ))}
+              .map((shape) => {
+                const isLarge = shape.size === 'large'
+                const w = isLarge ? 70 : 38
+                const h = isLarge ? 26 : 16
+                const post = isLarge ? 3 : 2
+                const left = shape.x - w / 2
+                const top = shape.y - h / 2
+                const right = shape.x + w / 2
+                const bottom = shape.y + h / 2
+                // Net mesh — diagonal cross-hatch
+                const meshSpacing = isLarge ? 8 : 6
+                const meshLines: Array<{ pts: number[] }> = []
+                for (let dx = meshSpacing; dx < w; dx += meshSpacing) {
+                  meshLines.push({ pts: [left + dx, top, left + dx, bottom] })
+                }
+                for (let dy = meshSpacing; dy < h; dy += meshSpacing) {
+                  meshLines.push({ pts: [left, top + dy, right, top + dy] })
+                }
+                return (
+                  <React.Fragment key={shape.id}>
+                    {/* invisible drag/click target so the goal moves as a whole */}
+                    <Rect
+                      x={left}
+                      y={top}
+                      width={w}
+                      height={h}
+                      fill="rgba(0,0,0,0.001)"
+                      draggable={tool !== 'eraser'}
+                      onClick={(e) => handleShapeClick(shape.id, e)}
+                      onDragEnd={(e) => handleDragEnd(shape.id, e)}
+                    />
+                    {/* net mesh */}
+                    {meshLines.map((m, i) => (
+                      <Line
+                        key={i}
+                        points={m.pts}
+                        stroke="rgba(255,255,255,0.55)"
+                        strokeWidth={0.7}
+                        listening={false}
+                      />
+                    ))}
+                    {/* crossbar */}
+                    <Line
+                      points={[left, top, right, top]}
+                      stroke="white"
+                      strokeWidth={post}
+                      lineCap="square"
+                      listening={false}
+                    />
+                    {/* left post */}
+                    <Line
+                      points={[left, top, left, bottom]}
+                      stroke="white"
+                      strokeWidth={post}
+                      lineCap="square"
+                      listening={false}
+                    />
+                    {/* right post */}
+                    <Line
+                      points={[right, top, right, bottom]}
+                      stroke="white"
+                      strokeWidth={post}
+                      lineCap="square"
+                      listening={false}
+                    />
+                    {/* ground line (a touch thicker so it reads as the base) */}
+                    <Line
+                      points={[left, bottom, right, bottom]}
+                      stroke="white"
+                      strokeWidth={post}
+                      lineCap="square"
+                      listening={false}
+                    />
+                  </React.Fragment>
+                )
+              })}
 
             {/* Players */}
             {shapes
@@ -557,27 +740,27 @@ export const TacticalBoard = forwardRef<TacticalBoardHandle, TacticalBoardProps>
                     <Circle
                       x={shape.x}
                       y={shape.y}
-                      radius={18}
+                      radius={13}
                       fill={color}
                       stroke={strokeColor}
-                      strokeWidth={2}
+                      strokeWidth={1.5}
                       draggable={tool !== 'eraser'}
                       onClick={(e) => handleShapeClick(shape.id, e)}
                       onDragEnd={(e) => handleDragEnd(shape.id, e)}
                       shadowColor="black"
-                      shadowBlur={4}
+                      shadowBlur={3}
                       shadowOpacity={0.3}
                       shadowOffset={{ x: 1, y: 1 }}
                     />
                     <Text
-                      x={shape.x - 9}
-                      y={shape.y - 8}
+                      x={shape.x - 7}
+                      y={shape.y - 6}
                       text={String(shape.number)}
-                      fontSize={14}
+                      fontSize={11}
                       fontStyle="bold"
                       fill={textColor}
                       align="center"
-                      width={18}
+                      width={14}
                       listening={false}
                     />
                   </React.Fragment>
