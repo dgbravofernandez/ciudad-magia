@@ -6,6 +6,22 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '2mb',
     },
   },
+  images: {
+    // Allow logos / media served from Supabase Storage (any project) and
+    // common avatar/CDN hosts used in the app.
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.supabase.in',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
   // Allow server actions up to 30s (PDF generation + email)
   serverExternalPackages: ['@react-pdf/renderer'],
   typescript: {
