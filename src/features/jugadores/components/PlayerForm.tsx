@@ -46,6 +46,10 @@ export function PlayerForm({
         if (result.success) {
           toast.success('Jugador creado')
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if ((result as any).docsEmailSent) {
+            toast.success('Email de solicitud de documentos enviado al tutor')
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           router.push(`/jugadores/${(result as any).player?.id ?? ''}`)
           router.refresh()
         } else {
@@ -239,6 +243,35 @@ export function PlayerForm({
           />
         </div>
       </div>
+
+      {!isEditing && (
+        <div className="card p-6 space-y-4">
+          <h3 className="font-semibold text-base">Documentación (opcional)</h3>
+          <div>
+            <label className="label">Enlace al formulario de documentos</label>
+            <input
+              name="forms_link"
+              type="url"
+              placeholder="https://forms.gle/..."
+              className="input w-full"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Google Forms donde el tutor sube DNI, foto, certificado médico y justificante de reserva.
+            </p>
+          </div>
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              name="send_docs_request"
+              className="mt-0.5"
+              defaultChecked
+            />
+            <span>
+              <strong>Enviar email al tutor</strong> solicitando la documentación (DNI, foto, certificado médico, justificante de reserva) al crear el jugador.
+            </span>
+          </label>
+        </div>
+      )}
 
       <div className="flex gap-3">
         <button

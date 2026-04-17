@@ -248,7 +248,7 @@ export function InscripcionesTable({
     }
   }
 
-  async function sendBulkEmails(emailType: 'fill_form' | 'team_assignment' | 'wants_to_continue_yes', ids?: string[]) {
+  async function sendBulkEmails(emailType: 'fill_form' | 'team_assignment' | 'wants_to_continue_yes' | 'request_docs', ids?: string[]) {
     const targetIds = ids ?? Array.from(selected)
     if (targetIds.length === 0) return
     startTransition(async () => {
@@ -264,7 +264,7 @@ export function InscripcionesTable({
         else if (!(result as any).recipientEmail) noEmail++
         else sent++
       }
-      const label = emailType === 'fill_form' ? 'formulario' : emailType === 'team_assignment' ? 'asignación' : 'confirmación'
+      const label = emailType === 'fill_form' ? 'formulario' : emailType === 'team_assignment' ? 'asignación' : emailType === 'request_docs' ? 'solicitud de documentos' : 'confirmación'
       if (sent > 0) toast.success(`${sent} email${sent > 1 ? 's' : ''} de ${label} enviado${sent > 1 ? 's' : ''}`)
       if (noEmail > 0) toast.warning(`${noEmail} jugador${noEmail > 1 ? 'es' : ''} sin email de tutor`)
       if (fail > 0) toast.error(`${fail} error${fail > 1 ? 'es' : ''}`)
@@ -441,6 +441,15 @@ export function InscripcionesTable({
               </button>
             )}
             <button
+              onClick={() => sendBulkEmails('request_docs')}
+              disabled={isPending}
+              className="btn-secondary gap-2 flex items-center text-sm"
+              title="Solicitar DNI, foto, certificado médico y justificante de reserva"
+            >
+              <Send className="w-4 h-4" />
+              Solicitar documentos ({selected.size})
+            </button>
+            <button
               onClick={() => sendBulkEmails('team_assignment')}
               disabled={isPending}
               className="btn-primary gap-2 flex items-center text-sm"
@@ -475,6 +484,7 @@ export function InscripcionesTable({
                 <th className="text-center px-3 py-3 font-medium text-muted-foreground">Requisitos</th>
                 <th className="text-center px-3 py-3 font-medium text-muted-foreground">Reserva</th>
                 <th className="text-center px-3 py-3 font-medium text-muted-foreground">Form. enviado</th>
+                <th className="text-center px-3 py-3 font-medium text-muted-foreground">Docs. solic.</th>
                 <th className="text-center px-3 py-3 font-medium text-muted-foreground">Email asig.</th>
                 <th className="text-center px-3 py-3 font-medium text-muted-foreground">Carta pruebas</th>
                 <th className="text-center px-3 py-3 font-medium text-muted-foreground">Acciones</th>
@@ -614,6 +624,43 @@ export function InscripcionesTable({
                           disabled={isDismissed || isPending}
                           className="mx-auto flex text-muted-foreground hover:text-primary transition-colors disabled:opacity-40"
                           title={player.forms_link ? 'Enviar formulario de inscripción' : 'Sin enlace de formulario'}
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      )}
+                    </td>
+
+                    {/* Email solicitar documentos */}
+                    <td className="px-3 py-2 text-center">
+                      {player.email_request_docs_sent ? (
+                        <div className="flex items-center justify-center gap-1">
+                          <span title="Documentos solicitados"><CheckCircle2 className="w-4 h-4 text-success" /></span>
+                          {isAdmin && (
+                            <button
+                              onClick={() => startTransition(async () => {
+                                await resetEmailFlag(player.id, 'email_request_docs_sent')
+                                toast.info('Marcado como no enviado')
+                              })}
+                              disabled={isPending}
+                              className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+                              title="Deshacer (admin)"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            startTransition(async () => {
+                              const r = await sendEmail(player.id, 'request_docs')
+                              if (r.success) toast.success('Solicitud de documentos enviada')
+                              else toast.error(r.error ?? 'Error')
+                            })
+                          }}
+                          disabled={isDismissed || isPending}
+                          className="mx-auto flex text-muted-foreground hover:text-primary transition-colors disabled:opacity-40"
+                          title={player.forms_link ? 'Solicitar documentación al tutor' : 'Sin enlace de formulario — se enviará sin link'}
                         >
                           <Send className="w-4 h-4" />
                         </button>

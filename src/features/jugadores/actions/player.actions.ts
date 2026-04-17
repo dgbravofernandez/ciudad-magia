@@ -244,6 +244,34 @@ function buildFallbackEmail(
           <p>Atentamente,<br>${CLUB}</p>
         </div>`,
       }
+    case 'request_docs':
+      return {
+        subject: `Documentación pendiente - ${CLUB}`,
+        body: `<div style="${border('#ffcc00')}">
+          <h2 style="color:#000;text-align:center;">Solicitud de Documentación</h2>
+          <p>Estimado/a <strong>${tutorName}</strong>,</p>
+          <p>Para completar la inscripción de <strong>${playerName}</strong> en la ${teamName ? `categoría <strong>${teamName}</strong> de la ` : ''}${CLUB}, necesitamos recibir la siguiente documentación:</p>
+          <ul style="line-height:1.8;">
+            <li><strong>DNI / NIE</strong> del jugador (por ambas caras)</li>
+            <li><strong>Fotografía</strong> reciente del jugador (tipo carnet)</li>
+            <li><strong>Certificado médico</strong> de aptitud deportiva</li>
+            <li><strong>Justificante de pago</strong> de la reserva de plaza</li>
+          </ul>
+          ${formsLink
+            ? `<p>Por favor, suba los documentos en el siguiente enlace:</p>
+              <div style="text-align:center;margin:25px 0;">
+                <a href="${formsLink}" style="background:#ffcc00;color:#000;padding:14px 30px;border-radius:8px;font-weight:bold;text-decoration:none;font-size:16px;display:inline-block;">
+                  Subir documentación
+                </a>
+              </div>
+              <p style="font-size:0.85em;color:#888;text-align:center;">O copia este enlace en tu navegador:<br>${formsLink}</p>`
+            : `<p><em>Puede hacernos llegar la documentación por email como respuesta a este mensaje o entregarla en la oficina del club.</em></p>`
+          }
+          <p style="font-size:0.9em;color:#666;"><em>Sin la documentación completa no podremos tramitar la ficha federativa del jugador. Si tiene dudas, contacte con la secretaría.</em></p>
+          <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+          <p style="text-align:center;font-size:0.9em;">Atentamente,<br><strong>La Dirección - ${CLUB}</strong></p>
+        </div>`,
+      }
     case 'wants_to_continue_yes':
       if (isJuvenile) {
         return {
@@ -358,6 +386,9 @@ export async function createPlayer(formData: FormData) {
   const { getClubId } = await import('@/lib/supabase/get-club-id')
   const clubId = await getClubId()
 
+  const sendDocsRequest = formData.get('send_docs_request') === 'on'
+  const formsLink = (formData.get('forms_link') as string)?.trim() || null
+
   const data = {
     club_id: clubId,
     first_name: formData.get('first_name') as string,
@@ -372,6 +403,7 @@ export async function createPlayer(formData: FormData) {
     dominant_foot: (formData.get('dominant_foot') as string) || null,
     team_id: (formData.get('team_id') as string) || null,
     dorsal_number: formData.get('dorsal_number') ? parseInt(formData.get('dorsal_number') as string) : null,
+    forms_link: formsLink,
     status: 'active',
   }
 
@@ -380,8 +412,21 @@ export async function createPlayer(formData: FormData) {
 
   if (error) return { success: false, error: error.message }
 
+  // Optionally email the tutor the documents-request message right away
+  let docsEmailSent = false
+  if (sendDocsRequest && player?.id && player?.tutor_email) {
+    try {
+      const r = await sendEmail(player.id, 'request_docs')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      docsEmailSent = !!(r as any)?.emailSent
+    } catch {
+      // non-fatal: creation already succeeded
+      docsEmailSent = false
+    }
+  }
+
   revalidatePath('/jugadores')
-  return { success: true, player }
+  return { success: true, player, docsEmailSent }
 }
 
 export async function updatePlayer(playerId: string, formData: FormData) {
