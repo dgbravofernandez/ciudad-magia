@@ -1,11 +1,11 @@
 'use client'
-import { Shirt, Plus, Package, DollarSign, Clock, CheckCircle, XCircle, Eye } from 'lucide-react'
+import { Shirt, Plus, Package, DollarSign, Clock, CheckCircle, XCircle, Pencil, Trash2 } from 'lucide-react'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { toast } from 'sonner'
-import { createClothingOrder, markClothingOrderPaid, refundClothingOrder, type ClothingPaymentMethod } from '@/features/ropa/actions/clothing.actions'
+import { createClothingOrder, markClothingOrderPaid, refundClothingOrder, deleteClothingOrder, updateClothingOrder, type ClothingPaymentMethod } from '@/features/ropa/actions/clothing.actions'
 
 interface OrderItem { count: number }
 interface Player { first_name: string; last_name: string }
@@ -46,6 +46,9 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
   // Pay-modal: ask payment method before registering to caja
   const [payTarget, setPayTarget] = useState<Order | null>(null)
   const [payMethod, setPayMethod] = useState<ClothingPaymentMethod>('cash')
+  // Edit-modal
+  const [editTarget, setEditTarget] = useState<Order | null>(null)
+  const [editForm, setEditForm] = useState({ description: '', size: 'M', quantity: 1, price: 0, notes: '' })
 
   const filtered = filter === 'all' ? pedidos : pedidos.filter(p => p.payment_status === filter)
   const totalRevenue = pedidos.filter(p => p.payment_status === 'paid').reduce((s, p) => s + Number(p.total_amount), 0)
@@ -114,6 +117,52 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
       } else {
         toast.error(r.error ?? 'Error al devolver')
       }
+    })
+  }
+
+  function handleDelete(o: Order) {
+    const warn = o.payment_status === 'paid'
+      ? '¿Eliminar este pedido? También se quitará el ingreso de caja asociado.'
+      : '¿Eliminar este pedido?'
+    if (!confirm(warn)) return
+    startTransition(async () => {
+      const r = await deleteClothingOrder(o.id)
+      if (r.success) { toast.success('Pedido eliminado'); router.refresh() }
+      else toast.error(r.error ?? 'Error al eliminar')
+    })
+  }
+
+  function openEdit(o: Order) {
+    // Parse current notes: strip the "Jugador (manual):" prefix for display
+    const cleanNotes = (o.notes ?? '').replace(/^Jugador \(manual\):[^—]+(?:—\s*)?/, '').trim()
+    setEditForm({
+      description: o.description ?? '',
+      size: 'M',
+      quantity: 1,
+      price: Number(o.total_amount) || 0,
+      notes: cleanNotes,
+    })
+    setEditTarget(o)
+  }
+
+  function handleUpdate() {
+    if (!editTarget) return
+    const target = editTarget
+    if (!editForm.description.trim()) { toast.error('La descripción es obligatoria'); return }
+    startTransition(async () => {
+      const r = await updateClothingOrder({
+        orderId: target.id,
+        description: editForm.description,
+        size: editForm.size,
+        quantity: editForm.quantity,
+        price: editForm.price,
+        notes: editForm.notes,
+      })
+      if (r.success) {
+        toast.success('Pedido actualizado')
+        setEditTarget(null)
+        router.refresh()
+      } else toast.error(r.error ?? 'Error')
     })
   }
 
@@ -205,6 +254,22 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
                             Devolver
                           </button>
                         )}
+                        <button
+                          onClick={() => openEdit(p)}
+                          disabled={isPending}
+                          className="text-xs p-1 text-gray-400 hover:text-gray-700 disabled:opacity-50"
+                          title="Editar"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(p)}
+                          disabled={isPending}
+                          className="text-xs p-1 text-gray-400 hover:text-red-600 disabled:opacity-50"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -214,6 +279,57 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
           </table>
         )}
       </div>
+
+      {/* Edit modal */}
+      {editTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditTarget(null)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900">Editar pedido</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                {fullName(editTarget.player, editTarget.notes)}
+                {editTarget.payment_status === 'paid' && ' · pagado (se actualizará también el movimiento de caja)'}
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                <input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Talla</label>
+                  <select value={editForm.size} onChange={e => setEditForm(f => ({ ...f, size: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
+                  <input type="number" min={1} value={editForm.quantity} onChange={e => setEditForm(f => ({ ...f, quantity: Number(e.target.value) }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Precio (€)</label>
+                  <input type="number" min={0} step={0.01} value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: Number(e.target.value) }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                <textarea value={editForm.notes} onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))} rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div className="bg-gray-50 rounded-lg px-3 py-2 text-sm">
+                <span className="text-gray-500">Nuevo total: </span>
+                <span className="font-bold text-gray-900">{(editForm.price * editForm.quantity).toFixed(2)} €</span>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setEditTarget(null)} disabled={isPending} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 disabled:opacity-50">Cancelar</button>
+              <button onClick={handleUpdate} disabled={isPending} className="px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50" style={{ backgroundColor: 'var(--color-primary)' }}>
+                {isPending ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pay modal — ask payment method, then register to caja */}
       {payTarget && (

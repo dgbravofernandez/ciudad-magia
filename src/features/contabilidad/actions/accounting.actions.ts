@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { generateReceiptPDF } from '@/lib/pdf/generate-receipt'
 import { sendHtmlEmail } from '@/lib/email/send'
+import { assertNotLocked } from '@/lib/accounting/lock'
 
 // Map Spanish UI labels to DB enum values
 const METHOD_MAP: Record<string, string> = {
@@ -127,7 +128,15 @@ export async function registerPayment(data: {
 }
 
 export async function deletePayment(paymentId: string) {
-  const { sb } = await resolveClubAndMember()
+  const { sb, clubId } = await resolveClubAndMember()
+
+  // Lock check against the payment's date
+  const { data: existing } = await sb
+    .from('quota_payments').select('payment_date').eq('id', paymentId).single()
+  if (existing?.payment_date) {
+    const check = await assertNotLocked(existing.payment_date, clubId)
+    if (!check.ok) return { success: false, error: check.error }
+  }
 
   // Delete related cash_movement first (FK)
   const { error: movementError } = await sb
@@ -141,6 +150,7 @@ export async function deletePayment(paymentId: string) {
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/contabilidad/pagos')
+  revalidatePath('/contabilidad/caja')
   return { success: true }
 }
 
@@ -151,8 +161,20 @@ export async function updatePayment(data: {
   date: string
   notes: string
 }) {
-  const { sb } = await resolveClubAndMember()
+  const { sb, clubId } = await resolveClubAndMember()
   const dbMethod = toDbMethod(data.method)
+
+  // Lock check against BOTH old and new date (so you can't sneak a row out of a locked period by moving it)
+  const { data: existing } = await sb
+    .from('quota_payments').select('payment_date').eq('id', data.paymentId).single()
+  if (existing?.payment_date) {
+    const oldCheck = await assertNotLocked(existing.payment_date, clubId)
+    if (!oldCheck.ok) return { success: false, error: oldCheck.error }
+  }
+  if (data.date) {
+    const newCheck = await assertNotLocked(data.date, clubId)
+    if (!newCheck.ok) return { success: false, error: newCheck.error }
+  }
 
   const { error: paymentError } = await sb
     .from('quota_payments')
@@ -240,6 +262,89 @@ export async function addExpense(formData: FormData) {
   if (movementError) return { success: false, error: movementError.message }
 
   revalidatePath('/contabilidad/gastos')
+  return { success: true }
+}
+
+export async function deleteExpense(expenseId: string) {
+  const { sb, clubId } = await resolveClubAndMember()
+
+  const { data: existing } = await sb
+    .from('expenses').select('expense_date, club_id').eq('id', expenseId).single()
+  if (!existing) return { success: false, error: 'Gasto no encontrado' }
+  if (existing.club_id !== clubId) return { success: false, error: 'No autorizado' }
+
+  const check = await assertNotLocked(existing.expense_date, clubId)
+  if (!check.ok) return { success: false, error: check.error }
+
+  // Delete linked cash_movement(s)
+  const { error: movementErr } = await sb
+    .from('cash_movements').delete().eq('related_expense_id', expenseId)
+  if (movementErr) return { success: false, error: movementErr.message }
+
+  // If the expense was linked to a tournament_budget_item, un-link it + mark unpaid
+  await sb
+    .from('tournament_budget_items')
+    .update({ is_paid: false, payment_method: null, paid_at: null, related_expense_id: null })
+    .eq('related_expense_id', expenseId)
+
+  const { error } = await sb.from('expenses').delete().eq('id', expenseId)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/contabilidad/gastos')
+  revalidatePath('/contabilidad/caja')
+  return { success: true }
+}
+
+export async function updateExpense(data: {
+  expenseId: string
+  amount: number
+  date: string
+  category: string
+  description: string
+  method: string
+}) {
+  const { sb, clubId } = await resolveClubAndMember()
+  const dbMethod = toDbMethod(data.method)
+
+  const { data: existing } = await sb
+    .from('expenses').select('expense_date, club_id').eq('id', data.expenseId).single()
+  if (!existing) return { success: false, error: 'Gasto no encontrado' }
+  if (existing.club_id !== clubId) return { success: false, error: 'No autorizado' }
+
+  // Lock check against BOTH old and new date
+  const oldCheck = await assertNotLocked(existing.expense_date, clubId)
+  if (!oldCheck.ok) return { success: false, error: oldCheck.error }
+  if (data.date) {
+    const newCheck = await assertNotLocked(data.date, clubId)
+    if (!newCheck.ok) return { success: false, error: newCheck.error }
+  }
+
+  const { error: expenseErr } = await sb
+    .from('expenses')
+    .update({
+      amount: data.amount,
+      expense_date: data.date,
+      category: data.category,
+      description: data.description,
+    })
+    .eq('id', data.expenseId)
+
+  if (expenseErr) return { success: false, error: expenseErr.message }
+
+  const { error: movementErr } = await sb
+    .from('cash_movements')
+    .update({
+      amount: data.amount,
+      payment_method: dbMethod,
+      movement_date: data.date,
+      description: data.description,
+    })
+    .eq('related_expense_id', data.expenseId)
+
+  if (movementErr) return { success: false, error: movementErr.message }
+
+  revalidatePath('/contabilidad/gastos')
+  revalidatePath('/contabilidad/caja')
   return { success: true }
 }
 

@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
+import { assertNotLocked } from '@/lib/accounting/lock'
 
 export interface CreateClothingOrderInput {
   playerName: string
@@ -185,7 +186,7 @@ export async function refundClothingOrder(
 
   const { data: order, error: fetchErr } = await sb
     .from('clothing_orders')
-    .select('id, description, total_amount, player_id, notes, payment_status')
+    .select('id, description, total_amount, player_id, notes, payment_status, paid_at')
     .eq('id', orderId)
     .eq('club_id', clubId)
     .single()
@@ -194,6 +195,10 @@ export async function refundClothingOrder(
   if (order.payment_status !== 'paid') {
     return { success: false, error: 'Solo se pueden devolver pedidos ya pagados' }
   }
+
+  // Lock check: no se puede devolver si la caja de ese día ya está cerrada
+  const lockCheck = await assertNotLocked(order.paid_at ?? new Date().toISOString(), clubId)
+  if (!lockCheck.ok) return { success: false, error: lockCheck.error }
 
   // Find the original cash_movement to match its payment_method for the refund
   const { data: originalMovement } = await sb
@@ -248,5 +253,124 @@ export async function refundClothingOrder(
   revalidatePath('/ropa')
   revalidatePath('/contabilidad/caja')
   revalidatePath('/contabilidad/pagos')
+  return { success: true }
+}
+
+/**
+ * Borra un pedido por completo. Si estaba pagado, también borra el movimiento
+ * de caja asociado (si la caja de ese día está cerrada → no se puede).
+ */
+export async function deleteClothingOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = createAdminClient()
+  const { clubId } = await getClubContext()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  const { data: order, error: fetchErr } = await sb
+    .from('clothing_orders')
+    .select('id, payment_status, paid_at')
+    .eq('id', orderId)
+    .eq('club_id', clubId)
+    .single()
+
+  if (fetchErr || !order) return { success: false, error: fetchErr?.message ?? 'Pedido no encontrado' }
+
+  // Si ya está pagado, la eliminación afecta a caja → aplicar lock check
+  if (order.payment_status === 'paid' && order.paid_at) {
+    const lockCheck = await assertNotLocked(order.paid_at, clubId)
+    if (!lockCheck.ok) return { success: false, error: lockCheck.error }
+  }
+
+  // Borrar movimiento(s) de caja asociados
+  await sb.from('cash_movements').delete().eq('related_clothing_order_id', orderId)
+
+  // Borrar items (CASCADE debería hacerlo, pero por si acaso)
+  await sb.from('clothing_order_items').delete().eq('order_id', orderId)
+
+  const { error } = await sb.from('clothing_orders').delete().eq('id', orderId).eq('club_id', clubId)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/ropa')
+  revalidatePath('/contabilidad/caja')
+  return { success: true }
+}
+
+/**
+ * Edita un pedido (descripción, precio, cantidad, talla, notas).
+ * Si está pagado y la caja del día del pago ya se cerró → bloqueado.
+ * Si está pagado y el importe cambia → actualiza el cash_movement a la par.
+ */
+export async function updateClothingOrder(input: {
+  orderId: string
+  description: string
+  size: string
+  quantity: number
+  price: number
+  notes?: string | null
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = createAdminClient()
+  const { clubId } = await getClubContext()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  const { data: order, error: fetchErr } = await sb
+    .from('clothing_orders')
+    .select('id, payment_status, paid_at, notes')
+    .eq('id', input.orderId)
+    .eq('club_id', clubId)
+    .single()
+
+  if (fetchErr || !order) return { success: false, error: fetchErr?.message ?? 'Pedido no encontrado' }
+
+  if (order.payment_status === 'paid' && order.paid_at) {
+    const lockCheck = await assertNotLocked(order.paid_at, clubId)
+    if (!lockCheck.ok) return { success: false, error: lockCheck.error }
+  }
+
+  const quantity = Math.max(1, Math.floor(input.quantity || 1))
+  const unitPrice = Number.isFinite(input.price) ? Math.max(0, input.price) : 0
+  const totalAmount = +(unitPrice * quantity).toFixed(2)
+
+  // Preserve the "Jugador (manual):" prefix if it existed, append user notes
+  let mergedNotes: string | null = null
+  const manualMatch = (order.notes as string | null)?.match(/^Jugador \(manual\):\s*([^—]+)/)
+  const manualPart = manualMatch ? `Jugador (manual): ${manualMatch[1].trim()}` : null
+  const parts = [manualPart, input.notes?.trim() || null].filter(Boolean)
+  mergedNotes = parts.length > 0 ? parts.join(' — ') : null
+
+  const { error: orderErr } = await sb
+    .from('clothing_orders')
+    .update({
+      description: input.description.trim(),
+      total_amount: totalAmount,
+      notes: mergedNotes,
+    })
+    .eq('id', input.orderId)
+    .eq('club_id', clubId)
+
+  if (orderErr) return { success: false, error: orderErr.message }
+
+  // Reemplazar items (simpler than trying to diff)
+  await sb.from('clothing_order_items').delete().eq('order_id', input.orderId)
+  const { error: itemErr } = await sb.from('clothing_order_items').insert({
+    order_id: input.orderId,
+    item_name: input.description.trim(),
+    size: input.size || null,
+    quantity,
+    unit_price: unitPrice,
+  })
+  if (itemErr) return { success: false, error: itemErr.message }
+
+  // Si está pagado, sincronizar el cash_movement
+  if (order.payment_status === 'paid') {
+    await sb
+      .from('cash_movements')
+      .update({ amount: totalAmount, description: `Ropa - ${input.description.trim()}` })
+      .eq('related_clothing_order_id', input.orderId)
+      .eq('type', 'income')
+  }
+
+  revalidatePath('/ropa')
+  revalidatePath('/contabilidad/caja')
   return { success: true }
 }

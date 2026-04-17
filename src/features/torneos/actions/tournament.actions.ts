@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
+import { assertNotLocked } from '@/lib/accounting/lock'
 
 export type TournamentKind = 'local' | 'external'
 export type PayMethod = 'cash' | 'card' | 'transfer'
@@ -168,15 +169,22 @@ export async function removeBudgetItem(itemId: string, tournamentId: string): Pr
   if (!check.ok) return { success: false, error: check.error }
 
   const supabase = createAdminClient()
+  const { clubId } = await getClubContext()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any
 
   // If the item was paid, also delete its related expense + cash_movement
   const { data: item } = await sb
     .from('tournament_budget_items')
-    .select('id, related_expense_id')
+    .select('id, related_expense_id, is_paid, paid_at')
     .eq('id', itemId)
     .single()
+
+  // Lock check: si ya se pagó, la caja de ese día debe estar abierta
+  if (item?.is_paid && item?.paid_at) {
+    const lockCheck = await assertNotLocked(item.paid_at, clubId)
+    if (!lockCheck.ok) return { success: false, error: lockCheck.error }
+  }
 
   if (item?.related_expense_id) {
     await sb.from('cash_movements').delete().eq('related_expense_id', item.related_expense_id)
@@ -314,8 +322,19 @@ export async function removeAttendee(attendeeId: string, tournamentId: string): 
   if (!check.ok) return { success: false, error: check.error }
 
   const supabase = createAdminClient()
+  const { clubId } = await getClubContext()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any
+
+  // Lock check si ya había pagado
+  const { data: att } = await sb
+    .from('tournament_attendees')
+    .select('payment_status, paid_at')
+    .eq('id', attendeeId).single()
+  if (att?.payment_status === 'paid' && att?.paid_at) {
+    const lockCheck = await assertNotLocked(att.paid_at, clubId)
+    if (!lockCheck.ok) return { success: false, error: lockCheck.error }
+  }
 
   // Borrar movimientos de caja ligados al asistente
   await sb.from('cash_movements').delete().eq('related_tournament_attendee_id', attendeeId)
@@ -435,12 +454,15 @@ export async function refundAttendee(
 
   const { data: attendee } = await sb
     .from('tournament_attendees')
-    .select('id, player_id, amount_due, payment_status, payment_method')
+    .select('id, player_id, amount_due, payment_status, payment_method, paid_at')
     .eq('id', attendeeId).single()
 
   if (!attendee || attendee.payment_status !== 'paid') {
     return { success: false, error: 'Solo se pueden devolver pagos ya realizados' }
   }
+
+  const lockCheck = await assertNotLocked(attendee.paid_at ?? new Date().toISOString(), clubId)
+  if (!lockCheck.ok) return { success: false, error: lockCheck.error }
 
   const { data: player } = await sb
     .from('players').select('first_name, last_name').eq('id', attendee.player_id).single()
