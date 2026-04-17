@@ -55,6 +55,35 @@ export async function createSession(formData: FormData) {
   return { success: true, sessionId: session.id }
 }
 
+export async function deleteSession(sessionId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = createAdminClient()
+  const { clubId } = await getClubContext()
+
+  // Verify the session belongs to this club
+  const { data: existing, error: fetchErr } = await supabase
+    .from('sessions')
+    .select('id, club_id')
+    .eq('id', sessionId)
+    .eq('club_id', clubId)
+    .maybeSingle()
+
+  if (fetchErr) return { success: false, error: fetchErr.message }
+  if (!existing) return { success: false, error: 'Sesión no encontrada' }
+
+  // Preserve independent records that reference the session without ON DELETE CASCADE
+  await supabase.from('coordinator_observations').update({ session_id: null }).eq('session_id', sessionId)
+  await supabase.from('scouting_reports').update({ session_id: null }).eq('session_id', sessionId)
+
+  // Remaining child tables (session_exercises, match_events, match_lineups, attendance) cascade.
+  const { error } = await supabase.from('sessions').delete().eq('id', sessionId).eq('club_id', clubId)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/entrenadores/sesiones')
+  revalidatePath('/entrenadores/partidos')
+  revalidatePath('/entrenadores')
+  return { success: true }
+}
+
 export interface AttendanceRecord {
   player_id: string
   status: 'present' | 'absent' | 'justified'

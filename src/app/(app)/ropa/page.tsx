@@ -9,7 +9,7 @@ export default async function Ropa() {
 
   const { data: pedidos } = await supabase
     .from('clothing_orders')
-    .select('*, clothing_order_items(count), player:player_id(full_name)')
+    .select('*, clothing_order_items(count), player:player_id(first_name, last_name)')
     .eq('club_id', clubId)
     .order('created_at', { ascending: false })
 

@@ -1,12 +1,14 @@
 'use client'
 import { Shirt, Plus, Package, DollarSign, Clock, CheckCircle, XCircle, Eye } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { toast } from 'sonner'
+import { createClothingOrder, markClothingOrderPaid } from '@/features/ropa/actions/clothing.actions'
 
 interface OrderItem { count: number }
-interface Player { full_name: string }
+interface Player { first_name: string; last_name: string }
 interface Order {
   id: string
   player_id: string | null
@@ -19,6 +21,13 @@ interface Order {
   notes: string | null
 }
 
+function fullName(p: Player | null, notes: string | null): string {
+  if (p) return `${p.first_name} ${p.last_name}`.trim()
+  // Fallback: recover the manually typed name from notes when no player was matched
+  const match = notes?.match(/Jugador \(manual\):\s*([^—]+)/)
+  return match?.[1]?.trim() || 'N/A'
+}
+
 interface Props { pedidos: Order[]; clubId: string }
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '6', '8', '10', '12', '14', '16'] as const
@@ -28,23 +37,61 @@ const STATUS_CONFIG = {
   cancelled: { label: 'Cancelado', color: 'bg-red-50 text-red-700', icon: XCircle },
 }
 
-export function RopaPage({ pedidos, clubId }: Props) {
+export function RopaPage({ pedidos, clubId: _clubId }: Props) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
   const [filter, setFilter] = useState<'all' | 'pending' | 'paid' | 'cancelled'>('all')
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState({ playerName: '', description: '', size: 'M', quantity: 1, price: 0, notes: '' })
-  const [localPedidos, setLocalPedidos] = useState(pedidos)
 
-  const filtered = filter === 'all' ? localPedidos : localPedidos.filter(p => p.payment_status === filter)
-  const totalRevenue = localPedidos.filter(p => p.payment_status === 'paid').reduce((s, p) => s + Number(p.total_amount), 0)
-  const pending = localPedidos.filter(p => p.payment_status === 'pending').length
-  const paid = localPedidos.filter(p => p.payment_status === 'paid').length
+  const filtered = filter === 'all' ? pedidos : pedidos.filter(p => p.payment_status === filter)
+  const totalRevenue = pedidos.filter(p => p.payment_status === 'paid').reduce((s, p) => s + Number(p.total_amount), 0)
+  const pending = pedidos.filter(p => p.payment_status === 'pending').length
+  const paid = pedidos.filter(p => p.payment_status === 'paid').length
 
   const kpis = [
-    { label: 'Total pedidos', value: localPedidos.length, icon: Package, color: '#3b82f6', bg: '#eff6ff' },
+    { label: 'Total pedidos', value: pedidos.length, icon: Package, color: '#3b82f6', bg: '#eff6ff' },
     { label: 'Pendientes', value: pending, icon: Clock, color: '#d97706', bg: '#fffbeb' },
     { label: 'Pagados', value: paid, icon: CheckCircle, color: '#059669', bg: '#ecfdf5' },
     { label: 'Ingresos ropa', value: `${totalRevenue.toFixed(2)} €`, icon: DollarSign, color: '#059669', bg: '#ecfdf5' },
   ]
+
+  function handleCreate() {
+    if (!form.playerName || !form.description) {
+      toast.error('Completa los campos obligatorios')
+      return
+    }
+    startTransition(async () => {
+      const r = await createClothingOrder({
+        playerName: form.playerName,
+        description: form.description,
+        size: form.size,
+        quantity: form.quantity,
+        price: form.price,
+        notes: form.notes,
+      })
+      if (r.success) {
+        toast.success('Pedido creado')
+        setShowNew(false)
+        setForm({ playerName: '', description: '', size: 'M', quantity: 1, price: 0, notes: '' })
+        router.refresh()
+      } else {
+        toast.error(r.error ?? 'Error al crear el pedido')
+      }
+    })
+  }
+
+  function handleMarkPaid(id: string) {
+    startTransition(async () => {
+      const r = await markClothingOrderPaid(id)
+      if (r.success) {
+        toast.success('Pedido marcado como pagado')
+        router.refresh()
+      } else {
+        toast.error(r.error ?? 'Error al marcar como pagado')
+      }
+    })
+  }
 
   return (
     <div className="p-6">
@@ -104,7 +151,7 @@ export function RopaPage({ pedidos, clubId }: Props) {
                 const StatusIcon = status.icon
                 return (
                   <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{p.player?.full_name ?? 'N/A'}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{fullName(p.player, p.notes)}</td>
                     <td className="px-4 py-3 text-gray-500">{p.description ?? '-'}</td>
                     <td className="px-4 py-3 text-gray-500">{p.clothing_order_items?.[0]?.count ?? 0} artículos</td>
                     <td className="px-4 py-3 font-semibold text-gray-900">{Number(p.total_amount).toFixed(2)} €</td>
@@ -117,10 +164,11 @@ export function RopaPage({ pedidos, clubId }: Props) {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         {p.payment_status === 'pending' && (
-                          <button onClick={() => {
-                            setLocalPedidos(prev => prev.map(x => x.id === p.id ? { ...x, payment_status: 'paid' } : x))
-                            toast.success('Pedido marcado como pagado')
-                          }} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded hover:bg-green-100">
+                          <button
+                            onClick={() => handleMarkPaid(p.id)}
+                            disabled={isPending}
+                            className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded hover:bg-green-100 disabled:opacity-50"
+                          >
                             Marcar pagado
                           </button>
                         )}
@@ -176,21 +224,14 @@ export function RopaPage({ pedidos, clubId }: Props) {
               </div>
             </div>
             <div className="p-4 border-t border-gray-100 flex justify-end gap-2">
-              <button onClick={() => setShowNew(false)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200">Cancelar</button>
-              <button onClick={() => {
-                if (!form.playerName || !form.description) { toast.error('Completa los campos obligatorios'); return }
-                const newOrder: Order = {
-                  id: Date.now().toString(), player_id: null,
-                  player: { full_name: form.playerName }, description: form.description,
-                  total_amount: form.price * form.quantity, payment_status: 'pending',
-                  created_at: new Date().toISOString(), clothing_order_items: [{ count: form.quantity }], notes: form.notes
-                }
-                setLocalPedidos(prev => [newOrder, ...prev])
-                setShowNew(false)
-                setForm({ playerName: '', description: '', size: 'M', quantity: 1, price: 0, notes: '' })
-                toast.success('Pedido creado')
-              }} className="px-4 py-2 text-white rounded-lg text-sm font-medium" style={{ backgroundColor: 'var(--color-primary)' }}>
-                Crear pedido
+              <button onClick={() => setShowNew(false)} disabled={isPending} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 disabled:opacity-50">Cancelar</button>
+              <button
+                onClick={handleCreate}
+                disabled={isPending}
+                className="px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                {isPending ? 'Guardando...' : 'Crear pedido'}
               </button>
             </div>
           </div>

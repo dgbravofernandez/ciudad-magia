@@ -1,7 +1,8 @@
 'use client'
 import { useState } from 'react'
-import { Mail, Users, FileText, Send, Eye, Save, ChevronDown } from 'lucide-react'
+import { Users, FileText, Send, Eye, Save } from 'lucide-react'
 import { toast } from 'sonner'
+import { sendBulkEmail } from '@/features/comunicaciones/actions/communications.actions'
 
 interface Props {
   clubId: string
@@ -40,7 +41,7 @@ function applyVars(text: string): string {
   return Object.entries(SAMPLE_VARS).reduce((t, [k, v]) => t.replaceAll(k, v), text)
 }
 
-export function EmailComposer({ clubId, templates, teams, categories, totalPlayers, pendingPlayersCount }: Props) {
+export function EmailComposer({ templates, teams, categories, totalPlayers, pendingPlayersCount }: Props) {
   const [recipientType, setRecipientType] = useState<'all' | 'pending' | 'team' | 'category'>('all')
   const [selectedTeam, setSelectedTeam] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
@@ -64,14 +65,36 @@ export function EmailComposer({ clubId, templates, teams, categories, totalPlaye
 
   async function handleSend() {
     if (!subject.trim() || !body.trim()) { toast.error('Escribe un asunto y cuerpo'); return }
+    if (recipientType === 'team' && !selectedTeam) { toast.error('Selecciona un equipo'); return }
+    if (recipientType === 'category' && !selectedCategory) { toast.error('Selecciona una categoría'); return }
     setSending(true)
     try {
-      // TODO: call server action when Gmail is configured
-      await new Promise(r => setTimeout(r, 800))
-      toast.success(`Comunicación enviada correctamente`)
-      setSubject(''); setBody(''); setTemplateId('')
-    } catch {
-      toast.error('Error al enviar')
+      const result = await sendBulkEmail({
+        templateId: templateId || null,
+        subject,
+        bodyHtml: body,
+        recipientType,
+        teamId: recipientType === 'team' ? selectedTeam : null,
+        categoryId: recipientType === 'category' ? selectedCategory : null,
+      })
+      if (!result.success) {
+        toast.error(result.error ?? 'Error al enviar')
+        return
+      }
+      const parts: string[] = []
+      if (result.sent > 0) parts.push(`${result.sent} enviado${result.sent > 1 ? 's' : ''}`)
+      if (result.noEmail > 0) parts.push(`${result.noEmail} sin email`)
+      if (result.failed > 0) parts.push(`${result.failed} fallido${result.failed > 1 ? 's' : ''}`)
+      if (result.sent > 0) {
+        toast.success(parts.join(' · ') || 'Comunicación enviada')
+      } else if (result.failed > 0) {
+        toast.error(parts.join(' · '))
+      } else {
+        toast.warning('No había destinatarios con email')
+      }
+      if (result.sent > 0) { setSubject(''); setBody(''); setTemplateId('') }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al enviar')
     } finally { setSending(false) }
   }
 
@@ -188,9 +211,11 @@ export function EmailComposer({ clubId, templates, teams, categories, totalPlaye
           </div>
         )}
 
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-700">
-          <p className="font-medium mb-1">Configuración Gmail pendiente</p>
-          <p>Para enviar correos reales, configura el OAuth de Gmail en Configuración → Integraciones.</p>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-700">
+          <p className="font-medium mb-1">Variables disponibles</p>
+          <p>
+            <span className="font-mono">{'{jugador_nombre}'}</span>, <span className="font-mono">{'{tutor_nombre}'}</span>, <span className="font-mono">{'{club_nombre}'}</span> — se sustituyen por cada destinatario antes de enviar.
+          </p>
         </div>
       </div>
     </div>

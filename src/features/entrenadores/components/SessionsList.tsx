@@ -1,10 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils/cn'
 import { formatDate } from '@/lib/utils/currency'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Trash2 } from 'lucide-react'
+import { deleteSession } from '@/features/entrenadores/actions/session.actions'
 
 interface SessionTeam {
   id: string
@@ -37,8 +40,25 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 export function SessionsList({ sessions, teams }: SessionsListProps) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
   const [filterTeam, setFilterTeam] = useState('')
   const [filterType, setFilterType] = useState('')
+
+  function handleDelete(e: React.MouseEvent, sessionId: string, label: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!confirm(`¿Borrar ${label}? Esta acción no se puede deshacer.`)) return
+    startTransition(async () => {
+      const r = await deleteSession(sessionId)
+      if (r.success) {
+        toast.success('Sesión borrada')
+        router.refresh()
+      } else {
+        toast.error(r.error ?? 'Error al borrar')
+      }
+    })
+  }
 
   const filtered = useMemo(() => {
     return sessions.filter((s) => {
@@ -104,6 +124,7 @@ export function SessionsList({ sessions, teams }: SessionsListProps) {
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Resultado</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Estado</th>
                   <th className="w-8" />
+                  <th className="w-8" />
                 </tr>
               </thead>
               <tbody>
@@ -158,6 +179,20 @@ export function SessionsList({ sessions, teams }: SessionsListProps) {
                         <Link href={href}>
                           <ChevronRight className="w-4 h-4 text-muted-foreground" />
                         </Link>
+                      </td>
+                      <td className="px-2 py-3">
+                        <button
+                          onClick={(e) => handleDelete(
+                            e,
+                            session.id,
+                            `${TYPE_LABELS[session.session_type] ?? session.session_type} del ${formatDate(session.session_date)}`
+                          )}
+                          disabled={isPending}
+                          className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-40"
+                          title="Borrar sesión"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   )

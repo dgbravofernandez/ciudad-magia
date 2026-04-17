@@ -1,10 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils/cn'
 import { formatDate } from '@/lib/utils/currency'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
+import { deleteSession } from '@/features/entrenadores/actions/session.actions'
 
 interface MatchTeam {
   id: string
@@ -30,7 +33,24 @@ interface MatchesListProps {
 }
 
 export function MatchesList({ matches, teams }: MatchesListProps) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
   const [filterTeam, setFilterTeam] = useState('')
+
+  function handleDelete(e: React.MouseEvent, sessionId: string, label: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!confirm(`¿Borrar el partido ${label}? Esta acción no se puede deshacer.`)) return
+    startTransition(async () => {
+      const r = await deleteSession(sessionId)
+      if (r.success) {
+        toast.success('Partido borrado')
+        router.refresh()
+      } else {
+        toast.error(r.error ?? 'Error al borrar')
+      }
+    })
+  }
 
   const filtered = useMemo(() => {
     return matches.filter((m) => !filterTeam || m.team_id === filterTeam)
@@ -133,13 +153,25 @@ export function MatchesList({ matches, teams }: MatchesListProps) {
                   )}
                 </div>
 
-                {/* Action button */}
+                {/* Action buttons */}
                 <Link
                   href={`/entrenadores/partidos/${match.id}`}
                   className="btn-secondary text-sm shrink-0"
                 >
                   Gestionar
                 </Link>
+                <button
+                  onClick={(e) => handleDelete(
+                    e,
+                    match.id,
+                    `${match.teams?.name ?? 'Local'} vs ${match.opponent ?? 'Rival'}`
+                  )}
+                  disabled={isPending}
+                  className="p-2 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors shrink-0 disabled:opacity-40"
+                  title="Borrar partido"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             )
           })}
