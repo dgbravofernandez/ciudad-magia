@@ -1,11 +1,12 @@
-import { createClient } from '@/lib/supabase/server'
-import { headers } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubContext } from '@/lib/supabase/get-club-id'
 import { TorneosPage } from '@/features/torneos/components/TorneosPage'
 
+export const dynamic = 'force-dynamic'
+
 export default async function Torneos() {
-  const hdrs = await headers()
-  const clubId = hdrs.get('x-club-id')!
-  const supabase = await createClient()
+  const { clubId } = await getClubContext()
+  const supabase = createAdminClient()
 
   const { data: torneos } = await supabase
     .from('tournaments')

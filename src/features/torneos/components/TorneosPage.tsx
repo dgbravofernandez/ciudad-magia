@@ -1,10 +1,12 @@
 'use client'
-import { Trophy, Plus, Calendar, MapPin, Users, ChevronRight, Filter } from 'lucide-react'
-import { useState } from 'react'
+import { Trophy, Plus, Calendar, MapPin, Users, ChevronRight } from 'lucide-react'
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { createTournament } from '@/features/torneos/actions/tournament.actions'
 
 interface Tournament {
   id: string
@@ -27,10 +29,34 @@ const STATUS_COLORS = {
 }
 const FORMAT_LABELS = { league: 'Liga', cup: 'Copa', mixed: 'Liga + Eliminatorias' }
 
-export function TorneosPage({ torneos, clubId }: Props) {
+export function TorneosPage({ torneos, clubId: _clubId }: Props) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
   const [showNew, setShowNew] = useState(false)
   const [filterStatus, setFilterStatus] = useState<string>('all')
-  const [form, setForm] = useState({ name: '', category: '', format: 'league' as const, start_date: '', end_date: '', location: '' })
+  const [form, setForm] = useState<{ name: string; category: string; format: 'league' | 'cup' | 'mixed'; start_date: string; end_date: string; location: string }>({ name: '', category: '', format: 'league', start_date: '', end_date: '', location: '' })
+
+  function handleCreate() {
+    if (!form.name.trim()) { toast.error('El nombre es obligatorio'); return }
+    startTransition(async () => {
+      const r = await createTournament({
+        name: form.name,
+        category: form.category || null,
+        format: form.format,
+        start_date: form.start_date || null,
+        end_date: form.end_date || null,
+        location: form.location || null,
+      })
+      if (r.success) {
+        toast.success('Torneo creado')
+        setShowNew(false)
+        setForm({ name: '', category: '', format: 'league', start_date: '', end_date: '', location: '' })
+        router.refresh()
+      } else {
+        toast.error(r.error ?? 'Error al crear torneo')
+      }
+    })
+  }
 
   const filtered = filterStatus === 'all' ? torneos : torneos.filter(t => t.status === filterStatus)
 
@@ -126,13 +152,9 @@ export function TorneosPage({ torneos, clubId }: Props) {
               </div>
             </div>
             <div className="p-4 border-t border-gray-100 flex justify-end gap-2">
-              <button onClick={() => setShowNew(false)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200">Cancelar</button>
-              <button onClick={() => {
-                if (!form.name) { toast.error('El nombre es obligatorio'); return }
-                toast.success('Torneo creado (conecta Supabase para persistir)')
-                setShowNew(false)
-              }} className="px-4 py-2 text-white rounded-lg text-sm font-medium" style={{ backgroundColor: 'var(--color-primary)' }}>
-                Crear torneo
+              <button onClick={() => setShowNew(false)} disabled={isPending} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 disabled:opacity-50">Cancelar</button>
+              <button onClick={handleCreate} disabled={isPending} className="px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50" style={{ backgroundColor: 'var(--color-primary)' }}>
+                {isPending ? 'Guardando...' : 'Crear torneo'}
               </button>
             </div>
           </div>

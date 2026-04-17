@@ -1,11 +1,12 @@
-import { createClient } from '@/lib/supabase/server'
-import { headers } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubContext } from '@/lib/supabase/get-club-id'
 import { RopaPage } from '@/features/ropa/components/RopaPage'
 
+export const dynamic = 'force-dynamic'
+
 export default async function Ropa() {
-  const hdrs = await headers()
-  const clubId = hdrs.get('x-club-id')!
-  const supabase = await createClient()
+  const { clubId } = await getClubContext()
+  const supabase = createAdminClient()
 
   const { data: pedidos } = await supabase
     .from('clothing_orders')

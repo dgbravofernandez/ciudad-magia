@@ -1,16 +1,15 @@
-import { createClient } from '@/lib/supabase/server'
-import { headers } from 'next/headers'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubContext } from '@/lib/supabase/get-club-id'
 import { EmailComposer } from '@/features/comunicaciones/components/EmailComposer'
 import { Topbar } from '@/components/layout/Topbar'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Enviar Comunicación' }
+export const dynamic = 'force-dynamic'
 
 export default async function EnviarPage() {
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-
-  const supabase = await createClient()
+  const { clubId } = await getClubContext()
+  const supabase = createAdminClient()
 
   const { data: templates } = await supabase
     .from('email_templates')
@@ -50,9 +49,9 @@ export default async function EnviarPage() {
       <div className="flex-1 p-6">
         <EmailComposer
           clubId={clubId}
-          templates={templates ?? []}
-          teams={teams ?? []}
-          categories={categories ?? []}
+          templates={(templates ?? []) as never}
+          teams={(teams ?? []) as never}
+          categories={(categories ?? []) as never}
           totalPlayers={totalPlayers ?? 0}
           pendingPlayersCount={pendingPlayers ?? 0}
         />
