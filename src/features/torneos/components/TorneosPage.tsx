@@ -17,6 +17,7 @@ interface Tournament {
   end_date: string | null
   location: string | null
   status: 'upcoming' | 'in_progress' | 'finished'
+  kind?: 'local' | 'external'
 }
 
 interface Props { torneos: Tournament[]; clubId: string }
@@ -34,7 +35,7 @@ export function TorneosPage({ torneos, clubId: _clubId }: Props) {
   const [isPending, startTransition] = useTransition()
   const [showNew, setShowNew] = useState(false)
   const [filterStatus, setFilterStatus] = useState<string>('all')
-  const [form, setForm] = useState<{ name: string; category: string; format: 'league' | 'cup' | 'mixed'; start_date: string; end_date: string; location: string }>({ name: '', category: '', format: 'league', start_date: '', end_date: '', location: '' })
+  const [form, setForm] = useState<{ name: string; category: string; format: 'league' | 'cup' | 'mixed'; kind: 'local' | 'external'; start_date: string; end_date: string; location: string }>({ name: '', category: '', format: 'league', kind: 'local', start_date: '', end_date: '', location: '' })
 
   function handleCreate() {
     if (!form.name.trim()) { toast.error('El nombre es obligatorio'); return }
@@ -43,6 +44,7 @@ export function TorneosPage({ torneos, clubId: _clubId }: Props) {
         name: form.name,
         category: form.category || null,
         format: form.format,
+        kind: form.kind,
         start_date: form.start_date || null,
         end_date: form.end_date || null,
         location: form.location || null,
@@ -50,7 +52,7 @@ export function TorneosPage({ torneos, clubId: _clubId }: Props) {
       if (r.success) {
         toast.success('Torneo creado')
         setShowNew(false)
-        setForm({ name: '', category: '', format: 'league', start_date: '', end_date: '', location: '' })
+        setForm({ name: '', category: '', format: 'league', kind: 'local', start_date: '', end_date: '', location: '' })
         router.refresh()
       } else {
         toast.error(r.error ?? 'Error al crear torneo')
@@ -97,6 +99,12 @@ export function TorneosPage({ torneos, clubId: _clubId }: Props) {
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-semibold text-gray-900">{t.name}</h3>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[t.status]}`}>{STATUS_LABELS[t.status]}</span>
+                  {t.kind === 'external' && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-50 text-purple-700">✈️ Externo</span>
+                  )}
+                  {t.kind === 'local' && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-50 text-amber-700">🏆 Local</span>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
                   {t.category && <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{t.category}</span>}
@@ -118,6 +126,27 @@ export function TorneosPage({ torneos, clubId: _clubId }: Props) {
               <h3 className="font-semibold text-gray-900">Nuevo torneo</h3>
             </div>
             <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, kind: 'local' }))}
+                    className={`px-3 py-2.5 rounded-lg text-sm font-medium border text-left ${form.kind === 'local' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                  >
+                    🏆 Torneo local
+                    <div className="text-xs font-normal text-gray-500">Lo organizamos nosotros</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, kind: 'external' }))}
+                    className={`px-3 py-2.5 rounded-lg text-sm font-medium border text-left ${form.kind === 'external' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                  >
+                    ✈️ Torneo externo
+                    <div className="text-xs font-normal text-gray-500">Vamos a uno de fuera</div>
+                  </button>
+                </div>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
                 <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ej: Copa Primavera 2026" />
