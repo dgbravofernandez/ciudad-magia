@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { toast } from 'sonner'
-import { createClothingOrder, markClothingOrderPaid } from '@/features/ropa/actions/clothing.actions'
+import { createClothingOrder, markClothingOrderPaid, refundClothingOrder, type ClothingPaymentMethod } from '@/features/ropa/actions/clothing.actions'
 
 interface OrderItem { count: number }
 interface Player { first_name: string; last_name: string }
@@ -43,6 +43,9 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
   const [filter, setFilter] = useState<'all' | 'pending' | 'paid' | 'cancelled'>('all')
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState({ playerName: '', description: '', size: 'M', quantity: 1, price: 0, notes: '' })
+  // Pay-modal: ask payment method before registering to caja
+  const [payTarget, setPayTarget] = useState<Order | null>(null)
+  const [payMethod, setPayMethod] = useState<ClothingPaymentMethod>('cash')
 
   const filtered = filter === 'all' ? pedidos : pedidos.filter(p => p.payment_status === filter)
   const totalRevenue = pedidos.filter(p => p.payment_status === 'paid').reduce((s, p) => s + Number(p.total_amount), 0)
@@ -81,14 +84,35 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
     })
   }
 
-  function handleMarkPaid(id: string) {
+  function openPayModal(order: Order) {
+    setPayTarget(order)
+    setPayMethod('cash')
+  }
+
+  function handleConfirmPay() {
+    if (!payTarget) return
+    const target = payTarget
     startTransition(async () => {
-      const r = await markClothingOrderPaid(id)
+      const r = await markClothingOrderPaid(target.id, payMethod)
       if (r.success) {
-        toast.success('Pedido marcado como pagado')
+        toast.success('Pago registrado en caja')
+        setPayTarget(null)
         router.refresh()
       } else {
         toast.error(r.error ?? 'Error al marcar como pagado')
+      }
+    })
+  }
+
+  function handleRefund(id: string) {
+    if (!confirm('¿Devolver el pago? Se creará un movimiento negativo en caja y el pedido quedará cancelado.')) return
+    startTransition(async () => {
+      const r = await refundClothingOrder(id)
+      if (r.success) {
+        toast.success('Devolución registrada')
+        router.refresh()
+      } else {
+        toast.error(r.error ?? 'Error al devolver')
       }
     })
   }
@@ -165,11 +189,20 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
                       <div className="flex items-center gap-1">
                         {p.payment_status === 'pending' && (
                           <button
-                            onClick={() => handleMarkPaid(p.id)}
+                            onClick={() => openPayModal(p)}
                             disabled={isPending}
                             className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded hover:bg-green-100 disabled:opacity-50"
                           >
                             Marcar pagado
+                          </button>
+                        )}
+                        {p.payment_status === 'paid' && (
+                          <button
+                            onClick={() => handleRefund(p.id)}
+                            disabled={isPending}
+                            className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded hover:bg-red-100 disabled:opacity-50"
+                          >
+                            Devolver
                           </button>
                         )}
                       </div>
@@ -181,6 +214,45 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
           </table>
         )}
       </div>
+
+      {/* Pay modal — ask payment method, then register to caja */}
+      {payTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setPayTarget(null)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900">Registrar pago</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                {fullName(payTarget.player, payTarget.notes)} · {Number(payTarget.total_amount).toFixed(2)} €
+              </p>
+            </div>
+            <div className="p-6 space-y-3">
+              <label className="block text-sm font-medium text-gray-700">Forma de pago</label>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { v: 'cash', label: 'Efectivo' },
+                  { v: 'card', label: 'Tarjeta' },
+                  { v: 'transfer', label: 'Transferencia' },
+                ] as const).map(m => (
+                  <button
+                    key={m.v}
+                    onClick={() => setPayMethod(m.v)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all ${payMethod === m.v ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-2">Se creará un movimiento de ingreso en caja ligado a este pedido.</p>
+            </div>
+            <div className="p-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setPayTarget(null)} disabled={isPending} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 disabled:opacity-50">Cancelar</button>
+              <button onClick={handleConfirmPay} disabled={isPending} className="px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50" style={{ backgroundColor: 'var(--color-primary)' }}>
+                {isPending ? 'Guardando...' : 'Confirmar pago'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New order modal */}
       {showNew && (

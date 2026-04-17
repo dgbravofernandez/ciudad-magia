@@ -95,19 +95,158 @@ export async function createClothingOrder(input: CreateClothingOrderInput): Prom
   return { success: true, orderId: order.id }
 }
 
-export async function markClothingOrderPaid(orderId: string): Promise<{ success: boolean; error?: string }> {
+export type ClothingPaymentMethod = 'cash' | 'card' | 'transfer'
+
+export async function markClothingOrderPaid(
+  orderId: string,
+  paymentMethod: ClothingPaymentMethod
+): Promise<{ success: boolean; error?: string }> {
   const supabase = createAdminClient()
-  const { clubId } = await getClubContext()
+  const { clubId, memberId } = await getClubContext()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any
 
-  const { error } = await sb
+  // Fetch order (verify club ownership + get data for cash_movement description)
+  const { data: order, error: fetchErr } = await sb
     .from('clothing_orders')
-    .update({ payment_status: 'paid', paid_at: new Date().toISOString() })
+    .select('id, description, total_amount, player_id, notes, payment_status')
+    .eq('id', orderId)
+    .eq('club_id', clubId)
+    .single()
+
+  if (fetchErr || !order) return { success: false, error: fetchErr?.message ?? 'Pedido no encontrado' }
+  if (order.payment_status === 'paid') return { success: false, error: 'Este pedido ya está pagado' }
+
+  const paidAt = new Date().toISOString()
+  const today = paidAt.slice(0, 10)
+
+  // 1. Mark order as paid
+  const { error: updateErr } = await sb
+    .from('clothing_orders')
+    .update({ payment_status: 'paid', paid_at: paidAt })
     .eq('id', orderId)
     .eq('club_id', clubId)
 
-  if (error) return { success: false, error: error.message }
+  if (updateErr) return { success: false, error: updateErr.message }
+
+  // 2. Build description — prefer real player name, fallback to manual name from notes
+  let playerLabel = 'Jugador'
+  if (order.player_id) {
+    const { data: player } = await sb
+      .from('players')
+      .select('first_name, last_name')
+      .eq('id', order.player_id)
+      .single()
+    if (player) playerLabel = `${player.first_name} ${player.last_name}`.trim()
+  } else if (order.notes) {
+    const match = (order.notes as string).match(/Jugador \(manual\):\s*([^—]+)/)
+    if (match?.[1]) playerLabel = match[1].trim()
+  }
+
+  // 3. Create cash_movement row (source='ropa')
+  const { error: movementErr } = await sb.from('cash_movements').insert({
+    club_id: clubId,
+    type: 'income',
+    amount: order.total_amount,
+    payment_method: paymentMethod,
+    description: `Ropa - ${playerLabel}${order.description ? ` (${order.description})` : ''}`,
+    movement_date: today,
+    related_clothing_order_id: orderId,
+    source: 'ropa',
+    registered_by: memberId ?? null,
+  })
+
+  if (movementErr) {
+    // Roll back the paid status so we don't leave the order marked paid without an income row
+    await sb
+      .from('clothing_orders')
+      .update({ payment_status: 'pending', paid_at: null })
+      .eq('id', orderId)
+    return { success: false, error: movementErr.message }
+  }
+
   revalidatePath('/ropa')
+  revalidatePath('/contabilidad/caja')
+  revalidatePath('/contabilidad/pagos')
+  return { success: true }
+}
+
+/**
+ * Anula/devuelve un pedido ya pagado: marca el pedido como 'cancelled' y crea
+ * un movimiento de caja negativo (tipo 'expense') ligado al pedido, con source='ropa'.
+ */
+export async function refundClothingOrder(
+  orderId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createAdminClient()
+  const { clubId, memberId } = await getClubContext()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  const { data: order, error: fetchErr } = await sb
+    .from('clothing_orders')
+    .select('id, description, total_amount, player_id, notes, payment_status')
+    .eq('id', orderId)
+    .eq('club_id', clubId)
+    .single()
+
+  if (fetchErr || !order) return { success: false, error: fetchErr?.message ?? 'Pedido no encontrado' }
+  if (order.payment_status !== 'paid') {
+    return { success: false, error: 'Solo se pueden devolver pedidos ya pagados' }
+  }
+
+  // Find the original cash_movement to match its payment_method for the refund
+  const { data: originalMovement } = await sb
+    .from('cash_movements')
+    .select('payment_method')
+    .eq('related_clothing_order_id', orderId)
+    .eq('type', 'income')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  const refundMethod = originalMovement?.payment_method ?? 'cash'
+  const today = new Date().toISOString().slice(0, 10)
+
+  let playerLabel = 'Jugador'
+  if (order.player_id) {
+    const { data: player } = await sb
+      .from('players')
+      .select('first_name, last_name')
+      .eq('id', order.player_id)
+      .single()
+    if (player) playerLabel = `${player.first_name} ${player.last_name}`.trim()
+  } else if (order.notes) {
+    const match = (order.notes as string).match(/Jugador \(manual\):\s*([^—]+)/)
+    if (match?.[1]) playerLabel = match[1].trim()
+  }
+
+  // Create the refund movement
+  const { error: movementErr } = await sb.from('cash_movements').insert({
+    club_id: clubId,
+    type: 'expense',
+    amount: order.total_amount,
+    payment_method: refundMethod,
+    description: `Devolución ropa - ${playerLabel}${order.description ? ` (${order.description})` : ''}`,
+    movement_date: today,
+    related_clothing_order_id: orderId,
+    source: 'ropa',
+    registered_by: memberId ?? null,
+  })
+
+  if (movementErr) return { success: false, error: movementErr.message }
+
+  // Mark the order cancelled
+  const { error: updateErr } = await sb
+    .from('clothing_orders')
+    .update({ payment_status: 'cancelled' })
+    .eq('id', orderId)
+    .eq('club_id', clubId)
+
+  if (updateErr) return { success: false, error: updateErr.message }
+
+  revalidatePath('/ropa')
+  revalidatePath('/contabilidad/caja')
+  revalidatePath('/contabilidad/pagos')
   return { success: true }
 }
