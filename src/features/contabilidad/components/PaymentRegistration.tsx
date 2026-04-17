@@ -60,10 +60,10 @@ interface Props {
   payments: Payment[]
   canRegisterPayments: boolean
   quotaAmounts?: {
-    annual: number
-    earlyPayDiscount: number
-    installments: { label: string; amount: number; deadline: string }[]
-    teams: Record<string, number>
+    annual?: number
+    earlyPayDiscount?: number
+    installments?: { label: string; amount: number; deadline: string }[]
+    teams?: Record<string, number>
   }
 }
 
@@ -105,8 +105,9 @@ export function PaymentRegistration({
   // Get annual quota amount for a player based on team
   function getAnnualQuota(player: PlayerRow): number {
     if (!quotaAmounts) return 0
-    if (player.teams?.id && quotaAmounts.teams[player.teams.id]) {
-      return quotaAmounts.teams[player.teams.id]
+    const teamsMap = quotaAmounts.teams ?? {}
+    if (player.teams?.id && teamsMap[player.teams.id]) {
+      return teamsMap[player.teams.id]
     }
     return quotaAmounts.annual ?? 0
   }
