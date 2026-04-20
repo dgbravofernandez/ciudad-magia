@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { Users, Calendar, ChevronRight, Plus } from 'lucide-react'
+import { useState } from 'react'
+import { Users, Calendar, ChevronRight, Plus, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatDate } from '@/lib/utils/currency'
 import { RoleGuard } from '@/components/shared/RoleGuard'
+import { TeamScheduleModal } from './TeamScheduleModal'
 
 interface Coach {
   member_id: string
@@ -45,6 +47,10 @@ export function TeamsOverview({
   const isCoordinator = memberRoles.some((r) =>
     ['admin', 'direccion', 'director_deportivo', 'coordinador'].includes(r)
   )
+  const canEditSchedule = memberRoles.some((r) =>
+    ['admin', 'direccion', 'director_deportivo', 'coordinador', 'entrenador'].includes(r)
+  )
+  const [scheduleTeam, setScheduleTeam] = useState<{ id: string; name: string } | null>(null)
 
   // Average observation ratings per team
   const teamObsMap: Record<string, { nivel: number; ajeno: number; count: number }> = {}
@@ -168,13 +174,31 @@ export function TeamsOverview({
                   href={`/entrenadores/sesiones?team=${team.id}`}
                   className="btn-ghost text-xs flex-1 text-center"
                 >
-                  Ver historial
+                  Historial
                 </Link>
+                {canEditSchedule && (
+                  <button
+                    onClick={() => setScheduleTeam({ id: team.id, name: team.name })}
+                    className="btn-ghost text-xs flex items-center justify-center gap-1"
+                    title="Configurar horario habitual"
+                  >
+                    <Clock className="w-3 h-3" />
+                    Horario
+                  </button>
+                )}
               </div>
             </div>
           )
         })}
       </div>
+
+      {scheduleTeam && (
+        <TeamScheduleModal
+          teamId={scheduleTeam.id}
+          teamName={scheduleTeam.name}
+          onClose={() => setScheduleTeam(null)}
+        />
+      )}
 
       {/* Quick nav */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
