@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -8,7 +8,7 @@ import {
   Calendar, Mail, Phone, FileText, Heart, Euro, AlertTriangle,
   ExternalLink, CheckCircle2, XCircle, Send, Trash2, Plus, MessageSquare, Pencil
 } from 'lucide-react'
-import { deletePlayer, sendTrialLetter, addInjury, addPlayerObservation, updateInjury, deleteInjury, updatePlayerObservation, deletePlayerObservation } from '@/features/jugadores/actions/player.actions'
+import { deletePlayer, sendTrialLetter, addInjury, addPlayerObservation, updateInjury, deleteInjury, updatePlayerObservation, deletePlayerObservation, getPlayerPerformance, type PlayerPerformance } from '@/features/jugadores/actions/player.actions'
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer
 } from 'recharts'
@@ -35,7 +35,7 @@ const STATUS_LABELS: Record<string, string> = {
   low: 'Baja',
 }
 
-const TABS = ['Datos', 'Stats', 'Lesiones', 'Pagos', 'Documentos', 'Observaciones'] as const
+const TABS = ['Datos', 'Rendimiento', 'Stats', 'Lesiones', 'Pagos', 'Documentos', 'Observaciones'] as const
 type Tab = (typeof TABS)[number]
 
 type Observation = { id: string; category: string; comment: string; author_name: string | null; created_at: string }
@@ -328,6 +328,7 @@ export function PlayerCard({
       {/* Tab content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {tab === 'Datos' && <DatosTab player={player} />}
+        {tab === 'Rendimiento' && <RendimientoTab playerId={player.id} />}
         {tab === 'Stats' && <StatsTab stats={stats} radarData={radarData} />}
         {tab === 'Lesiones' && <LesionesTab injuries={injuries} playerId={player.id} canAdd={canAddInjury} />}
         {tab === 'Pagos' && <PagosTab payments={payments} />}
@@ -1074,6 +1075,138 @@ function ObservationRow({
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+function RendimientoTab({ playerId }: { playerId: string }) {
+  const [data, setData] = useState<PlayerPerformance | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      setLoading(true)
+      const res = await getPlayerPerformance(playerId)
+      if (!mounted) return
+      if (res.success && res.data) setData(res.data)
+      else setError(res.error ?? 'Error cargando rendimiento')
+      setLoading(false)
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [playerId])
+
+  if (loading) {
+    return (
+      <div className="lg:col-span-3 card p-8 text-center text-muted-foreground text-sm">
+        Cargando rendimiento…
+      </div>
+    )
+  }
+  if (error || !data) {
+    return (
+      <div className="lg:col-span-3 card p-8 text-center text-sm text-destructive">
+        {error ?? 'Sin datos'}
+      </div>
+    )
+  }
+
+  const pctColor = (p: number) =>
+    p >= 80 ? 'text-green-600' : p >= 60 ? 'text-amber-600' : 'text-red-600'
+
+  return (
+    <div className="lg:col-span-3 space-y-5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Temporada {data.season}
+        </h3>
+      </div>
+
+      {/* Fila 1: Asistencia + Minutos */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Asistencia entrenamientos</p>
+              <p className={cn('text-3xl font-bold mt-1', pctColor(data.attendance_pct))}>
+                {data.attendance_pct}%
+              </p>
+            </div>
+            <div className="text-right text-xs text-muted-foreground">
+              <p>{data.trainings_attended} / {data.trainings_scheduled}</p>
+              <p>sesiones</p>
+            </div>
+          </div>
+          <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className={cn(
+                'h-full rounded-full transition-all',
+                data.attendance_pct >= 80 ? 'bg-green-500'
+                  : data.attendance_pct >= 60 ? 'bg-amber-500'
+                  : 'bg-red-500'
+              )}
+              style={{ width: `${Math.min(100, data.attendance_pct)}%` }}
+            />
+          </div>
+          <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
+            <span><span className="font-medium text-green-600">{data.trainings_attended}</span> presentes</span>
+            <span><span className="font-medium text-amber-600">{data.trainings_justified}</span> justificados</span>
+            <span><span className="font-medium text-red-600">{data.trainings_absent}</span> ausentes</span>
+          </div>
+        </div>
+
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Minutos jugados (partidos)</p>
+              <p className="text-3xl font-bold mt-1">{data.minutes_played}<span className="text-base font-normal text-muted-foreground"> min</span></p>
+            </div>
+            <div className="text-right text-xs text-muted-foreground">
+              <p>{data.matches_played} / {data.matches_team_total}</p>
+              <p>partidos</p>
+            </div>
+          </div>
+          <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${Math.min(100, data.minutes_pct)}%` }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            <span className={cn('font-medium', pctColor(data.minutes_pct))}>{data.minutes_pct}%</span> de los minutos posibles en los partidos que disputó
+          </p>
+        </div>
+      </div>
+
+      {/* Fila 2: Acciones ofensivas */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <StatBox label="Goles" value={data.goals} accent="text-green-600" />
+        <StatBox label="Asistencias" value={data.assists} accent="text-blue-600" />
+        <StatBox label="Amarillas" value={data.yellow_cards} accent="text-amber-500" />
+        <StatBox label="Rojas" value={data.red_cards} accent="text-red-600" />
+        <StatBox
+          label="Valoración"
+          value={data.rating_avg != null ? `${data.rating_avg.toFixed(1)}/10` : '—'}
+          accent="text-primary"
+        />
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Datos agregados de las sesiones registradas. Los minutos se cuentan en los partidos donde el jugador
+        tuvo al menos 1 minuto; el % compara sobre 90 min por partido jugado.
+      </p>
+    </div>
+  )
+}
+
+function StatBox({ label, value, accent }: { label: string; value: number | string; accent?: string }) {
+  return (
+    <div className="card p-4 text-center">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">{label}</p>
+      <p className={cn('text-2xl font-bold', accent)}>{value}</p>
     </div>
   )
 }

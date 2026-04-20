@@ -947,3 +947,183 @@ export async function getPlayerObservations(
 
   return data ?? []
 }
+
+/**
+ * Aggregated performance for a player in a given season.
+ * Season format: 'YYYY/YY' → dates July 1 YYYY to June 30 (YYYY+1).
+ * - Training: % asistencia (present / scheduled for player's team)
+ * - Match: minutos totales, % minutos sobre partidos del equipo jugados por él (× avg_match_duration)
+ * - Goles, asistencias, amarillas, rojas, valoración media
+ */
+export interface PlayerPerformance {
+  season: string
+  trainings_scheduled: number
+  trainings_attended: number
+  trainings_justified: number
+  trainings_absent: number
+  attendance_pct: number // 0..100
+  matches_team_total: number // partidos del equipo en la temporada
+  matches_played: number // partidos donde el jugador tiene minutos_played > 0
+  minutes_played: number
+  minutes_pct: number // sobre matches_played * 90
+  goals: number
+  assists: number
+  yellow_cards: number
+  red_cards: number
+  rating_avg: number | null
+}
+
+function seasonRange(season: string): { start: string; end: string } {
+  // '2025/26' → start 2025-07-01, end 2026-06-30
+  const [yStart] = season.split('/')
+  const startYear = parseInt(yStart, 10)
+  if (Number.isNaN(startYear)) {
+    const now = new Date().getFullYear()
+    return { start: `${now}-07-01`, end: `${now + 1}-06-30` }
+  }
+  return { start: `${startYear}-07-01`, end: `${startYear + 1}-06-30` }
+}
+
+export async function getPlayerPerformance(
+  playerId: string,
+  season?: string
+): Promise<{ success: boolean; error?: string; data?: PlayerPerformance }> {
+  try {
+    const supabase = await createClient()
+    const { getClubId } = await import('@/lib/supabase/get-club-id')
+    const clubId = await getClubId()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = supabase as any
+
+    // Resolve season: prefer arg, then club_settings.current_season
+    let currentSeason = season
+    if (!currentSeason) {
+      const { data: settings } = await sb
+        .from('club_settings')
+        .select('current_season')
+        .eq('club_id', clubId)
+        .single()
+      currentSeason = (settings?.current_season as string | undefined) ?? '2025/26'
+    }
+    const { start, end } = seasonRange(currentSeason)
+
+    // Player's team
+    const { data: player } = await sb
+      .from('players')
+      .select('team_id')
+      .eq('id', playerId)
+      .eq('club_id', clubId)
+      .single()
+
+    const teamId = player?.team_id as string | null
+
+    // Count scheduled trainings for player's team in season
+    let trainings_scheduled = 0
+    let matches_team_total = 0
+    if (teamId) {
+      const { count: tCount } = await sb
+        .from('sessions')
+        .select('id', { count: 'exact', head: true })
+        .eq('club_id', clubId)
+        .eq('team_id', teamId)
+        .eq('session_type', 'training')
+        .gte('session_date', start)
+        .lte('session_date', end)
+      trainings_scheduled = tCount ?? 0
+
+      const { count: mCount } = await sb
+        .from('sessions')
+        .select('id', { count: 'exact', head: true })
+        .eq('club_id', clubId)
+        .eq('team_id', teamId)
+        .in('session_type', ['match', 'friendly'])
+        .gte('session_date', start)
+        .lte('session_date', end)
+      matches_team_total = mCount ?? 0
+    }
+
+    // All attendance rows for this player in season, joined with session type/date
+    const { data: rows } = await sb
+      .from('session_attendance')
+      .select('status, minutes_played, goals, assists, yellow_cards, red_cards, rating, sessions!inner(session_type, session_date, team_id, club_id)')
+      .eq('player_id', playerId)
+      .gte('sessions.session_date', start)
+      .lte('sessions.session_date', end)
+      .eq('sessions.club_id', clubId)
+
+    let trainings_attended = 0
+    let trainings_justified = 0
+    let trainings_absent = 0
+    let matches_played = 0
+    let minutes_played = 0
+    let goals = 0
+    let assists = 0
+    let yellow_cards = 0
+    let red_cards = 0
+    let ratingSum = 0
+    let ratingCount = 0
+
+    for (const r of (rows ?? []) as Array<{
+      status: string
+      minutes_played: number | null
+      goals: number | null
+      assists: number | null
+      yellow_cards: number | null
+      red_cards: number | null
+      rating: number | null
+      sessions: { session_type: string } | { session_type: string }[]
+    }>) {
+      const s = Array.isArray(r.sessions) ? r.sessions[0] : r.sessions
+      const type = s?.session_type
+      if (type === 'training') {
+        if (r.status === 'present') trainings_attended++
+        else if (r.status === 'justified') trainings_justified++
+        else if (r.status === 'absent') trainings_absent++
+      } else if (type === 'match' || type === 'friendly' || type === 'futsal') {
+        const mins = r.minutes_played ?? 0
+        if (mins > 0) matches_played++
+        minutes_played += mins
+        goals += r.goals ?? 0
+        assists += r.assists ?? 0
+        yellow_cards += r.yellow_cards ?? 0
+        red_cards += r.red_cards ?? 0
+        if (r.rating != null) {
+          ratingSum += r.rating
+          ratingCount++
+        }
+      }
+    }
+
+    const attendance_pct = trainings_scheduled > 0
+      ? Math.round((trainings_attended / trainings_scheduled) * 1000) / 10
+      : 0
+
+    // % minutos sobre partidos realmente jugados × 90 (excluye partidos donde no estuvo convocado/no jugó)
+    const minutes_pct = matches_played > 0
+      ? Math.round((minutes_played / (matches_played * 90)) * 1000) / 10
+      : 0
+
+    return {
+      success: true,
+      data: {
+        season: currentSeason,
+        trainings_scheduled,
+        trainings_attended,
+        trainings_justified,
+        trainings_absent,
+        attendance_pct,
+        matches_team_total,
+        matches_played,
+        minutes_played,
+        minutes_pct,
+        goals,
+        assists,
+        yellow_cards,
+        red_cards,
+        rating_avg: ratingCount > 0 ? Math.round((ratingSum / ratingCount) * 10) / 10 : null,
+      },
+    }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
