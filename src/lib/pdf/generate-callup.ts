@@ -10,7 +10,6 @@ export interface CallupPlayer {
 
 export interface CallupPdfParams {
   clubName: string
-  clubCif?: string | null
   primaryColor?: string | null // hex '#003087'
   logoPngBytes?: Uint8Array | null // optional PNG
   teamName: string
@@ -95,16 +94,6 @@ export async function generateCallupPDF(params: CallupPdfParams): Promise<Buffer
     font,
     color: rgb(0.9, 0.9, 0.9),
   })
-  if (params.clubCif) {
-    page.drawText(`CIF: ${params.clubCif}`, {
-      x: logoDrawn ? margin + 95 : margin,
-      y: height - 95,
-      size: 9,
-      font,
-      color: rgb(0.85, 0.85, 0.85),
-    })
-  }
-
   let y = height - 150
 
   // ── Match info card ───────────────────────────────────────
@@ -310,33 +299,66 @@ export async function generateCallupPDF(params: CallupPdfParams): Promise<Buffer
   }
 
   // ── Footer patrocinadores ────────────────────────────────
-  const footerY = 60
-  page.drawLine({
-    start: { x: margin, y: footerY + 28 },
-    end: { x: width - margin, y: footerY + 28 },
-    thickness: 0.5,
-    color: rgb(0.85, 0.85, 0.85),
+  const footerBandH = 70
+  const footerY = 0
+  page.drawRectangle({
+    x: 0,
+    y: footerY,
+    width,
+    height: footerBandH,
+    color: rgb(0.97, 0.97, 0.98),
   })
   page.drawText('PATROCINADORES', {
     x: margin,
-    y: footerY + 14,
+    y: footerY + footerBandH - 14,
     size: 8,
     font: fontBold,
     color: grey,
   })
-  if (params.sponsors && params.sponsors.length > 0) {
-    const names = params.sponsors.map((s) => s.name).join('  ·  ')
-    page.drawText(names, {
-      x: margin,
-      y: footerY - 2,
-      size: 9,
-      font,
-      color: dark,
-    })
+
+  const sponsors = params.sponsors ?? []
+  if (sponsors.length > 0) {
+    // Intentar dibujar logos PNG; si no hay logo, pintar solo el nombre
+    const maxLogoH = 30
+    const cellW = (width - margin * 2) / sponsors.length
+    for (let i = 0; i < sponsors.length; i++) {
+      const s = sponsors[i]
+      const cx = margin + cellW * i + cellW / 2
+      const baseY = footerY + 12
+      let drewImage = false
+      if (s.pngBytes) {
+        try {
+          const img = await doc.embedPng(s.pngBytes)
+          const scale = Math.min(maxLogoH / img.height, (cellW - 16) / img.width)
+          const w = img.width * scale
+          const h = img.height * scale
+          page.drawImage(img, {
+            x: cx - w / 2,
+            y: baseY,
+            width: w,
+            height: h,
+          })
+          drewImage = true
+        } catch {
+          // ignore
+        }
+      }
+      if (!drewImage) {
+        const label = s.name
+        const labelW = font.widthOfTextAtSize(label, 10)
+        page.drawText(label, {
+          x: cx - labelW / 2,
+          y: baseY + maxLogoH / 2 - 4,
+          size: 10,
+          font: fontBold,
+          color: dark,
+        })
+      }
+    }
   } else {
     page.drawText('Espacio reservado para patrocinadores del club.', {
       x: margin,
-      y: footerY - 2,
+      y: footerY + footerBandH / 2 - 4,
       size: 9,
       font,
       color: grey,

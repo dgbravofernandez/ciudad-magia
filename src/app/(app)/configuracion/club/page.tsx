@@ -2,6 +2,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { Topbar } from '@/components/layout/Topbar'
 import { ClubSettingsForm } from '@/features/configuracion/components/ClubSettingsForm'
+import { SponsorsManager } from '@/features/configuracion/components/SponsorsManager'
+import { listSponsors } from '@/features/configuracion/actions/club.actions'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Configuracion del club' }
@@ -20,9 +22,10 @@ export default async function ClubConfigPage() {
 
   const supabase = createAdminClient()
 
-  const [{ data: club }, { data: settings }] = await Promise.all([
+  const [{ data: club }, { data: settings }, sponsors] = await Promise.all([
     supabase.from('clubs').select('name, city, logo_url, primary_color, secondary_color').eq('id', clubId).single(),
     supabase.from('club_settings').select('sibling_discount_enabled, sibling_discount_percent').eq('club_id', clubId).maybeSingle(),
+    listSponsors(),
   ])
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,17 +44,20 @@ export default async function ClubConfigPage() {
           </p>
         </div>
 
-        <ClubSettingsForm
-          initial={{
-            name: c.name ?? '',
-            city: c.city ?? null,
-            logo_url: c.logo_url ?? null,
-            primary_color: c.primary_color ?? '#003087',
-            secondary_color: c.secondary_color ?? '#FFFFFF',
-            sibling_discount_enabled: !!s.sibling_discount_enabled,
-            sibling_discount_percent: Number(s.sibling_discount_percent ?? 40),
-          }}
-        />
+        <div className="max-w-2xl space-y-6">
+          <ClubSettingsForm
+            initial={{
+              name: c.name ?? '',
+              city: c.city ?? null,
+              logo_url: c.logo_url ?? null,
+              primary_color: c.primary_color ?? '#003087',
+              secondary_color: c.secondary_color ?? '#FFFFFF',
+              sibling_discount_enabled: !!s.sibling_discount_enabled,
+              sibling_discount_percent: Number(s.sibling_discount_percent ?? 40),
+            }}
+          />
+          <SponsorsManager initial={sponsors} />
+        </div>
       </div>
     </div>
   )

@@ -122,3 +122,131 @@ export async function uploadClubLogo(formData: FormData) {
   revalidatePath('/', 'layout')
   return { success: true as const, logoUrl: publicUrl }
 }
+
+// ─── Patrocinadores ────────────────────────────────────────
+export interface Sponsor {
+  id: string
+  name: string
+  logo_url: string | null
+  website: string | null
+  sort_order: number
+  active: boolean
+}
+
+export async function listSponsors(): Promise<Sponsor[]> {
+  const { clubId } = await getClubContext()
+  if (!clubId) return []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const { data } = await sb
+    .from('club_sponsors')
+    .select('id, name, logo_url, website, sort_order, active')
+    .eq('club_id', clubId)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
+  return (data ?? []) as Sponsor[]
+}
+
+export async function addSponsor(input: { name: string; logo_url?: string | null; website?: string | null }) {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!clubId) return { success: false, error: 'No autenticado' }
+    if (!roles.some((r) => ['admin', 'direccion'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    if (!input.name.trim()) return { success: false, error: 'Nombre requerido' }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+    const { error } = await sb.from('club_sponsors').insert({
+      club_id: clubId,
+      name: input.name.trim(),
+      logo_url: input.logo_url?.trim() || null,
+      website: input.website?.trim() || null,
+      active: true,
+    })
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/configuracion/club')
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+export async function updateSponsor(id: string, patch: Partial<Pick<Sponsor, 'name' | 'logo_url' | 'website' | 'sort_order' | 'active'>>) {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!clubId) return { success: false, error: 'No autenticado' }
+    if (!roles.some((r) => ['admin', 'direccion'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+    const { error } = await sb
+      .from('club_sponsors')
+      .update(patch)
+      .eq('id', id)
+      .eq('club_id', clubId)
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/configuracion/club')
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+export async function deleteSponsor(id: string) {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!clubId) return { success: false, error: 'No autenticado' }
+    if (!roles.some((r) => ['admin', 'direccion'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+    const { error } = await sb
+      .from('club_sponsors')
+      .delete()
+      .eq('id', id)
+      .eq('club_id', clubId)
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/configuracion/club')
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+/**
+ * Sube el logo de un patrocinador al mismo bucket "Logo" y devuelve URL pública.
+ * No asocia el archivo a ningún sponsor — el llamador guarda la URL vía updateSponsor.
+ */
+export async function uploadSponsorLogo(formData: FormData) {
+  const { clubId, roles } = await getClubContext()
+  if (!clubId) return { success: false as const, error: 'No autenticado' }
+  if (!roles.some((r) => ['admin', 'direccion'].includes(r))) {
+    return { success: false as const, error: 'Sin permisos' }
+  }
+
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) {
+    return { success: false as const, error: 'Archivo vacío' }
+  }
+  if (file.size > 3 * 1024 * 1024) {
+    return { success: false as const, error: 'El archivo supera los 3 MB' }
+  }
+
+  const supabase = createAdminClient()
+  const ext = (file.type.split('/')[1] ?? 'png').toLowerCase().replace('jpeg', 'jpg')
+  const path = `club-sponsors/${clubId}-${Date.now()}.${ext}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('Logo')
+    .upload(path, file, { contentType: file.type || 'image/png', upsert: true })
+  if (uploadError) return { success: false as const, error: uploadError.message }
+
+  const { data: urlData } = supabase.storage.from('Logo').getPublicUrl(path)
+  const publicUrl = urlData?.publicUrl
+  if (!publicUrl) return { success: false as const, error: 'Sin URL pública' }
+
+  return { success: true as const, logoUrl: publicUrl }
+}

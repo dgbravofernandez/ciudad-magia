@@ -5,6 +5,19 @@ import { generateCallupPDF, type CallupPlayer } from '@/lib/pdf/generate-callup'
 
 export const dynamic = 'force-dynamic'
 
+async function fetchPng(url: string | null | undefined): Promise<Uint8Array | null> {
+  if (!url) return null
+  try {
+    const res = await fetch(url, { cache: 'no-store' })
+    if (!res.ok) return null
+    const ct = res.headers.get('content-type') ?? ''
+    if (!ct.includes('png')) return null
+    return new Uint8Array(await res.arrayBuffer())
+  } catch {
+    return null
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const sessionId = req.nextUrl.searchParams.get('sessionId')
@@ -16,25 +29,12 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
 
-    // Club info (nombre, colores, logo, cif)
+    // Club info
     const { data: club } = await sb
       .from('clubs')
       .select('name, primary_color, logo_url')
       .eq('id', clubId)
       .single()
-
-    // Settings (cif puede estar aquí o en clubs; intento ambas)
-    let clubCif: string | null = null
-    try {
-      const { data: settings } = await sb
-        .from('club_settings')
-        .select('cif')
-        .eq('club_id', clubId)
-        .single()
-      clubCif = settings?.cif ?? null
-    } catch {
-      clubCif = null
-    }
 
     // Sesión + equipo
     const { data: session } = await sb
@@ -69,30 +69,49 @@ export async function GET(req: NextRequest) {
       })
       .filter((p: CallupPlayer | null): p is CallupPlayer => p != null)
       .sort((a: CallupPlayer, b: CallupPlayer) => {
-        // Titulares primero, luego dorsal
         if (a.is_starter !== b.is_starter) return a.is_starter ? -1 : 1
         return (a.dorsal_number ?? 999) - (b.dorsal_number ?? 999)
       })
 
-    // Logo → bytes (si es PNG público). Si falla, se omite sin romper.
-    let logoPngBytes: Uint8Array | null = null
-    if (club?.logo_url && typeof club.logo_url === 'string') {
-      try {
-        const res = await fetch(club.logo_url, { cache: 'no-store' })
-        if (res.ok) {
-          const ct = res.headers.get('content-type') ?? ''
-          if (ct.includes('png')) {
-            logoPngBytes = new Uint8Array(await res.arrayBuffer())
-          }
+    // Entrenador del equipo
+    let coachName: string | null = null
+    try {
+      const { data: coaches } = await sb
+        .from('team_coaches')
+        .select('role, club_members(full_name)')
+        .eq('team_id', session.team_id)
+        .limit(5)
+      for (const c of (coaches ?? []) as Array<{ role: string | null; club_members: { full_name?: string } | Array<{ full_name?: string }> | null }>) {
+        const m = Array.isArray(c.club_members) ? c.club_members[0] : c.club_members
+        if (m?.full_name) {
+          coachName = m.full_name
+          if (c.role === 'entrenador' || c.role == null) break
         }
-      } catch {
-        logoPngBytes = null
       }
+    } catch {
+      coachName = null
     }
+
+    // Logo club
+    const logoPngBytes = await fetchPng(club?.logo_url)
+
+    // Patrocinadores activos
+    const { data: sponsorRows } = await sb
+      .from('club_sponsors')
+      .select('name, logo_url, active, sort_order')
+      .eq('club_id', clubId)
+      .eq('active', true)
+      .order('sort_order', { ascending: true })
+
+    const sponsors = await Promise.all(
+      ((sponsorRows ?? []) as Array<{ name: string; logo_url: string | null }>).map(async (s) => ({
+        name: s.name,
+        pngBytes: await fetchPng(s.logo_url),
+      }))
+    )
 
     const pdf = await generateCallupPDF({
       clubName: club?.name ?? 'Club',
-      clubCif,
       primaryColor: club?.primary_color ?? '#003087',
       logoPngBytes,
       teamName: team?.name ?? '',
@@ -101,9 +120,9 @@ export async function GET(req: NextRequest) {
       isHome: session.is_home !== false,
       kickoff: session.start_time ? String(session.start_time).slice(0, 5) : null,
       venue: session.location ?? null,
-      coachName: null, // TODO: enriquecer con team_coaches
+      coachName,
       players,
-      sponsors: [], // TODO: leer de una tabla club_sponsors o similar
+      sponsors,
     })
 
     return new NextResponse(new Uint8Array(pdf), {
