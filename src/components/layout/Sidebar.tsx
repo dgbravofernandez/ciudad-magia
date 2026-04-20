@@ -73,6 +73,7 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { label: 'Equipos', href: '/entrenadores', requiredRole: ADMIN_ONLY },
       { label: 'Cuerpo técnico', href: '/entrenadores/staff' },
+      { label: 'Calendario', href: '/entrenadores/calendario', requiredRole: ENTRENADORES_ROLES },
       { label: 'Sesiones', href: '/entrenadores/sesiones', requiredRole: ADMIN_ONLY },
       { label: 'Partidos', href: '/entrenadores/partidos', requiredRole: ADMIN_ONLY },
       { label: 'Ejercicios', href: '/entrenadores/ejercicios', requiredRole: ENTRENADORES_ROLES },
