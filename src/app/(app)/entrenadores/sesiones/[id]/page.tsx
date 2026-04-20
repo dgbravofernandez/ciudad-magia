@@ -6,6 +6,8 @@ import { SessionExercisePicker } from '@/features/entrenadores/components/Sessio
 import { PlayerBibDistribution } from '@/features/entrenadores/components/PlayerBibDistribution'
 import { SessionObjectives } from '@/features/entrenadores/components/SessionObjectives'
 import { SessionPlanningHeader } from '@/features/entrenadores/components/SessionPlanningHeader'
+import { SessionDirectorComments } from '@/features/entrenadores/components/SessionDirectorComments'
+import { SessionHeaderEdit } from '@/features/entrenadores/components/SessionHeaderEdit'
 import { notFound } from 'next/navigation'
 import { formatDate } from '@/lib/utils/currency'
 import type { Metadata } from 'next'
@@ -20,8 +22,10 @@ export default async function SessionDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const { clubId } = await getClubContext()
+  const { clubId, roles } = await getClubContext()
   const supabase = createAdminClient()
+  const isDirector = roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))
+  const isCoach = roles.some((r) => ['entrenador', 'coordinador'].includes(r))
 
   const { data: session } = await supabase
     .from('sessions')
@@ -41,6 +45,7 @@ export default async function SessionDetailPage({
     { data: attendance },
     { data: sessionExercises },
     { data: allExercises },
+    { data: directorComments },
   ] = await Promise.all([
     // Get players for the team
     session.team_id
@@ -75,7 +80,29 @@ export default async function SessionDetailPage({
       .eq('club_id', clubId)
       .order('title')
       .limit(200),
+    // Director comments
+    supabase
+      .from('session_director_comments')
+      .select(`
+        id, comment, visible_to_coach, created_at,
+        author:author_id(full_name)
+      `)
+      .eq('session_id', id)
+      .order('created_at', { ascending: false }),
   ])
+
+  // Teams for edit modal
+  const { data: allTeams } = await supabase
+    .from('teams')
+    .select('id, name')
+    .eq('club_id', clubId)
+    .eq('active', true)
+    .order('name')
+
+  // Hide private comments from coaches
+  const visibleComments = (directorComments ?? []).filter((c: { visible_to_coach: boolean }) =>
+    isDirector || !isCoach || c.visible_to_coach
+  )
 
   const typeLabel: Record<string, string> = {
     training: 'Entrenamiento',
@@ -119,10 +146,24 @@ export default async function SessionDetailPage({
                 <p className="text-sm text-muted-foreground mt-1">vs {session.opponent}</p>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-start">
               {isCompleted && (
                 <span className="badge badge-success text-xs">Completada</span>
               )}
+              <SessionHeaderEdit
+                sessionId={id}
+                session_date={session.session_date}
+                /* eslint-disable @typescript-eslint/no-explicit-any */
+                end_time={(session as any).end_time ?? null}
+                opponent={session.opponent ?? null}
+                score_home={(session as any).score_home ?? null}
+                score_away={(session as any).score_away ?? null}
+                notes={session.notes ?? null}
+                session_type={session.session_type}
+                teams={allTeams ?? []}
+                currentTeamId={session.team_id ?? null}
+                /* eslint-enable @typescript-eslint/no-explicit-any */
+              />
             </div>
           </div>
           {session.notes && (
@@ -173,6 +214,13 @@ export default async function SessionDetailPage({
           players={players ?? []}
           existingAttendance={attendanceMap}
           isCompleted={isCompleted}
+        />
+
+        {/* Director comments */}
+        <SessionDirectorComments
+          sessionId={id}
+          comments={visibleComments as never}
+          canWrite={isDirector}
         />
       </div>
     </div>

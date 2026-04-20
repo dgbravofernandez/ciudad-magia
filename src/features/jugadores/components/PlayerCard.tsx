@@ -6,9 +6,9 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Shield, Footprints, Ruler, Weight,
   Calendar, Mail, Phone, FileText, Heart, Euro, AlertTriangle,
-  ExternalLink, CheckCircle2, XCircle, Send, Trash2, Plus, MessageSquare
+  ExternalLink, CheckCircle2, XCircle, Send, Trash2, Plus, MessageSquare, Pencil
 } from 'lucide-react'
-import { deletePlayer, sendTrialLetter, addInjury, addPlayerObservation } from '@/features/jugadores/actions/player.actions'
+import { deletePlayer, sendTrialLetter, addInjury, addPlayerObservation, updateInjury, deleteInjury, updatePlayerObservation, deletePlayerObservation } from '@/features/jugadores/actions/player.actions'
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer
 } from 'recharts'
@@ -504,11 +504,34 @@ function StatsTab({
 const INJURY_TYPES = ['Muscular', 'Esguince', 'Fractura', 'Contusión', 'Tendinitis', 'Otro']
 
 function LesionesTab({ injuries, playerId, canAdd }: { injuries: Injury[]; playerId: string; canAdd: boolean }) {
+  const router = useRouter()
   const [showForm, setShowForm] = useState(false)
   const [injuryType, setInjuryType] = useState('Muscular')
   const [injuryDesc, setInjuryDesc] = useState('')
   const [injuryDate, setInjuryDate] = useState(new Date().toISOString().slice(0, 10))
   const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState<Injury | null>(null)
+
+  async function handleRecover(id: string) {
+    const recoveredAt = prompt('Fecha de alta médica (AAAA-MM-DD):', new Date().toISOString().slice(0, 10))
+    if (!recoveredAt) return
+    const res = await updateInjury(id, { status: 'recovered', recovered_at: recoveredAt })
+    if (res.success) router.refresh()
+    else alert(res.error)
+  }
+
+  async function handleReopen(id: string) {
+    const res = await updateInjury(id, { status: 'active', recovered_at: null })
+    if (res.success) router.refresh()
+    else alert(res.error)
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('¿Eliminar esta lesión del historial?')) return
+    const res = await deleteInjury(id)
+    if (res.success) router.refresh()
+    else alert(res.error)
+  }
 
   async function handleAddInjury() {
     setSaving(true)
@@ -593,10 +616,78 @@ function LesionesTab({ injuries, playerId, canAdd }: { injuries: Injury[]; playe
                   <p className="text-success">Alta: {formatDate(injury.recovered_at)}</p>
                 )}
               </div>
+              {canAdd && (
+                <div className="flex flex-col gap-1">
+                  {injury.status === 'active' ? (
+                    <button onClick={() => handleRecover(injury.id)} className="text-xs text-green-600 hover:underline" title="Marcar alta">
+                      ✓ Alta
+                    </button>
+                  ) : (
+                    <button onClick={() => handleReopen(injury.id)} className="text-xs text-yellow-600 hover:underline" title="Reabrir">
+                      ↻ Reabrir
+                    </button>
+                  )}
+                  <button onClick={() => setEditing(injury)} className="text-gray-400 hover:text-gray-700" title="Editar">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => handleDelete(injury.id)} className="text-gray-400 hover:text-red-600" title="Eliminar">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
       ) : null}
+
+      {editing && (
+        <InjuryEditModal
+          injury={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); router.refresh() }}
+        />
+      )}
+    </div>
+  )
+}
+
+function InjuryEditModal({ injury, onClose, onSaved }: { injury: Injury; onClose: () => void; onSaved: () => void }) {
+  const [type, setType] = useState(injury.injury_type ?? 'Muscular')
+  const [desc, setDesc] = useState(injury.description ?? '')
+  const [date, setDate] = useState(injury.injured_at?.slice(0, 10) ?? '')
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    setSaving(true)
+    const res = await updateInjury(injury.id, { injury_type: type, description: desc || null, injured_at: date })
+    setSaving(false)
+    if (res.success) onSaved()
+    else alert(res.error)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-3" onClick={e => e.stopPropagation()}>
+        <h3 className="font-semibold">Editar lesión</h3>
+        <div>
+          <label className="text-xs font-medium block mb-1">Tipo</label>
+          <select className="input w-full text-sm" value={type} onChange={e => setType(e.target.value)}>
+            {INJURY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium block mb-1">Fecha inicio</label>
+          <input type="date" className="input w-full text-sm" value={date} onChange={e => setDate(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs font-medium block mb-1">Descripción</label>
+          <input className="input w-full text-sm" value={desc} onChange={e => setDesc(e.target.value)} />
+        </div>
+        <div className="flex gap-2 justify-end pt-2">
+          <button onClick={onClose} disabled={saving} className="btn-ghost">Cancelar</button>
+          <button onClick={save} disabled={saving} className="btn-primary">{saving ? 'Guardando…' : 'Guardar'}</button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -891,23 +982,98 @@ function ObservacionesTab({
       ) : (
         <div className="space-y-3">
           {localObs.map(obs => (
-            <div key={obs.id} className="flex gap-3 p-3 rounded-lg border">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="badge-muted text-xs">{obs.category}</span>
-                  {obs.author_name && (
-                    <span className="text-xs text-muted-foreground">{obs.author_name}</span>
-                  )}
-                  <span className="text-xs text-muted-foreground ml-auto">
-                    {new Date(obs.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                  </span>
-                </div>
-                <p className="text-sm">{obs.comment}</p>
-              </div>
-            </div>
+            <ObservationRow
+              key={obs.id}
+              obs={obs}
+              onEdited={(updated) => setLocalObs(prev => prev.map(o => o.id === updated.id ? updated : o))}
+              onDeleted={(id) => setLocalObs(prev => prev.filter(o => o.id !== id))}
+            />
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function ObservationRow({
+  obs,
+  onEdited,
+  onDeleted,
+}: {
+  obs: Observation
+  onEdited: (o: Observation) => void
+  onDeleted: (id: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [editText, setEditText] = useState(obs.comment)
+  const [editCat, setEditCat] = useState(obs.category)
+  const [busy, setBusy] = useState(false)
+
+  async function save() {
+    setBusy(true)
+    const res = await updatePlayerObservation(obs.id, { category: editCat, comment: editText.trim() })
+    setBusy(false)
+    if (res.success) {
+      onEdited({ ...obs, category: editCat, comment: editText.trim() })
+      setEditing(false)
+    } else alert(res.error)
+  }
+
+  async function remove() {
+    if (!confirm('¿Eliminar esta observación?')) return
+    setBusy(true)
+    const res = await deletePlayerObservation(obs.id)
+    setBusy(false)
+    if (res.success) onDeleted(obs.id)
+    else alert(res.error)
+  }
+
+  return (
+    <div className="flex gap-3 p-3 rounded-lg border">
+      <div className="flex-1">
+        <div className="flex items-center gap-2 mb-0.5">
+          {editing ? (
+            <select className="input text-xs py-1" value={editCat} onChange={e => setEditCat(e.target.value)}>
+              {OBS_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          ) : (
+            <span className="badge-muted text-xs">{obs.category}</span>
+          )}
+          {obs.author_name && (
+            <span className="text-xs text-muted-foreground">{obs.author_name}</span>
+          )}
+          <span className="text-xs text-muted-foreground ml-auto">
+            {new Date(obs.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+          </span>
+        </div>
+        {editing ? (
+          <textarea
+            value={editText}
+            onChange={e => setEditText(e.target.value)}
+            rows={2}
+            className="input w-full text-sm mt-1"
+          />
+        ) : (
+          <p className="text-sm">{obs.comment}</p>
+        )}
+      </div>
+      <div className="flex flex-col gap-1">
+        {editing ? (
+          <>
+            <button onClick={save} disabled={busy} className="text-xs text-green-600 hover:underline">Guardar</button>
+            <button onClick={() => { setEditing(false); setEditText(obs.comment); setEditCat(obs.category) }} className="text-xs text-gray-500 hover:underline">Cancelar</button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => setEditing(true)} className="text-gray-400 hover:text-gray-700" title="Editar">
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={remove} disabled={busy} className="text-gray-400 hover:text-red-600" title="Eliminar">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 }

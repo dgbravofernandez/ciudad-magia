@@ -1,10 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils/cn'
 import { formatDate } from '@/lib/utils/currency'
-import { Plus, Star, X } from 'lucide-react'
+import { Plus, Star, X, Trash2, Pencil, Check } from 'lucide-react'
 import { ObservationForm } from './ObservationForm'
+import { deleteObservation, updateObservationComment } from '../actions/session.actions'
 
 interface Observation {
   id: string
@@ -49,6 +52,32 @@ function StarRating({ value, max = 5 }: { value: number | null; max?: number }) 
 
 export function ObservationsPage({ observations, teams }: ObservationsPageProps) {
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editComment, setEditComment] = useState('')
+  const [isPending, startTransition] = useTransition()
+  const router = useRouter()
+
+  const handleDelete = (id: string) => {
+    if (!confirm('¿Eliminar esta observación? No se puede deshacer.')) return
+    startTransition(async () => {
+      const res = await deleteObservation(id)
+      if (res.success) {
+        toast.success('Observación eliminada')
+        router.refresh()
+      } else toast.error(res.error ?? 'Error')
+    })
+  }
+
+  const handleSaveEdit = (id: string) => {
+    startTransition(async () => {
+      const res = await updateObservationComment(id, editComment)
+      if (res.success) {
+        toast.success('Observación actualizada')
+        setEditingId(null)
+        router.refresh()
+      } else toast.error(res.error ?? 'Error')
+    })
+  }
 
   return (
     <div className="space-y-4">
@@ -91,7 +120,7 @@ export function ObservationsPage({ observations, teams }: ObservationsPageProps)
                     Por {obs.club_members?.full_name ?? 'Desconocido'}
                   </p>
                 </div>
-                <div className="flex gap-4 shrink-0">
+                <div className="flex gap-4 shrink-0 items-start">
                   <div className="text-right">
                     <p className="text-xs text-muted-foreground mb-1">Nivel</p>
                     <StarRating value={obs.nivel_rating} />
@@ -100,11 +129,59 @@ export function ObservationsPage({ observations, teams }: ObservationsPageProps)
                     <p className="text-xs text-muted-foreground mb-1">Ajeno</p>
                     <StarRating value={obs.ajeno_rating} />
                   </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => {
+                        setEditingId(obs.id)
+                        setEditComment(obs.comment ?? '')
+                      }}
+                      disabled={isPending}
+                      className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                      title="Editar comentario"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(obs.id)}
+                      disabled={isPending}
+                      className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                      title="Eliminar"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {obs.comment && (
-                <p className="text-sm text-muted-foreground line-clamp-2">{obs.comment}</p>
+              {editingId === obs.id ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={editComment}
+                    onChange={(e) => setEditComment(e.target.value)}
+                    rows={3}
+                    className="input w-full text-sm"
+                    placeholder="Comentario..."
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleSaveEdit(obs.id)}
+                      disabled={isPending}
+                      className="btn-primary text-xs flex items-center gap-1"
+                    >
+                      <Check className="w-3 h-3" /> Guardar
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="btn-secondary text-xs"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                obs.comment && (
+                  <p className="text-sm text-muted-foreground line-clamp-2">{obs.comment}</p>
+                )
               )}
 
               {obs.coach_rating != null && (

@@ -5,7 +5,9 @@ import { toast } from 'sonner'
 import { Lock, CheckCircle, AlertTriangle, FileText, Download } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatDate } from '@/lib/utils/currency'
-import { closeCash } from '@/features/contabilidad/actions/accounting.actions'
+import { closeCash, reopenCashClose } from '@/features/contabilidad/actions/accounting.actions'
+import { Unlock } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Efectivo',
@@ -68,10 +70,22 @@ export function CashRegisterPage({
   movements,
   movementDetails,
 }: Props) {
+  const router = useRouter()
   const [realCash, setRealCash] = useState('')
   const [realCard, setRealCard] = useState('')
   const [notes, setNotes] = useState('')
   const [isPending, startTransition] = useTransition()
+
+  function handleReopen(id: string, period: string) {
+    if (!confirm(`¿Reabrir el cierre del periodo ${period}?\n\nPodrás modificar pagos y gastos de ese periodo otra vez. El cierre se borrará.`)) return
+    startTransition(async () => {
+      const r = await reopenCashClose(id)
+      if (r.success) {
+        toast.success('Cierre reabierto')
+        router.refresh()
+      } else toast.error(r.error ?? 'Error')
+    })
+  }
 
   const realCashNum = parseFloat(realCash) || 0
   const realCardNum = parseFloat(realCard) || 0
@@ -331,6 +345,7 @@ export function CashRegisterPage({
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">Tarjeta real</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">Diferencia</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Fecha cierre</th>
+                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
@@ -350,11 +365,21 @@ export function CashRegisterPage({
                     {c.card_difference >= 0 ? '+' : ''}{formatCurrency(c.card_difference)}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{formatDate(c.created_at)}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={() => handleReopen(c.id, `${formatDate(c.period_start)} — ${formatDate(c.period_end)}`)}
+                      disabled={isPending}
+                      className="inline-flex items-center gap-1 text-xs text-yellow-700 hover:text-yellow-900 hover:underline"
+                      title="Reabrir este cierre"
+                    >
+                      <Unlock className="w-3.5 h-3.5" /> Reabrir
+                    </button>
+                  </td>
                 </tr>
               ))}
               {closes.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">
                     No hay cierres registrados
                   </td>
                 </tr>

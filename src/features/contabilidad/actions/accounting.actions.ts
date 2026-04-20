@@ -29,6 +29,12 @@ async function resolveClubAndMember() {
   const headersList = await headers()
   let clubId = headersList.get('x-club-id') ?? ''
   const memberId = headersList.get('x-member-id') ?? ''
+  let roles: string[] = []
+  try {
+    roles = JSON.parse(headersList.get('x-user-roles') ?? '[]') as string[]
+  } catch {
+    roles = []
+  }
 
   if (!clubId) {
     clubId = (await getClubId()) ?? ''
@@ -43,7 +49,7 @@ async function resolveClubAndMember() {
     }
   }
 
-  return { sb, clubId, memberId }
+  return { sb, clubId, memberId, roles }
 }
 
 export async function registerPayment(data: {
@@ -205,6 +211,55 @@ export async function updatePayment(data: {
   return { success: true }
 }
 
+export async function refundPayment(
+  paymentId: string,
+  refundMethod: string = 'transfer'
+): Promise<{ success: boolean; error?: string }> {
+  const { sb, clubId } = await resolveClubAndMember()
+
+  const { data: payment } = await sb
+    .from('quota_payments')
+    .select('*')
+    .eq('id', paymentId)
+    .eq('club_id', clubId)
+    .single()
+
+  if (!payment) return { success: false, error: 'Pago no encontrado' }
+  if ((payment as { status?: string }).status === 'refunded') {
+    return { success: false, error: 'Este pago ya fue reembolsado' }
+  }
+
+  const today = new Date().toISOString().slice(0, 10)
+  const lockCheck = await assertNotLocked(today, clubId)
+  if (!lockCheck.ok) return { success: false, error: lockCheck.error }
+
+  const dbMethod = toDbMethod(refundMethod)
+  const amount = (payment as { amount_paid: number }).amount_paid
+
+  // Create negative cash movement (reverse) only if the payment had a real cash/card movement
+  const { error: movErr } = await sb.from('cash_movements').insert({
+    club_id: clubId,
+    movement_date: today,
+    amount: -Math.abs(amount),
+    payment_method: dbMethod,
+    source: 'cuota',
+    concept: `Reembolso cuota (pago ${paymentId.slice(0, 8)})`,
+    related_payment_id: paymentId,
+  })
+  if (movErr) return { success: false, error: movErr.message }
+
+  const notes = [(payment as { notes?: string }).notes, `REEMBOLSADO el ${today}`].filter(Boolean).join(' · ')
+  const { error: updErr } = await sb
+    .from('quota_payments')
+    .update({ status: 'refunded', notes })
+    .eq('id', paymentId)
+  if (updErr) return { success: false, error: updErr.message }
+
+  revalidatePath('/contabilidad/pagos')
+  revalidatePath('/contabilidad/caja')
+  return { success: true }
+}
+
 export async function sendPendingReminders(playerIds: string[]) {
   const { sb, clubId, memberId } = await resolveClubAndMember()
 
@@ -236,6 +291,7 @@ export async function addExpense(formData: FormData) {
   const category = formData.get('category') as string
   const description = formData.get('description') as string
   const method = toDbMethod((formData.get('method') as string) ?? 'cash')
+  const receiptUrl = (formData.get('receipt_url') as string | null)?.trim() || null
 
   const { data: expense, error: expenseError } = await sb.from('expenses').insert({
     club_id: clubId,
@@ -244,6 +300,7 @@ export async function addExpense(formData: FormData) {
     amount,
     expense_date: date,
     paid_by: memberId || null,
+    receipt_url: receiptUrl,
   }).select('id').single()
 
   if (expenseError) return { success: false, error: expenseError.message }
@@ -302,6 +359,7 @@ export async function updateExpense(data: {
   category: string
   description: string
   method: string
+  receipt_url?: string | null
 }) {
   const { sb, clubId } = await resolveClubAndMember()
   const dbMethod = toDbMethod(data.method)
@@ -319,14 +377,18 @@ export async function updateExpense(data: {
     if (!newCheck.ok) return { success: false, error: newCheck.error }
   }
 
+  const expensePatch: Record<string, unknown> = {
+    amount: data.amount,
+    expense_date: data.date,
+    category: data.category,
+    description: data.description,
+  }
+  if (data.receipt_url !== undefined) {
+    expensePatch.receipt_url = data.receipt_url?.trim() || null
+  }
   const { error: expenseErr } = await sb
     .from('expenses')
-    .update({
-      amount: data.amount,
-      expense_date: data.date,
-      category: data.category,
-      description: data.description,
-    })
+    .update(expensePatch)
     .eq('id', data.expenseId)
 
   if (expenseErr) return { success: false, error: expenseErr.message }
@@ -377,6 +439,34 @@ export async function closeCash(data: {
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/contabilidad/caja')
+  return { success: true }
+}
+
+export async function reopenCashClose(
+  closeId: string
+): Promise<{ success: boolean; error?: string }> {
+  const { sb, clubId, roles } = await resolveClubAndMember()
+
+  // Only admin/direccion can reopen
+  if (!roles.some((r) => ['admin', 'direccion'].includes(r))) {
+    return { success: false, error: 'Solo admin o dirección pueden reabrir un cierre' }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: close } = await (sb as any)
+    .from('cash_closes')
+    .select('club_id')
+    .eq('id', closeId)
+    .single()
+  if (!close || close.club_id !== clubId) return { success: false, error: 'Cierre no encontrado' }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (sb as any).from('cash_closes').delete().eq('id', closeId)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/contabilidad/caja')
+  revalidatePath('/contabilidad/pagos')
+  revalidatePath('/contabilidad/gastos')
   return { success: true }
 }
 

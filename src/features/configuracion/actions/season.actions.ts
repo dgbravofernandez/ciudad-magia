@@ -48,7 +48,8 @@ export async function getSeasonPreview() {
  * 4. Update club_settings.current_season
  */
 export async function startNewSeason() {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId, roles } = await getClubContext()
 
   // Permission check

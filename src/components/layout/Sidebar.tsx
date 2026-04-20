@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Trophy,
   Shirt,
+  Eye,
   Menu,
   X,
   Loader2,
@@ -75,7 +76,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Sesiones', href: '/entrenadores/sesiones', requiredRole: ADMIN_ONLY },
       { label: 'Partidos', href: '/entrenadores/partidos', requiredRole: ADMIN_ONLY },
       { label: 'Ejercicios', href: '/entrenadores/ejercicios', requiredRole: ENTRENADORES_ROLES },
-      { label: 'Observaciones', href: '/entrenadores/observaciones', requiredRole: ADMIN_ONLY },
+      { label: 'Observaciones', href: '/entrenadores/observaciones', requiredRole: ENTRENADORES_ROLES },
     ],
   },
   {
@@ -117,6 +118,12 @@ const NAV_ITEMS: NavItem[] = [
     href: '/torneos',
     icon: Trophy,
     requiredRole: ADMIN_ONLY,
+  },
+  {
+    label: 'Scouting',
+    href: '/scouting',
+    icon: Eye,
+    requiredRole: ENTRENADORES_ROLES,
   },
   {
     label: 'Ropa',

@@ -25,6 +25,7 @@ import {
   sendPendingReminders,
   deletePayment,
   updatePayment,
+  refundPayment,
 } from '@/features/contabilidad/actions/accounting.actions'
 
 interface PlayerRow {
@@ -288,6 +289,21 @@ export function PaymentRegistration({
       } else {
         toast.error(result.error ?? 'Error al borrar el pago')
       }
+    })
+  }
+
+  function handleRefundPayment(p: Payment) {
+    const player = playerMap[p.player_id]
+    const name = player ? `${player.first_name} ${player.last_name}` : 'este jugador'
+    const method = prompt(
+      `Reembolsar ${formatCurrency(p.amount_paid)} a ${name}.\nMétodo del reembolso: transfer, cash o card`,
+      p.payment_method ?? 'transfer'
+    )
+    if (!method) return
+    startTransition(async () => {
+      const result = await refundPayment(p.id, method)
+      if (result.success) toast.success('Reembolso registrado')
+      else toast.error(result.error ?? 'Error al reembolsar')
     })
   }
 
@@ -603,6 +619,17 @@ export function PaymentRegistration({
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
+                            {p.status !== 'refunded' && (
+                              <button
+                                type="button"
+                                disabled={isPending}
+                                onClick={() => handleRefundPayment(p)}
+                                className="p-1.5 rounded hover:bg-yellow-50 text-muted-foreground hover:text-yellow-700 transition-colors text-xs font-medium"
+                                title="Reembolsar (genera movimiento negativo en caja)"
+                              >
+                                ↩
+                              </button>
+                            )}
                             <button
                               type="button"
                               disabled={isPending}

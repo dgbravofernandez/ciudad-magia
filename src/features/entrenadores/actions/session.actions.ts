@@ -84,6 +84,44 @@ export async function deleteSession(sessionId: string): Promise<{ success: boole
   return { success: true }
 }
 
+export async function updateSession(input: {
+  sessionId: string
+  session_date?: string
+  end_time?: string | null
+  team_id?: string | null
+  opponent?: string | null
+  score_home?: number | null
+  score_away?: number | null
+  notes?: string | null
+  session_type?: 'training' | 'match' | 'futsal' | 'friendly'
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = createAdminClient()
+  const { clubId } = await getClubContext()
+
+  const patch: Record<string, unknown> = {}
+  if (input.session_date !== undefined) patch.session_date = input.session_date
+  if (input.end_time !== undefined) patch.end_time = input.end_time
+  if (input.team_id !== undefined) patch.team_id = input.team_id
+  if (input.opponent !== undefined) patch.opponent = input.opponent
+  if (input.score_home !== undefined) patch.score_home = input.score_home
+  if (input.score_away !== undefined) patch.score_away = input.score_away
+  if (input.notes !== undefined) patch.notes = input.notes
+  if (input.session_type !== undefined) patch.session_type = input.session_type
+
+  const { error } = await supabase
+    .from('sessions')
+    .update(patch)
+    .eq('id', input.sessionId)
+    .eq('club_id', clubId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath(`/entrenadores/sesiones/${input.sessionId}`)
+  revalidatePath('/entrenadores/sesiones')
+  revalidatePath('/entrenadores/partidos')
+  return { success: true }
+}
+
 export interface AttendanceRecord {
   player_id: string
   status: 'present' | 'absent' | 'justified'
@@ -647,6 +685,63 @@ export async function createObservation(formData: FormData) {
     coach_comment: (formData.get('coach_comment') as string) || null,
   })
 
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/entrenadores/observaciones')
+  return { success: true }
+}
+
+export async function deleteObservation(observationId: string) {
+  const supabase = createAdminClient()
+  const { clubId, memberId, roles } = await getClubContext()
+
+  // Allow authors + admin/direccion/director_deportivo
+  const { data: obs } = await supabase
+    .from('coordinator_observations')
+    .select('observer_id, club_id')
+    .eq('id', observationId)
+    .single()
+
+  if (!obs) return { success: false, error: 'Observación no encontrada' }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const o = obs as any
+  if (o.club_id !== clubId) return { success: false, error: 'No autorizado' }
+
+  const isPrivileged = roles.some((r: string) => ['admin', 'direccion', 'director_deportivo'].includes(r))
+  if (!isPrivileged && o.observer_id !== memberId) {
+    return { success: false, error: 'Solo el autor o dirección pueden eliminar esta observación' }
+  }
+
+  const { error } = await supabase.from('coordinator_observations').delete().eq('id', observationId)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/entrenadores/observaciones')
+  return { success: true }
+}
+
+export async function updateObservationComment(observationId: string, comment: string) {
+  const supabase = createAdminClient()
+  const { clubId, memberId, roles } = await getClubContext()
+
+  const { data: obs } = await supabase
+    .from('coordinator_observations')
+    .select('observer_id, club_id')
+    .eq('id', observationId)
+    .single()
+  if (!obs) return { success: false, error: 'Observación no encontrada' }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const o = obs as any
+  if (o.club_id !== clubId) return { success: false, error: 'No autorizado' }
+
+  const isPrivileged = roles.some((r: string) => ['admin', 'direccion', 'director_deportivo'].includes(r))
+  if (!isPrivileged && o.observer_id !== memberId) {
+    return { success: false, error: 'Solo el autor puede editar' }
+  }
+
+  const { error } = await supabase
+    .from('coordinator_observations')
+    .update({ comment })
+    .eq('id', observationId)
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/entrenadores/observaciones')

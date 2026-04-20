@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { TrendingDown, Plus, Paperclip, Pencil, Trash2 } from 'lucide-react'
+import { TrendingDown, Plus, Paperclip, Pencil, Trash2, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatDate } from '@/lib/utils/currency'
 import { addExpense, deleteExpense, updateExpense } from '@/features/contabilidad/actions/accounting.actions'
@@ -15,6 +15,7 @@ interface Expense {
   amount: number
   expense_date: string
   registered_by: string | null
+  receipt_url?: string | null
 }
 
 interface Props {
@@ -55,6 +56,7 @@ export function ExpensesPage({ expenses, totalExpensesThisMonth }: Props) {
     amount: 0,
     date: '',
     method: 'transfer',
+    receipt_url: '',
   })
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -93,6 +95,7 @@ export function ExpensesPage({ expenses, totalExpensesThisMonth }: Props) {
       amount: Number(ex.amount),
       date: ex.expense_date,
       method: 'transfer',
+      receipt_url: ex.receipt_url ?? '',
     })
     setEditTarget(ex)
   }
@@ -108,6 +111,7 @@ export function ExpensesPage({ expenses, totalExpensesThisMonth }: Props) {
         category: editForm.category,
         description: editForm.description,
         method: editForm.method,
+        receipt_url: editForm.receipt_url?.trim() || null,
       })
       if (r.success) {
         toast.success('Gasto actualizado')
@@ -200,16 +204,17 @@ export function ExpensesPage({ expenses, totalExpensesThisMonth }: Props) {
                   <option value="card">Tarjeta</option>
                 </select>
               </div>
-              <div className="space-y-1">
-                <label className="label">Justificante</label>
-                <button
-                  type="button"
-                  className="btn-ghost gap-2 flex items-center text-sm w-full justify-center"
-                  onClick={() => toast.info('Función de subida de archivos próximamente')}
-                >
-                  <Paperclip className="w-4 h-4" />
-                  Adjuntar recibo
-                </button>
+              <div className="space-y-1 sm:col-span-2">
+                <label className="label flex items-center gap-2">
+                  <Paperclip className="w-3.5 h-3.5" />
+                  URL del justificante (Drive / Dropbox)
+                </label>
+                <input
+                  name="receipt_url"
+                  type="url"
+                  placeholder="https://drive.google.com/…"
+                  className="input w-full"
+                />
               </div>
             </div>
             <div className="flex gap-3">
@@ -237,6 +242,7 @@ export function ExpensesPage({ expenses, totalExpensesThisMonth }: Props) {
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Categoría</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Descripción</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">Importe</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground text-center">Recibo</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -251,6 +257,21 @@ export function ExpensesPage({ expenses, totalExpensesThisMonth }: Props) {
                   </td>
                   <td className="px-4 py-3">{expense.description}</td>
                   <td className="px-4 py-3 text-right font-semibold text-red-600">{formatCurrency(expense.amount)}</td>
+                  <td className="px-4 py-3 text-center">
+                    {expense.receipt_url ? (
+                      <a
+                        href={expense.receipt_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-primary hover:underline text-xs"
+                        title="Ver justificante"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" /> Ver
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button
@@ -275,7 +296,7 @@ export function ExpensesPage({ expenses, totalExpensesThisMonth }: Props) {
               ))}
               {expenses.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
                     No hay gastos registrados este mes
                   </td>
                 </tr>
@@ -320,6 +341,16 @@ export function ExpensesPage({ expenses, totalExpensesThisMonth }: Props) {
                   <option value="cash">Efectivo</option>
                   <option value="card">Tarjeta</option>
                 </select>
+              </div>
+              <div>
+                <label className="label">URL del justificante</label>
+                <input
+                  type="url"
+                  value={editForm.receipt_url}
+                  onChange={e => setEditForm(f => ({ ...f, receipt_url: e.target.value }))}
+                  className="input w-full"
+                  placeholder="https://…"
+                />
               </div>
             </div>
             <div className="p-4 border-t border-gray-100 flex justify-end gap-2">

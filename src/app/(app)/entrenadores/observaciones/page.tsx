@@ -1,16 +1,17 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { headers } from 'next/headers'
 import { Topbar } from '@/components/layout/Topbar'
 import { ObservationsPage } from '@/features/entrenadores/components/ObservationsPage'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Observaciones' }
+export const dynamic = 'force-dynamic'
 
 export default async function ObservacionesPage() {
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
 
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const [{ data: observations }, { data: teams }] = await Promise.all([
     supabase

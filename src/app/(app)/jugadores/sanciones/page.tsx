@@ -1,16 +1,18 @@
-import { createClient } from '@/lib/supabase/server'
-import { getClubId } from '@/lib/supabase/get-club-id'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubContext } from '@/lib/supabase/get-club-id'
 import { Topbar } from '@/components/layout/Topbar'
 import { AlertTriangle } from 'lucide-react'
-import Link from 'next/link'
+import { SanctionsTable } from '@/features/jugadores/components/SanctionsTable'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Sanciones' }
+export const dynamic = 'force-dynamic'
 
 export default async function SancionesPage() {
-  const clubId = await getClubId()
+  const { clubId, roles } = await getClubContext()
+  const canDelete = roles.some((r: string) => ['admin', 'direccion', 'director_deportivo'].includes(r))
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = await createClient() as any
+  const supabase = createAdminClient() as any
 
   const { data: sanctions } = await supabase
     .from('player_sanctions')
@@ -51,61 +53,7 @@ export default async function SancionesPage() {
             No hay sanciones activas actualmente
           </div>
         ) : (
-          <div className="card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Jugador</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Equipo</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Competición</th>
-                    <th className="text-center px-4 py-3 font-medium text-muted-foreground">Partidos sanción</th>
-                    <th className="text-center px-4 py-3 font-medium text-muted-foreground">Cumplidos</th>
-                    <th className="text-center px-4 py-3 font-medium text-muted-foreground">Restantes</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Fecha inicio</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Temporada</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((s: any) => (
-                    <tr key={s.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/jugadores/${s.players?.id}`}
-                          className="font-medium hover:underline hover:text-primary"
-                        >
-                          {s.players?.first_name} {s.players?.last_name}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {s.players?.teams?.name ?? '—'}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground capitalize">
-                        {s.competition ?? 'Liga'}
-                      </td>
-                      <td className="px-4 py-3 text-center font-medium">
-                        {s.matches_banned ?? 1}
-                      </td>
-                      <td className="px-4 py-3 text-center text-muted-foreground">
-                        {s.matches_served ?? 0}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="badge badge-destructive font-semibold">
-                          {s.remaining}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {s.start_date
-                          ? new Date(s.start_date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                          : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">{s.season}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <SanctionsTable rows={rows} canDelete={canDelete} />
         )}
       </div>
     </div>

@@ -786,6 +786,67 @@ export async function addInjury(
   return { success: true }
 }
 
+// ─── Actualizar lesión ─────────────────────────────────────────────────────
+
+export async function updateInjury(
+  injuryId: string,
+  data: {
+    injury_type?: string
+    description?: string | null
+    injured_at?: string
+    recovered_at?: string | null
+    status?: 'active' | 'recovered'
+  }
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { getClubId } = await import('@/lib/supabase/get-club-id')
+  const clubId = await getClubId()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  const patch: Record<string, unknown> = {}
+  if (data.injury_type !== undefined) patch.injury_type = data.injury_type
+  if (data.description !== undefined) patch.description = data.description
+  if (data.injured_at !== undefined) patch.injured_at = data.injured_at
+  if (data.recovered_at !== undefined) patch.recovered_at = data.recovered_at
+  if (data.status !== undefined) patch.status = data.status
+
+  const { data: injury, error: findErr } = await sb
+    .from('injuries')
+    .select('player_id')
+    .eq('id', injuryId)
+    .eq('club_id', clubId)
+    .single()
+  if (findErr || !injury) return { success: false, error: 'Lesión no encontrada' }
+
+  const { error } = await sb.from('injuries').update(patch).eq('id', injuryId).eq('club_id', clubId)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath(`/jugadores/${injury.player_id}`)
+  return { success: true }
+}
+
+export async function deleteInjury(injuryId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { getClubId } = await import('@/lib/supabase/get-club-id')
+  const clubId = await getClubId()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  const { data: injury } = await sb
+    .from('injuries')
+    .select('player_id')
+    .eq('id', injuryId)
+    .eq('club_id', clubId)
+    .single()
+
+  const { error } = await sb.from('injuries').delete().eq('id', injuryId).eq('club_id', clubId)
+  if (error) return { success: false, error: error.message }
+
+  if (injury?.player_id) revalidatePath(`/jugadores/${injury.player_id}`)
+  return { success: true }
+}
+
 // ─── Observaciones de jugador ──────────────────────────────────────────────
 
 export async function addPlayerObservation(
@@ -809,6 +870,65 @@ export async function addPlayerObservation(
   if (error) return { success: false, error: error.message }
 
   revalidatePath(`/jugadores/${playerId}`)
+  return { success: true }
+}
+
+export async function updatePlayerObservation(
+  observationId: string,
+  data: { category?: string; comment?: string }
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { getClubId } = await import('@/lib/supabase/get-club-id')
+  const clubId = await getClubId()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  const patch: Record<string, unknown> = {}
+  if (data.category !== undefined) patch.category = data.category
+  if (data.comment !== undefined) patch.comment = data.comment
+
+  const { data: obs } = await sb
+    .from('player_observations')
+    .select('player_id')
+    .eq('id', observationId)
+    .eq('club_id', clubId)
+    .single()
+
+  const { error } = await sb
+    .from('player_observations')
+    .update(patch)
+    .eq('id', observationId)
+    .eq('club_id', clubId)
+  if (error) return { success: false, error: error.message }
+
+  if (obs?.player_id) revalidatePath(`/jugadores/${obs.player_id}`)
+  return { success: true }
+}
+
+export async function deletePlayerObservation(
+  observationId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { getClubId } = await import('@/lib/supabase/get-club-id')
+  const clubId = await getClubId()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  const { data: obs } = await sb
+    .from('player_observations')
+    .select('player_id')
+    .eq('id', observationId)
+    .eq('club_id', clubId)
+    .single()
+
+  const { error } = await sb
+    .from('player_observations')
+    .delete()
+    .eq('id', observationId)
+    .eq('club_id', clubId)
+  if (error) return { success: false, error: error.message }
+
+  if (obs?.player_id) revalidatePath(`/jugadores/${obs.player_id}`)
   return { success: true }
 }
 
