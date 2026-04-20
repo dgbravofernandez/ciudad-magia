@@ -69,11 +69,22 @@ export default async function CoachesStaffPage() {
         .in('member_id', allMemberIds)
     : { data: [] }
 
-  // Get team assignments from team_coaches
+  // Get ALL teams (active + inactive) — so joins no dejan huecos si el team está marcado inactivo
+  const { data: allTeamsRaw } = await sb
+    .from('teams')
+    .select('id, name, active')
+    .eq('club_id', clubId)
+    .order('name')
+  const teamsById: Record<string, { id: string; name: string }> = {}
+  for (const t of (allTeamsRaw ?? []) as Array<{ id: string; name: string; active: boolean }>) {
+    teamsById[t.id] = { id: t.id, name: t.name }
+  }
+
+  // Team assignments from team_coaches — sin embed, join manual en JS
   const { data: teamAssignments } = allMemberIds.length > 0
     ? await sb
         .from('team_coaches')
-        .select('member_id, role, teams(id, name)')
+        .select('member_id, role, team_id')
         .in('member_id', allMemberIds)
     : { data: [] }
 
@@ -98,35 +109,41 @@ export default async function CoachesStaffPage() {
     if (!roleMap[r.member_id].includes(r.role)) roleMap[r.member_id].push(r.role)
   }
 
-  // Build team map per coach
+  // Build team maps: entrenador → teamMap, coordinador → coordTeamMap
+  // Fuente primaria: team_coaches.role (['entrenador','coordinador'])
+  // Fuente secundaria: club_member_roles.team_id (cuando un coordinador tiene team asignado por rol)
   const teamMap: Record<string, { id: string; name: string }[]> = {}
-  for (const t of (teamAssignments ?? [])) {
-    if (!teamMap[t.member_id]) teamMap[t.member_id] = []
-    if (t.teams) teamMap[t.member_id].push(t.teams)
-  }
-
-  // Get coordinator team assignments from team_coaches (role=coordinador)
-  const { data: coordRows } = allMemberIds.length > 0
-    ? await sb
-        .from('team_coaches')
-        .select('member_id, role, teams(id, name)')
-        .eq('role', 'coordinador')
-        .in('member_id', allMemberIds)
-    : { data: [] }
-
   const coordTeamMap: Record<string, { id: string; name: string }[]> = {}
-  for (const ca of (coordRows ?? [])) {
-    if (!coordTeamMap[ca.member_id]) coordTeamMap[ca.member_id] = []
-    if (ca.teams) coordTeamMap[ca.member_id].push(ca.teams)
+
+  function addTo(
+    map: Record<string, { id: string; name: string }[]>,
+    memberId: string,
+    teamId: string | null | undefined
+  ) {
+    if (!memberId || !teamId) return
+    const team = teamsById[teamId]
+    if (!team) return
+    if (!map[memberId]) map[memberId] = []
+    if (!map[memberId].some((t) => t.id === team.id)) map[memberId].push(team)
   }
 
-  // Get all active teams for assignment
-  const { data: allTeams } = await sb
-    .from('teams')
-    .select('id, name')
-    .eq('club_id', clubId)
-    .eq('active', true)
-    .order('name')
+  for (const t of (teamAssignments ?? []) as Array<{ member_id: string; role: string | null; team_id: string }>) {
+    const role = (t.role ?? 'entrenador').toLowerCase()
+    if (role === 'coordinador') addTo(coordTeamMap, t.member_id, t.team_id)
+    else addTo(teamMap, t.member_id, t.team_id)
+  }
+
+  // club_member_roles.team_id como refuerzo (ej: un coordinador tiene team_id en su rol)
+  for (const r of (coachRoles ?? []) as Array<{ member_id: string; role: string; team_id: string | null }>) {
+    if (!r.team_id) continue
+    const role = r.role.toLowerCase()
+    if (role === 'coordinador' || role === 'director_deportivo') addTo(coordTeamMap, r.member_id, r.team_id)
+    else if (role === 'entrenador') addTo(teamMap, r.member_id, r.team_id)
+  }
+
+  const allTeams = (allTeamsRaw ?? [])
+    .filter((t: { active: boolean }) => t.active !== false)
+    .map((t: { id: string; name: string }) => ({ id: t.id, name: t.name }))
 
   const enrichedCoaches = (coaches ?? []).map((c: { id: string; form_sent?: boolean; form_sent_at?: string | null }) => ({
     ...c,
