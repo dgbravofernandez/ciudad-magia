@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils/cn'
 import { addMatchEvent, completeSession, type MatchEvent } from '@/features/entrenadores/actions/session.actions'
 import { ScoutingModal } from './ScoutingModal'
+import { CallupModal } from './CallupModal'
+import { ClipboardList, FileDown } from 'lucide-react'
 import { formatDate } from '@/lib/utils/currency'
 
 interface Player {
@@ -80,6 +82,7 @@ export function LiveMatch({
   const [minute, setMinute] = useState<number>(1)
   const [eventNotes, setEventNotes] = useState<string>('')
   const [showScoutingModal, setShowScoutingModal] = useState(false)
+  const [showCallupModal, setShowCallupModal] = useState(false)
 
   // Accumulate yellow cards from events
   const yellowsThisMatch: Record<string, number> = {}
@@ -187,6 +190,28 @@ export function LiveMatch({
             ) : (
               <span className="badge badge-muted">Finalizado</span>
             )}
+
+            {/* Callup actions */}
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <button
+                onClick={() => setShowCallupModal(true)}
+                className="btn-secondary text-xs flex items-center gap-1"
+                title="Gestionar convocatoria"
+              >
+                <ClipboardList className="w-3.5 h-3.5" />
+                Convocatoria
+              </button>
+              <a
+                href={`/api/callup-pdf?sessionId=${session.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-ghost text-xs flex items-center gap-1"
+                title="Descargar PDF de convocatoria"
+              >
+                <FileDown className="w-3.5 h-3.5" />
+                PDF
+              </a>
+            </div>
           </div>
 
           {/* Away score adjustment */}
@@ -371,6 +396,14 @@ export function LiveMatch({
           sessionId={session.id}
           rivalTeam={session.opponent ?? ''}
           onClose={() => setShowScoutingModal(false)}
+        />
+      )}
+
+      {/* Callup modal */}
+      {showCallupModal && (
+        <CallupModal
+          sessionId={session.id}
+          onClose={() => setShowCallupModal(false)}
         />
       )}
     </>
