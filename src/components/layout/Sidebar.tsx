@@ -88,6 +88,7 @@ const NAV_ITEMS: NavItem[] = [
     children: [
       { label: 'Pagos', href: '/contabilidad/pagos' },
       { label: 'Gastos', href: '/contabilidad/gastos' },
+      { label: 'Actividades', href: '/contabilidad/actividades' },
       { label: 'Cierre de caja', href: '/contabilidad/caja' },
     ],
   },

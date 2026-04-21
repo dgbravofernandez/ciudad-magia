@@ -54,6 +54,7 @@ interface Payment {
 
 interface Props {
   clubId: string
+  season?: string
   totalPaidThisMonth: number
   totalPending: number
   playersWithDebtCount: number
@@ -66,6 +67,7 @@ interface Props {
     installments?: { label: string; amount: number; deadline: string }[]
     teams?: Record<string, number>
   }
+  seasonFees?: Array<{ team_id: string | null; concept: string; amount: number }>
 }
 
 const PAYMENT_METHODS = [
@@ -82,6 +84,7 @@ const METHOD_LABELS: Record<string, string> = {
 
 export function PaymentRegistration({
   clubId,
+  season,
   totalPaidThisMonth,
   totalPending,
   playersWithDebtCount,
@@ -89,6 +92,7 @@ export function PaymentRegistration({
   payments,
   canRegisterPayments,
   quotaAmounts,
+  seasonFees,
 }: Props) {
   const [search, setSearch] = useState('')
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null)
@@ -103,8 +107,20 @@ export function PaymentRegistration({
 
   const today = new Date().toISOString().slice(0, 10)
 
-  // Get annual quota amount for a player based on team
+  // Get annual quota amount for a player based on team.
+  // Prioridad: season_fees (concept 'Cuota anual' o similar) → quotaAmounts.teams → quotaAmounts.annual
   function getAnnualQuota(player: PlayerRow): number {
+    if (seasonFees && seasonFees.length > 0) {
+      const tid = player.teams?.id ?? null
+      // Busca 'Cuota anual' específica del equipo → por defecto de temporada
+      const anualRows = seasonFees.filter((f) =>
+        /anual|cuota$/i.test(f.concept) || f.concept.toLowerCase() === 'cuota anual',
+      )
+      const teamRow = tid ? anualRows.find((f) => f.team_id === tid) : null
+      const defaultRow = anualRows.find((f) => f.team_id === null)
+      if (teamRow) return Number(teamRow.amount)
+      if (defaultRow) return Number(defaultRow.amount)
+    }
     if (!quotaAmounts) return 0
     const teamsMap = quotaAmounts.teams ?? {}
     if (player.teams?.id && teamsMap[player.teams.id]) {
@@ -224,6 +240,7 @@ export function PaymentRegistration({
         date,
         notes,
         clubId,
+        season,
       })
 
       if (result.success) {

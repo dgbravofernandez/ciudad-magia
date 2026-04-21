@@ -64,6 +64,7 @@ export async function registerPayment(data: {
   clubId: string
   concept?: string
   month?: number
+  season?: string
 }) {
   const { sb, memberId } = await resolveClubAndMember()
   const dbMethod = toDbMethod(data.method)
@@ -72,7 +73,7 @@ export async function registerPayment(data: {
   const { data: payment, error: paymentError } = await sb.from('quota_payments').insert({
     club_id: data.clubId,
     player_id: data.playerId,
-    season: getCurrentSeason(),
+    season: data.season ?? getCurrentSeason(),
     month: data.month ?? new Date(data.date).getMonth() + 1,
     concept: data.concept ?? 'Cuota mensual',
     amount_due: data.amount,

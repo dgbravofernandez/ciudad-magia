@@ -3,7 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { getClubId } from '@/lib/supabase/get-club-id'
 import { headers } from 'next/headers'
 import { CuotasConfig } from '@/features/configuracion/components/CuotasConfig'
+import { SeasonFeesManager } from '@/features/configuracion/components/SeasonFeesManager'
 import { Topbar } from '@/components/layout/Topbar'
+import { getActiveSeasons } from '@/lib/utils/currency'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Configuracion de Cuotas' }
@@ -35,10 +37,14 @@ export default async function CuotasPage() {
   return (
     <div className="flex flex-col h-full">
       <Topbar title="Configuracion de Cuotas" />
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-6 space-y-6 max-w-4xl">
         <CuotasConfig
           clubId={clubId}
           settings={settingsRes.data}
+          teams={teamsRes.data ?? []}
+        />
+        <SeasonFeesManager
+          seasons={getActiveSeasons()}
           teams={teamsRes.data ?? []}
         />
       </div>

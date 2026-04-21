@@ -42,3 +42,21 @@ export function getCurrentSeason(): string {
   }
   return `${year - 1}-${String(year).slice(2)}`
 }
+
+/**
+ * Devuelve la temporada siguiente en formato 'YYYY-YY'.
+ * Ej: '2025-26' → '2026-27'
+ */
+export function getNextSeason(current?: string): string {
+  const cur = current ?? getCurrentSeason()
+  const m = cur.match(/^(\d{4})-(\d{2})$/)
+  if (!m) return cur
+  const start = parseInt(m[1], 10) + 1
+  return `${start}-${String(start + 1).slice(2)}`
+}
+
+/** Devuelve [actual, siguiente] para selectores de doble temporada. */
+export function getActiveSeasons(): string[] {
+  const cur = getCurrentSeason()
+  return [cur, getNextSeason(cur)]
+}
