@@ -35,9 +35,10 @@ export async function sendBulkEmail(input: {
   templateId: string | null
   subject: string
   bodyHtml: string
-  recipientType: 'all' | 'pending' | 'team' | 'category'
+  recipientType: 'all' | 'pending' | 'team' | 'category' | 'player'
   teamId?: string | null
   categoryId?: string | null
+  playerId?: string | null
 }): Promise<{ success: boolean; error?: string; sent: number; failed: number; noEmail: number }> {
   const supabase = createAdminClient()
   const { clubId, memberId } = await getClubContext()
@@ -52,7 +53,14 @@ export async function sendBulkEmail(input: {
   // Resolve recipients
   let recipients: RecipientRow[] = []
 
-  if (input.recipientType === 'pending') {
+  if (input.recipientType === 'player' && input.playerId) {
+    const { data: players } = await sb
+      .from('players')
+      .select('id, first_name, last_name, tutor_name, tutor_email')
+      .eq('club_id', clubId)
+      .eq('id', input.playerId)
+    recipients = (players ?? []) as RecipientRow[]
+  } else if (input.recipientType === 'pending') {
     // Players with at least one pending quota payment
     const { data: pendingRows } = await sb
       .from('quota_payments')

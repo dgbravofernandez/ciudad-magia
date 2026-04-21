@@ -9,7 +9,9 @@ export const dynamic = 'force-dynamic'
 
 export default async function EnviarPage() {
   const { clubId } = await getClubContext()
-  const supabase = createAdminClient()
+  if (!clubId) return <div className="p-6 text-sm">No autenticado</div>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
 
   const { data: templates } = await supabase
     .from('email_templates')
@@ -29,6 +31,13 @@ export default async function EnviarPage() {
     .select('id, name')
     .eq('club_id', clubId)
     .order('name')
+
+  const { data: players } = await supabase
+    .from('players')
+    .select('id, first_name, last_name, tutor_name, tutor_email')
+    .eq('club_id', clubId)
+    .neq('status', 'low')
+    .order('last_name')
 
   // Count players for estimation
   const { count: totalPlayers } = await supabase
@@ -52,6 +61,7 @@ export default async function EnviarPage() {
           templates={(templates ?? []) as never}
           teams={(teams ?? []) as never}
           categories={(categories ?? []) as never}
+          players={(players ?? []) as never}
           totalPlayers={totalPlayers ?? 0}
           pendingPlayersCount={pendingPlayers ?? 0}
         />

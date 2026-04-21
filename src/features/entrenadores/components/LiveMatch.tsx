@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils/cn'
-import { addMatchEvent, completeSession, type MatchEvent } from '@/features/entrenadores/actions/session.actions'
+import { addMatchEvent, completeSession, updateSession, type MatchEvent } from '@/features/entrenadores/actions/session.actions'
 import { ScoutingModal } from './ScoutingModal'
 import { CallupModal } from './CallupModal'
 import { ClipboardList, FileDown } from 'lucide-react'
@@ -93,6 +93,21 @@ export function LiveMatch({
       ) ?? ''
       // We need player_id — let's track from added events via local state
     }
+  }
+
+  function adjustScore(side: 'home' | 'away', delta: number) {
+    const next = side === 'home'
+      ? Math.max(0, scoreHome + delta)
+      : Math.max(0, scoreAway + delta)
+    if (side === 'home') setScoreHome(next)
+    else setScoreAway(next)
+    startTransition(async () => {
+      const res = await updateSession({
+        sessionId: session.id,
+        ...(side === 'home' ? { score_home: next } : { score_away: next }),
+      })
+      if (!res.success) toast.error(res.error ?? 'Error al guardar marcador')
+    })
   }
 
   function getPlayerName(p: Player) {
@@ -214,19 +229,35 @@ export function LiveMatch({
             </div>
           </div>
 
-          {/* Away score adjustment */}
+          {/* Score adjustment */}
           {isLive && (
-            <div className="flex justify-center items-center gap-4 mt-4 pt-4 border-t">
+            <div className="flex justify-center items-center gap-6 mt-4 pt-4 border-t flex-wrap">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Goles a favor:</span>
+                <button
+                  onClick={() => adjustScore('home', -1)}
+                  disabled={isPending}
+                  className="w-7 h-7 rounded border flex items-center justify-center hover:bg-gray-100"
+                >-</button>
+                <span className="w-6 text-center font-bold">{scoreHome}</span>
+                <button
+                  onClick={() => adjustScore('home', 1)}
+                  disabled={isPending}
+                  className="w-7 h-7 rounded border flex items-center justify-center hover:bg-gray-100"
+                >+</button>
+              </div>
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">Goles rival:</span>
                 <button
-                  onClick={() => setScoreAway((s) => Math.max(0, s - 1))}
-                  className="w-7 h-7 rounded border flex items-center justify-center text-muted-foreground hover:text-foreground"
+                  onClick={() => adjustScore('away', -1)}
+                  disabled={isPending}
+                  className="w-7 h-7 rounded border flex items-center justify-center hover:bg-gray-100"
                 >-</button>
                 <span className="w-6 text-center font-bold">{scoreAway}</span>
                 <button
-                  onClick={() => setScoreAway((s) => s + 1)}
-                  className="w-7 h-7 rounded border flex items-center justify-center text-muted-foreground hover:text-foreground"
+                  onClick={() => adjustScore('away', 1)}
+                  disabled={isPending}
+                  className="w-7 h-7 rounded border flex items-center justify-center hover:bg-gray-100"
                 >+</button>
               </div>
             </div>

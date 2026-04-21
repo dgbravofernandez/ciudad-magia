@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubId } from '@/lib/supabase/get-club-id'
 import { headers } from 'next/headers'
 import { PaymentRegistration } from '@/features/contabilidad/components/PaymentRegistration'
+import { SeasonSelector } from '@/features/contabilidad/components/SeasonSelector'
 import { Topbar } from '@/components/layout/Topbar'
 import { getActiveSeasons, getCurrentSeason } from '@/lib/utils/currency'
 import type { Metadata } from 'next'
@@ -201,24 +202,7 @@ export default async function PagosPage({
                 : 'Los pagos se imputan al equipo actual del jugador.'}
             </p>
           </div>
-          <form method="GET" className="flex items-center gap-2">
-            <label className="text-xs font-medium">Temporada</label>
-            <select
-              name="season"
-              defaultValue={season}
-              onChange={(e) => {
-                const form = e.currentTarget.form
-                if (form) form.submit()
-              }}
-              className="input w-auto text-sm bg-white"
-            >
-              {seasons.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </form>
+          <SeasonSelector season={season} seasons={seasons} />
         </div>
 
         <PaymentRegistration

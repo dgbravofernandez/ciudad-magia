@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { headers } from 'next/headers'
+import { getClubContext } from '@/lib/supabase/get-club-id'
 import { Topbar } from '@/components/layout/Topbar'
 import { ObservationsPage } from '@/features/entrenadores/components/ObservationsPage'
 import type { Metadata } from 'next'
@@ -8,10 +8,11 @@ export const metadata: Metadata = { title: 'Observaciones' }
 export const dynamic = 'force-dynamic'
 
 export default async function ObservacionesPage() {
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
+  const { clubId } = await getClubContext()
+  if (!clubId) return <div className="p-6 text-sm">No autenticado</div>
 
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
 
   const [{ data: observations }, { data: teams }] = await Promise.all([
     supabase
@@ -28,7 +29,6 @@ export default async function ObservacionesPage() {
       .from('teams')
       .select('id, name')
       .eq('club_id', clubId)
-      .eq('active', true)
       .order('name'),
   ])
 

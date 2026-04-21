@@ -27,6 +27,7 @@ interface ScoutingModalProps {
 export function ScoutingModal({ sessionId, rivalTeam, onClose }: ScoutingModalProps) {
   const [step, setStep] = useState<'ask' | 'form'>('ask')
   const [isPending, startTransition] = useTransition()
+  const [rivalTeamValue, setRivalTeamValue] = useState(rivalTeam)
   const [dorsal, setDorsal] = useState('')
   const [position, setPosition] = useState('')
   const [comment, setComment] = useState('')
@@ -37,9 +38,17 @@ export function ScoutingModal({ sessionId, rivalTeam, onClose }: ScoutingModalPr
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!rivalTeamValue.trim()) {
+      toast.error('Indica el equipo rival')
+      return
+    }
+    if (!comment.trim()) {
+      toast.error('El comentario es obligatorio')
+      return
+    }
     startTransition(async () => {
       const result = await saveScoutingReport(sessionId, {
-        rival_team: rivalTeam,
+        rival_team: rivalTeamValue.trim(),
         dorsal,
         position,
         comment,
@@ -94,9 +103,11 @@ export function ScoutingModal({ sessionId, rivalTeam, onClose }: ScoutingModalPr
               <label className="label">Equipo rival</label>
               <input
                 type="text"
-                value={rivalTeam}
-                readOnly
-                className="input w-full bg-muted/50 cursor-not-allowed"
+                value={rivalTeamValue}
+                onChange={(e) => setRivalTeamValue(e.target.value)}
+                placeholder="Nombre del equipo rival"
+                className="input w-full"
+                required
               />
             </div>
 

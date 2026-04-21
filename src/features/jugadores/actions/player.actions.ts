@@ -244,7 +244,10 @@ function buildFallbackEmail(
           <p>Atentamente,<br>${CLUB}</p>
         </div>`,
       }
-    case 'request_docs':
+    case 'request_docs': {
+      // Fallback default upload link for Ciudad de Getafe if the player has no custom forms_link
+      const DEFAULT_DOCS_LINK = 'https://forms.gle/NHvNQF6jYsG1oX8s9'
+      const uploadLink = formsLink || DEFAULT_DOCS_LINK
       return {
         subject: `Documentación pendiente - ${CLUB}`,
         body: `<div style="${border('#ffcc00')}">
@@ -257,21 +260,19 @@ function buildFallbackEmail(
             <li><strong>Certificado médico</strong> de aptitud deportiva</li>
             <li><strong>Justificante de pago</strong> de la reserva de plaza</li>
           </ul>
-          ${formsLink
-            ? `<p>Por favor, suba los documentos en el siguiente enlace:</p>
-              <div style="text-align:center;margin:25px 0;">
-                <a href="${formsLink}" style="background:#ffcc00;color:#000;padding:14px 30px;border-radius:8px;font-weight:bold;text-decoration:none;font-size:16px;display:inline-block;">
-                  Subir documentación
-                </a>
-              </div>
-              <p style="font-size:0.85em;color:#888;text-align:center;">O copia este enlace en tu navegador:<br>${formsLink}</p>`
-            : `<p><em>Puede hacernos llegar la documentación por email como respuesta a este mensaje o entregarla en la oficina del club.</em></p>`
-          }
+          <p>Por favor, suba los documentos en el siguiente enlace:</p>
+          <div style="text-align:center;margin:25px 0;">
+            <a href="${uploadLink}" style="background:#ffcc00;color:#000;padding:14px 30px;border-radius:8px;font-weight:bold;text-decoration:none;font-size:16px;display:inline-block;">
+              Subir documentación
+            </a>
+          </div>
+          <p style="font-size:0.85em;color:#888;text-align:center;">O copia este enlace en tu navegador:<br>${uploadLink}</p>
           <p style="font-size:0.9em;color:#666;"><em>Sin la documentación completa no podremos tramitar la ficha federativa del jugador. Si tiene dudas, contacte con la secretaría.</em></p>
           <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
           <p style="text-align:center;font-size:0.9em;">Atentamente,<br><strong>La Dirección - ${CLUB}</strong></p>
         </div>`,
       }
+    }
     case 'wants_to_continue_yes':
       if (isJuvenile) {
         return {

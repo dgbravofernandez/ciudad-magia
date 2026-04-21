@@ -9,6 +9,7 @@ interface Props {
   templates: Array<{ id: string; name: string; subject: string; body: string }>
   teams: Array<{ id: string; name: string; categories?: { name: string } | null }>
   categories: Array<{ id: string; name: string }>
+  players: Array<{ id: string; first_name: string; last_name: string; tutor_name: string | null; tutor_email: string | null }>
   totalPlayers: number
   pendingPlayersCount: number
 }
@@ -18,6 +19,7 @@ const RECIPIENT_OPTIONS = [
   { key: 'pending', label: 'Cuota pendiente' },
   { key: 'team', label: 'Equipo específico' },
   { key: 'category', label: 'Por categoría' },
+  { key: 'player', label: 'Familia específica' },
 ] as const
 
 const SAMPLE_VARS: Record<string, string> = {
@@ -41,10 +43,12 @@ function applyVars(text: string): string {
   return Object.entries(SAMPLE_VARS).reduce((t, [k, v]) => t.replaceAll(k, v), text)
 }
 
-export function EmailComposer({ templates, teams, categories, totalPlayers, pendingPlayersCount }: Props) {
-  const [recipientType, setRecipientType] = useState<'all' | 'pending' | 'team' | 'category'>('all')
+export function EmailComposer({ templates, teams, categories, players, totalPlayers, pendingPlayersCount }: Props) {
+  const [recipientType, setRecipientType] = useState<'all' | 'pending' | 'team' | 'category' | 'player'>('all')
   const [selectedTeam, setSelectedTeam] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
+  const [selectedPlayer, setSelectedPlayer] = useState('')
+  const [playerSearch, setPlayerSearch] = useState('')
   const [templateId, setTemplateId] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
@@ -54,8 +58,21 @@ export function EmailComposer({ templates, teams, categories, totalPlayers, pend
   function getRecipientCount() {
     if (recipientType === 'all') return totalPlayers
     if (recipientType === 'pending') return pendingPlayersCount
+    if (recipientType === 'player') return selectedPlayer ? 1 : 0
     return null // unknown for team/category
   }
+
+  const filteredPlayers = playerSearch.trim()
+    ? players.filter((p) => {
+        const q = playerSearch.toLowerCase()
+        return (
+          p.first_name.toLowerCase().includes(q) ||
+          p.last_name.toLowerCase().includes(q) ||
+          (p.tutor_name ?? '').toLowerCase().includes(q) ||
+          (p.tutor_email ?? '').toLowerCase().includes(q)
+        )
+      }).slice(0, 50)
+    : players.slice(0, 50)
 
   function loadTemplate(id: string) {
     setTemplateId(id)
@@ -67,6 +84,7 @@ export function EmailComposer({ templates, teams, categories, totalPlayers, pend
     if (!subject.trim() || !body.trim()) { toast.error('Escribe un asunto y cuerpo'); return }
     if (recipientType === 'team' && !selectedTeam) { toast.error('Selecciona un equipo'); return }
     if (recipientType === 'category' && !selectedCategory) { toast.error('Selecciona una categoría'); return }
+    if (recipientType === 'player' && !selectedPlayer) { toast.error('Selecciona un jugador/familia'); return }
     setSending(true)
     try {
       const result = await sendBulkEmail({
@@ -76,6 +94,7 @@ export function EmailComposer({ templates, teams, categories, totalPlayers, pend
         recipientType,
         teamId: recipientType === 'team' ? selectedTeam : null,
         categoryId: recipientType === 'category' ? selectedCategory : null,
+        playerId: recipientType === 'player' ? selectedPlayer : null,
       })
       if (!result.success) {
         toast.error(result.error ?? 'Error al enviar')
@@ -130,6 +149,39 @@ export function EmailComposer({ templates, teams, categories, totalPlayers, pend
               <option value="">Selecciona una categoría...</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+          )}
+          {recipientType === 'player' && (
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={playerSearch}
+                onChange={e => setPlayerSearch(e.target.value)}
+                placeholder="Buscar por nombre, tutor o email..."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <select
+                value={selectedPlayer}
+                onChange={e => setSelectedPlayer(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                size={Math.min(filteredPlayers.length + 1, 8)}
+              >
+                <option value="">— Selecciona jugador —</option>
+                {filteredPlayers.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.last_name}, {p.first_name}{p.tutor_email ? ` · ${p.tutor_email}` : ' · sin email'}
+                  </option>
+                ))}
+              </select>
+              {selectedPlayer && (() => {
+                const p = players.find(x => x.id === selectedPlayer)
+                return p ? (
+                  <p className="text-xs text-blue-700 bg-blue-50 rounded px-2 py-1">
+                    ✉ Se enviará a: <strong>{p.tutor_name ?? `${p.first_name} ${p.last_name}`}</strong>
+                    {p.tutor_email ? ` — ${p.tutor_email}` : <span className="text-amber-600"> — sin email registrado</span>}
+                  </p>
+                ) : null
+              })()}
+            </div>
           )}
         </div>
 
