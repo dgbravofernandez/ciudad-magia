@@ -1,8 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubContext } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
-import { headers } from 'next/headers'
 
 export async function scheduleAppointment(data: {
   playerId: string
@@ -10,10 +10,9 @@ export async function scheduleAppointment(data: {
   scheduledAt: string
   notes: string
 }) {
-  const supabase = await createClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-  const memberId = headersList.get('x-member-id')!
+  const { clubId, memberId } = await getClubContext()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
 
   const { error } = await supabase.from('fisio_appointments').insert({
     club_id: clubId,
@@ -33,9 +32,9 @@ export async function scheduleAppointment(data: {
 }
 
 export async function confirmAppointment(appointmentId: string) {
-  const supabase = await createClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
+  const { clubId } = await getClubContext()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
 
   const { error } = await supabase
     .from('fisio_appointments')
@@ -55,10 +54,9 @@ export async function proposeMeeting(data: {
   description: string
   proposedDates: string[]
 }) {
-  const supabase = await createClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-  const memberId = headersList.get('x-member-id')!
+  const { clubId, memberId } = await getClubContext()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
 
   const { error } = await supabase.from('meeting_proposals').insert({
     club_id: clubId,
@@ -77,9 +75,9 @@ export async function proposeMeeting(data: {
 }
 
 export async function approveMedia(mediaId: string) {
-  const supabase = await createClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
+  const { clubId } = await getClubContext()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
 
   const { error } = await supabase
     .from('media_items')
@@ -94,9 +92,9 @@ export async function approveMedia(mediaId: string) {
 }
 
 export async function rejectMedia(mediaId: string) {
-  const supabase = await createClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
+  const { clubId } = await getClubContext()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
 
   const { error } = await supabase
     .from('media_items')
@@ -118,10 +116,9 @@ export async function createCalendarEvent(data: {
   attendeeIds: string[]
   notes: string
 }) {
-  const supabase = await createClient()
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
-  const memberId = headersList.get('x-member-id')!
+  const { clubId, memberId } = await getClubContext()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
 
   const { error } = await supabase.from('direction_calendar_events').insert({
     club_id: clubId,

@@ -116,7 +116,8 @@ export default async function SessionDetailPage({
     attendanceMap[a.player_id] = a
   }
 
-  const isCompleted = !session.is_live && Object.keys(attendanceMap).length > 0
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isCompleted = (session as any).completed === true
 
   // Session objectives
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

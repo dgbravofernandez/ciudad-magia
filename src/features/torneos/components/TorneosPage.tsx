@@ -1,12 +1,12 @@
 'use client'
-import { Trophy, Plus, Calendar, MapPin, Users, ChevronRight } from 'lucide-react'
+import { Trophy, Plus, Calendar, MapPin, Users, ChevronRight, Trash2 } from 'lucide-react'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import { createTournament } from '@/features/torneos/actions/tournament.actions'
+import { createTournament, deleteTournament } from '@/features/torneos/actions/tournament.actions'
 
 interface Tournament {
   id: string
@@ -36,6 +36,19 @@ export function TorneosPage({ torneos, clubId: _clubId }: Props) {
   const [showNew, setShowNew] = useState(false)
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [form, setForm] = useState<{ name: string; category: string; format: 'league' | 'cup' | 'mixed'; kind: 'local' | 'external'; start_date: string; end_date: string; location: string }>({ name: '', category: '', format: 'league', kind: 'local', start_date: '', end_date: '', location: '' })
+
+  function handleDelete(id: string, name: string) {
+    if (!confirm(`¿Eliminar el torneo "${name}"? Esta acción no se puede deshacer.`)) return
+    startTransition(async () => {
+      const r = await deleteTournament(id)
+      if (r.success) {
+        toast.success('Torneo eliminado')
+        router.refresh()
+      } else {
+        toast.error(r.error ?? 'Error al eliminar torneo')
+      }
+    })
+  }
 
   function handleCreate() {
     if (!form.name.trim()) { toast.error('El nombre es obligatorio'); return }
@@ -93,29 +106,40 @@ export function TorneosPage({ torneos, clubId: _clubId }: Props) {
 
       <div className="grid gap-3">
         {filtered.map(t => (
-          <Link key={t.id} href={`/torneos/${t.id}`} className="bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-200 hover:shadow-sm transition-all block">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-gray-900">{t.name}</h3>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[t.status]}`}>{STATUS_LABELS[t.status]}</span>
-                  {t.kind === 'external' && (
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-50 text-purple-700">✈️ Externo</span>
-                  )}
-                  {t.kind === 'local' && (
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-50 text-amber-700">🏆 Local</span>
-                  )}
+          <div key={t.id} className="bg-white rounded-xl border border-gray-200 hover:border-blue-200 hover:shadow-sm transition-all">
+            <Link href={`/torneos/${t.id}`} className="p-5 block">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-semibold text-gray-900">{t.name}</h3>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[t.status]}`}>{STATUS_LABELS[t.status]}</span>
+                    {t.kind === 'external' && (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-purple-50 text-purple-700">✈️ Externo</span>
+                    )}
+                    {t.kind === 'local' && (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-50 text-amber-700">🏆 Local</span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
+                    {t.category && <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{t.category}</span>}
+                    <span className="flex items-center gap-1"><Trophy className="w-3.5 h-3.5" />{FORMAT_LABELS[t.format]}</span>
+                    {t.start_date && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{format(new Date(t.start_date), 'd MMM yyyy', { locale: es })}</span>}
+                    {t.location && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{t.location}</span>}
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
-                  {t.category && <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{t.category}</span>}
-                  <span className="flex items-center gap-1"><Trophy className="w-3.5 h-3.5" />{FORMAT_LABELS[t.format]}</span>
-                  {t.start_date && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{format(new Date(t.start_date), 'd MMM yyyy', { locale: es })}</span>}
-                  {t.location && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{t.location}</span>}
-                </div>
+                <ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0 mt-0.5" />
               </div>
-              <ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0 mt-0.5" />
+            </Link>
+            <div className="px-5 pb-3 flex justify-end border-t border-gray-50">
+              <button
+                onClick={() => handleDelete(t.id, t.name)}
+                disabled={isPending}
+                className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Eliminar
+              </button>
             </div>
-          </Link>
+          </div>
         ))}
       </div>
 

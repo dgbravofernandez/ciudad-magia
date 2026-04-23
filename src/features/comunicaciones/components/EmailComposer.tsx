@@ -71,8 +71,8 @@ export function EmailComposer({ templates, teams, categories, players, totalPlay
           (p.tutor_name ?? '').toLowerCase().includes(q) ||
           (p.tutor_email ?? '').toLowerCase().includes(q)
         )
-      }).slice(0, 50)
-    : players.slice(0, 50)
+      })
+    : players
 
   function loadTemplate(id: string) {
     setTemplateId(id)

@@ -241,10 +241,11 @@ export async function completeSession(sessionId: string) {
 
   if (!session) return { success: false, error: 'Sesion no encontrada' }
 
-  // Mark session as completed (not live)
-  const { error } = await supabase
+  // Mark session as completed (not live) and set completed flag
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
     .from('sessions')
-    .update({ is_live: false })
+    .update({ is_live: false, completed: true })
     .eq('id', sessionId)
 
   if (error) return { success: false, error: error.message }

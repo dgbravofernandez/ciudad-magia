@@ -58,7 +58,11 @@ export default async function EnviarPage() {
       <div className="flex-1 p-6">
         <EmailComposer
           clubId={clubId}
-          templates={(templates ?? []) as never}
+          templates={((templates ?? []) as never[]).map((t: never) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const tpl = t as any
+          return { ...tpl, body: tpl.body_html ?? tpl.body ?? '' }
+        }) as never}
           teams={(teams ?? []) as never}
           categories={(categories ?? []) as never}
           players={(players ?? []) as never}

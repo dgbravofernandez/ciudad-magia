@@ -17,7 +17,8 @@ export async function createScoutingReport(input: {
 }): Promise<{ success: boolean; error?: string; id?: string }> {
   try {
     const { clubId, memberId } = await getClubContext()
-    const sb = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
 
     if (!input.rival_team?.trim()) {
       return { success: false, error: 'El equipo rival es obligatorio' }
@@ -61,7 +62,8 @@ export async function updateScoutingReport(input: {
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const { clubId } = await getClubContext()
-    const sb = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
 
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (input.rival_team !== undefined) patch.rival_team = input.rival_team
@@ -90,7 +92,8 @@ export async function updateScoutingReport(input: {
 export async function deleteScoutingReport(id: string): Promise<{ success: boolean; error?: string }> {
   try {
     const { clubId } = await getClubContext()
-    const sb = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
     const { error } = await sb.from('scouting_reports').delete().eq('id', id).eq('club_id', clubId)
     if (error) return { success: false, error: error.message }
     revalidatePath('/scouting')
