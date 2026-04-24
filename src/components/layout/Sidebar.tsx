@@ -128,6 +128,12 @@ const NAV_ITEMS: NavItem[] = [
     requiredRole: ENTRENADORES_ROLES,
   },
   {
+    label: 'Scouting RFFM',
+    href: '/scouting/rffm',
+    icon: Eye,
+    requiredRole: ENTRENADORES_ROLES,
+  },
+  {
     label: 'Ropa',
     href: '/ropa',
     icon: Shirt,

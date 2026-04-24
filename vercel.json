@@ -11,6 +11,14 @@
     {
       "path": "/api/cron/weekly-sessions",
       "schedule": "0 22 * * 0"
+    },
+    {
+      "path": "/api/cron/rffm-sync?type=scorers",
+      "schedule": "0 23 * * 0"
+    },
+    {
+      "path": "/api/cron/rffm-sync?type=actas",
+      "schedule": "0 1 * * *"
     }
   ]
 }
