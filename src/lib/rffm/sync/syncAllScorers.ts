@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sweepAllGroupScorers } from '../scorers'
 import { getPlayerProfile } from '../player'
 import { getDivisionLevel } from '../division-levels'
+import { SCORER_SWEEP_TIPOJUEGOS, CURRENT_SEASON } from '../constants'
 
 // Minimum filter: only store players above this threshold
 const MIN_GOLES_POR_PARTIDO = 0.5
@@ -17,8 +18,8 @@ const MAX_PROFILE_FETCHES_PER_RUN = 200
  */
 export async function syncAllScorers(
   clubId: string,
-  codTemporada: string = '21',
-  tiposjuego: string[] = ['1', '2', '3', '4', '5']
+  codTemporada: string = CURRENT_SEASON,
+  tiposjuego: string[] = SCORER_SWEEP_TIPOJUEGOS  // F7 + F11 only
 ): Promise<{ signalsCreated: number; playersFetched: number; errors: number; errorDetail: string[] }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any

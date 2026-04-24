@@ -1,7 +1,8 @@
 import { fetchRffmSSR } from './client'
 import type { RffmScorerEntry, RffmCompeticion, RffmGrupo } from './types'
+import { SCORER_SWEEP_TIPOJUEGOS } from './constants'
 
-// ── Types for the classification page (used to enumerate groups) ──
+// ── Types ──────────────────────────────────────────────────────
 
 interface ClasificacionesPageProps {
   competitions: RffmCompeticion[]
@@ -20,6 +21,7 @@ interface GoleadoresPageProps {
   }
   group: RffmGrupo
   competition: RffmCompeticion
+  competitions: RffmCompeticion[]
 }
 
 // ── Single group scorers ───────────────────────────────────────
@@ -46,7 +48,7 @@ export async function getScorers(
   }
 }
 
-// ── Enumerate ALL competitions + groups for a season ──────────
+// ── Enumerate ALL competitions + groups ────────────────────────
 
 export interface CompetitionGroupRef {
   codTemporada: string
@@ -59,39 +61,54 @@ export interface CompetitionGroupRef {
 }
 
 /**
- * Fetches all competitions and groups for a given season/tipojuego,
- * by reading them from the clasificaciones SSR page.
- * Uses the first competition to get the groups structure, then iterates.
+ * Fetches all competitions and all their groups for a given season+tipojuego.
+ *
+ * Strategy:
+ * 1. Load /clasificaciones without competition → get competitions[]
+ * 2. If competitions[] is empty, bail out (tipojuego doesn't exist this season)
+ * 3. For each competition, load its groups by fetching the page with ?competicion=X
+ *    (the groups[] change depending on which competition is selected)
  */
 export async function getAllGroupRefs(
   codTemporada: string,
   codTipojuego: string
 ): Promise<CompetitionGroupRef[]> {
-  // We need at least one competition to load the page.
-  // Fetch the page without specifying a competition to get the full list.
-  const data = await fetchRffmSSR<ClasificacionesPageProps>(
-    'competicion/clasificaciones',
-    { temporada: codTemporada, tipojuego: codTipojuego }
-  )
+  let competitions: RffmCompeticion[] = []
 
-  const competitions = data.competitions ?? []
+  // First: get the list of competitions for this tipojuego
+  try {
+    const data = await fetchRffmSSR<ClasificacionesPageProps>(
+      'competicion/clasificaciones',
+      { temporada: codTemporada, tipojuego: codTipojuego }
+    )
+    competitions = data.competitions ?? []
+  } catch {
+    return []  // tipojuego doesn't exist for this season
+  }
+
   if (competitions.length === 0) return []
 
   const result: CompetitionGroupRef[] = []
 
-  // For each competition, load its groups
   for (const comp of competitions) {
-    // Fetch the page for this competition to get its groups
-    const compData = await fetchRffmSSR<ClasificacionesPageProps>(
-      'competicion/clasificaciones',
-      {
-        temporada: codTemporada,
-        tipojuego: codTipojuego,
-        competicion: comp.codigo,
-      }
-    )
+    // Skip competitions with no groups expected
+    if (comp.total_grupos === '0') continue
 
-    const groups = compData.groups ?? []
+    let groups: RffmGrupo[] = []
+    try {
+      const compData = await fetchRffmSSR<ClasificacionesPageProps>(
+        'competicion/clasificaciones',
+        {
+          temporada: codTemporada,
+          tipojuego: codTipojuego,
+          competicion: comp.codigo,
+        }
+      )
+      groups = compData.groups ?? []
+    } catch {
+      continue
+    }
+
     for (const group of groups) {
       result.push({
         codTemporada,
@@ -108,7 +125,7 @@ export async function getAllGroupRefs(
   return result
 }
 
-// ── Full sweep: ALL groups in ALL tipojuegos ───────────────────
+// ── Full sweep: goleadores from ALL groups ─────────────────────
 
 export interface GroupScorersResult {
   codCompeticion: string
@@ -120,13 +137,13 @@ export interface GroupScorersResult {
 }
 
 /**
- * Sweeps ALL groups across ALL tipojuegos for a season.
+ * Sweeps ALL groups across the given tipojuegos for a season.
+ * Defaults to F7 + F11 only (SCORER_SWEEP_TIPOJUEGOS).
  * Returns scorers for every group that has the scorers feature enabled.
- * This is the main entry point for the global scouting sweep.
  */
 export async function sweepAllGroupScorers(
   codTemporada: string,
-  tiposjuego: string[] = ['1', '2', '3', '4', '5']
+  tiposjuego: string[] = SCORER_SWEEP_TIPOJUEGOS
 ): Promise<GroupScorersResult[]> {
   const results: GroupScorersResult[] = []
 
@@ -135,7 +152,7 @@ export async function sweepAllGroupScorers(
     try {
       groupRefs = await getAllGroupRefs(codTemporada, codTipojuego)
     } catch {
-      continue  // this tipojuego may not exist for this season
+      continue
     }
 
     const scorerGroups = groupRefs.filter(g => g.hasScorers)

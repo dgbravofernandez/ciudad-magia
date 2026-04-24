@@ -3,6 +3,7 @@ import { syncCalendar } from './syncCalendar'
 import { syncActas } from './syncActas'
 import { syncCardAlerts } from './syncCardAlerts'
 import { syncAllScorers } from './syncAllScorers'
+import { CURRENT_SEASON } from '../constants'
 import type { SyncResult } from '../types'
 
 export type SyncType = 'full' | 'calendar' | 'actas' | 'scorers' | 'card_alerts'
@@ -17,7 +18,7 @@ export async function runSync(
 ): Promise<SyncResult> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
-  const codTemporada = options?.codTemporada ?? '21'
+  const codTemporada = options?.codTemporada ?? CURRENT_SEASON
 
   // ── Create log entry ──────────────────────────────────────────
   const { data: logRow } = await sb
