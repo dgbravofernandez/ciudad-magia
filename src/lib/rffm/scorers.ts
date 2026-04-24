@@ -1,50 +1,72 @@
-import { fetchRffmSSR } from './client'
-import type { RffmScorerEntry, RffmCompeticion, RffmGrupo } from './types'
+/**
+ * RFFM Scorers (Goleadores) sweep
+ *
+ * RFFM is a Next.js app that loads competition/group/scorer data client-side
+ * via its own REST API (not SSR). The correct endpoints are:
+ *
+ *   GET /api/competitions?temporada=21&tipojuego=2   → competitions[]
+ *   GET /api/groups?competicion=X                    → groups[]
+ *   GET /api/scorers?idGroup=Y&idCompetition=X       → { goles: [] }
+ *
+ * gameTypes (RFFM internal):
+ *   tipojuego=1 → Fútbol 11
+ *   tipojuego=2 → Fútbol 7
+ *   tipojuego=3 → Fútbol Sala
+ *   tipojuego=4 → Fútbol 5
+ */
+
+import { fetchRffmAPI } from './client'
+import type { RffmScorerEntry } from './types'
 import { SCORER_SWEEP_TIPOJUEGOS } from './constants'
 
 // ── Types ──────────────────────────────────────────────────────
 
-interface ClasificacionesPageProps {
-  competitions: RffmCompeticion[]
-  groups: RffmGrupo[]
-  seasons: Array<{ codigo: string; nombre: string }>
-  gameTypes: Array<{ codigo: string; nombre: string }>
+/** Shape returned by /api/competitions */
+type ApiCompeticion = {
+  codigo: string
+  nombre: string
+  codigo_tipo_juego?: string
+  TipoJuego?: string
+  goleadores?: string      // "1" = scorers enabled at competition level
+  [key: string]: unknown
 }
 
-interface GoleadoresPageProps {
-  scorers: {
-    estado: string
-    sesion_ok: string
-    competicion: string
-    grupo: string
-    goles: RffmScorerEntry[]
-  }
-  group: RffmGrupo
-  competition: RffmCompeticion
-  competitions: RffmCompeticion[]
+/** Shape returned by /api/groups */
+type ApiGrupo = {
+  codigo: string
+  nombre: string
+  total_jornadas?: string
+  total_equipos?: string
+  clasificacion_goleadores?: string   // "1" = scorers enabled
+  ver_clasificacion?: string
+  orden?: string
+}
+
+/** Shape returned by /api/scorers */
+type ApiScorers = {
+  estado?: string
+  sesion_ok?: string
+  competicion?: string
+  grupo?: string
+  goles?: RffmScorerEntry[]
 }
 
 // ── Single group scorers ───────────────────────────────────────
 
 export async function getScorers(
-  codTemporada: string,
-  codTipojuego: string,
+  _codTemporada: string,
+  _codTipojuego: string,
   codCompeticion: string,
   codGrupo: string
 ): Promise<RffmScorerEntry[]> {
   try {
-    const data = await fetchRffmSSR<GoleadoresPageProps>(
-      'competicion/goleadores',
-      {
-        temporada: codTemporada,
-        tipojuego: codTipojuego,
-        competicion: codCompeticion,
-        grupo: codGrupo,
-      }
-    )
-    return data.scorers?.goles ?? []
+    const data = await fetchRffmAPI<ApiScorers>('scorers', {
+      idCompetition: codCompeticion,
+      idGroup: codGrupo,
+    })
+    return data?.goles ?? []
   } catch {
-    return []  // group may not have scorers enabled
+    return []
   }
 }
 
@@ -61,53 +83,46 @@ export interface CompetitionGroupRef {
 }
 
 /**
- * Fetches all competitions and all their groups for a given season+tipojuego.
+ * Fetches all competitions and all their groups for a given tipojuego.
  *
  * Strategy:
- * 1. Load /clasificaciones without competition → get competitions[]
- * 2. If competitions[] is empty, bail out (tipojuego doesn't exist this season)
- * 3. For each competition, load its groups by fetching the page with ?competicion=X
- *    (the groups[] change depending on which competition is selected)
+ * 1. GET /api/competitions?temporada=21&tipojuego=X
+ * 2. For each competition, GET /api/groups?competicion=X
+ * 3. Filter groups where clasificacion_goleadores === '1'
  */
 export async function getAllGroupRefs(
   codTemporada: string,
   codTipojuego: string
 ): Promise<CompetitionGroupRef[]> {
-  let competitions: RffmCompeticion[] = []
+  let competitions: ApiCompeticion[] = []
 
-  // First: get the list of competitions for this tipojuego
   try {
-    const data = await fetchRffmSSR<ClasificacionesPageProps>(
-      'competicion/clasificaciones',
-      { temporada: codTemporada, tipojuego: codTipojuego }
-    )
-    competitions = data.competitions ?? []
+    competitions = await fetchRffmAPI<ApiCompeticion[]>('competitions', {
+      temporada: codTemporada,
+      tipojuego: codTipojuego,
+    })
   } catch {
-    return []  // tipojuego doesn't exist for this season
+    return []
   }
 
-  if (competitions.length === 0) return []
+  if (!Array.isArray(competitions) || competitions.length === 0) return []
 
   const result: CompetitionGroupRef[] = []
 
   for (const comp of competitions) {
-    // Skip competitions with no groups expected
-    if (comp.total_grupos === '0') continue
+    // Skip competitions with scorers explicitly disabled
+    if (comp.goleadores === '0') continue
 
-    let groups: RffmGrupo[] = []
+    let groups: ApiGrupo[] = []
     try {
-      const compData = await fetchRffmSSR<ClasificacionesPageProps>(
-        'competicion/clasificaciones',
-        {
-          temporada: codTemporada,
-          tipojuego: codTipojuego,
-          competicion: comp.codigo,
-        }
-      )
-      groups = compData.groups ?? []
+      groups = await fetchRffmAPI<ApiGrupo[]>('groups', {
+        competicion: comp.codigo,
+      })
     } catch {
       continue
     }
+
+    if (!Array.isArray(groups)) continue
 
     for (const group of groups) {
       result.push({
@@ -138,7 +153,7 @@ export interface GroupScorersResult {
 
 /**
  * Sweeps ALL groups across the given tipojuegos for a season.
- * Defaults to F7 + F11 only (SCORER_SWEEP_TIPOJUEGOS).
+ * Defaults to F7 + F11 only (SCORER_SWEEP_TIPOJUEGOS = ['1','2']).
  * Returns scorers for every group that has the scorers feature enabled.
  */
 export async function sweepAllGroupScorers(
