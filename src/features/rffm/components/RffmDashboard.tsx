@@ -135,12 +135,14 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs }
 
   // ── Signal filtering ─────────────────────────────────────────
   const filteredSignals = signals.filter(s => {
+    const nombreComp = s.nombre_competicion ?? ''
+    const nombreJug = s.nombre_jugador ?? ''
+    const nombreEq = s.nombre_equipo ?? ''
+
     if (filterEstado !== 'all' && s.estado !== filterEstado) return false
     if (filterTipo !== 'all') {
-      // Match tipojuego from competition name heuristic
-      // (we don't store tipojuego on signals, but can infer from name)
       // F7 competitions usually have "F-7" or "F7" in name; F11 don't
-      const isF7 = s.nombre_competicion.includes('F-7') || s.nombre_competicion.includes('F7') || s.nombre_competicion.includes('FÚTBOL 7') || s.nombre_competicion.includes('FUTBOL 7')
+      const isF7 = nombreComp.includes('F-7') || nombreComp.includes('F7') || nombreComp.includes('FÚTBOL 7') || nombreComp.includes('FUTBOL 7')
       if (filterTipo === '1' && !isF7) return false
       if (filterTipo === '2' && isF7) return false
     }
@@ -149,13 +151,13 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs }
     }
     if (Number(s.goles_por_partido) < filterMinRatio) return false
     if (filterMinValor > 0 && Number(s.valor_score) < filterMinValor) return false
-    if (filterDivision > 0 && s.division_level < filterDivision) return false
+    if (filterDivision > 0 && (s.division_level ?? 0) < filterDivision) return false
     if (searchText) {
       const q = searchText.toLowerCase()
       if (
-        !s.nombre_jugador.toLowerCase().includes(q) &&
-        !s.nombre_equipo.toLowerCase().includes(q) &&
-        !s.nombre_competicion.toLowerCase().includes(q)
+        !nombreJug.toLowerCase().includes(q) &&
+        !nombreEq.toLowerCase().includes(q) &&
+        !nombreComp.toLowerCase().includes(q)
       ) return false
     }
     return true
