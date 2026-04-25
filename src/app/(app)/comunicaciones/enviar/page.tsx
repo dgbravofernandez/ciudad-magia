@@ -13,11 +13,21 @@ export default async function EnviarPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createAdminClient() as any
 
-  const { data: templates } = await supabase
+  const { data: dbTemplates } = await supabase
     .from('email_templates')
     .select('*')
     .eq('club_id', clubId)
     .order('name')
+
+  // Fallback: si no hay plantillas en DB, usar defaults hardcodeados
+  // para que el dropdown nunca aparezca vacío.
+  const DEFAULTS = [
+    { id: 'default-1', name: 'Bienvenida al club', subject: 'Bienvenido/a a {club_nombre}', body: 'Estimado/a {tutor_nombre},\n\nNos complace comunicarte que {jugador_nombre} ha sido inscrito/a satisfactoriamente en {club_nombre} para la temporada {temporada}.\n\nQuedamos a tu disposición.\n\nUn saludo,\nEl equipo de {club_nombre}' },
+    { id: 'default-2', name: 'Recordatorio cuota', subject: 'Recordatorio: cuota mensual pendiente', body: 'Estimado/a {tutor_nombre},\n\nTe recordamos que la cuota mensual de {jugador_nombre} correspondiente a {mes} está pendiente de pago.\n\nImporte: {importe} €\n\nPuedes realizar el pago mediante transferencia bancaria o en efectivo.\n\nGracias por tu colaboración.\n\nUn saludo,\n{club_nombre}' },
+    { id: 'default-3', name: 'Carta de prueba', subject: 'Autorización para prueba en {club_nombre}', body: 'Estimado/a {tutor_nombre},\n\nPor medio de la presente, comunicamos que {jugador_nombre}, con fecha de nacimiento {fecha_nacimiento}, queda autorizado/a para realizar una prueba de evaluación en {club_nombre}.\n\nLa prueba tendrá lugar el día {fecha_prueba} en nuestras instalaciones.\n\nAtentamente,\n{director_nombre}\nDirector Deportivo\n{club_nombre}' },
+    { id: 'default-4', name: 'Convocatoria partido', subject: 'Convocatoria: {equipo} - {fecha_partido}', body: 'Estimado/a {tutor_nombre},\n\n{jugador_nombre} está convocado/a para el partido del {fecha_partido} a las {hora} en {lugar}.\n\nPor favor, confirma asistencia respondiendo a este correo.\n\nUn saludo,\n{entrenador_nombre}' },
+  ]
+  const templates = (dbTemplates && dbTemplates.length > 0) ? dbTemplates : DEFAULTS
 
   const { data: teams } = await supabase
     .from('teams')
