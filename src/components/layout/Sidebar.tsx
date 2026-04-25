@@ -87,6 +87,7 @@ const NAV_ITEMS: NavItem[] = [
     requiredRole: CONTABILIDAD_ROLES,
     children: [
       { label: 'Pagos', href: '/contabilidad/pagos' },
+      { label: 'Transferencias', href: '/contabilidad/transferencias' },
       { label: 'Gastos', href: '/contabilidad/gastos' },
       { label: 'Actividades', href: '/contabilidad/actividades' },
       { label: 'Cierre de caja', href: '/contabilidad/caja' },
