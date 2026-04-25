@@ -112,15 +112,18 @@ export async function fetchRffmSSR<T>(
 
 /**
  * Fetches a direct /api/* endpoint from RFFM (for competition/group enumeration).
+ * `skipRateLimit: true` lets the caller control concurrency externally
+ * (used by the goleadores sweep that fans out in parallel batches).
  */
 export async function fetchRffmAPI<T>(
   apiPath: string,
-  params?: Record<string, string>
+  params?: Record<string, string>,
+  options: { skipRateLimit?: boolean } = {}
 ): Promise<T> {
   const qs = params ? '?' + new URLSearchParams(params).toString() : ''
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    await waitRateLimit()
+    if (!options.skipRateLimit) await waitRateLimit()
 
     const url = `${BASE_URL}/api/${apiPath}${qs}`
 
