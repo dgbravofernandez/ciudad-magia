@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import {
   RefreshCw, AlertTriangle, Search, Settings,
   Activity, ExternalLink, Plus, Trash2, Eye, UserPlus, X,
+  FileDown, ArrowUp, ArrowDown,
 } from 'lucide-react'
 import {
   triggerRffmSync,
@@ -12,6 +13,7 @@ import {
   captureSignalToScouting,
   addTrackedCompetition,
   removeTrackedCompetition,
+  exportSignalPdf,
 } from '@/features/rffm/actions/rffm.actions'
 
 // ── Constants ──────────────────────────────────────────────────
@@ -122,19 +124,59 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs }
   // Signal filters
   const [filterAnioMin, setFilterAnioMin] = useState(CURRENT_YEAR - 14)
   const [filterAnioMax, setFilterAnioMax] = useState(CURRENT_YEAR - 8)
-  const [filterMinRatio, setFilterMinRatio] = useState(0.5)
+  const [filterMinRatio, setFilterMinRatio] = useState(0.8)
   const [filterMinValor, setFilterMinValor] = useState(0)
   const [filterDivision, setFilterDivision] = useState(0)
   const [filterTipo, setFilterTipo] = useState('all')
   const [filterEstado, setFilterEstado] = useState<string>('nuevo')
   const [searchText, setSearchText] = useState('')
+  const [showAll, setShowAll] = useState(false)
+
+  // Sort
+  type SortKey = 'valor_score' | 'goles' | 'goles_por_partido' | 'partidos_jugados' | 'anio_nacimiento' | 'division_level' | 'nombre_jugador'
+  const [sortKey, setSortKey] = useState<SortKey>('valor_score')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  function toggleSort(key: SortKey) {
+    if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('desc') }
+  }
+
+  // PDF download
+  const [pdfBusyId, setPdfBusyId] = useState<string | null>(null)
+  async function handleDownloadPdf(s: Signal) {
+    setPdfBusyId(s.id)
+    const r = await exportSignalPdf(s.id)
+    setPdfBusyId(null)
+    if (!r.success || !r.base64 || !r.filename) {
+      toast.error(r.error ?? 'Error generando PDF')
+      return
+    }
+    const bin = atob(r.base64)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    const blob = new Blob([bytes], { type: 'application/pdf' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = r.filename
+    document.body.appendChild(a); a.click(); a.remove()
+    URL.revokeObjectURL(url)
+    toast.success('PDF descargado')
+  }
 
   // New comp form
   const [showAddComp, setShowAddComp] = useState(false)
   const [compForm, setCompForm] = useState(defaultForm)
 
   // ── Signal filtering ─────────────────────────────────────────
-  const filteredSignals = signals.filter(s => {
+  // Default: no mostrar nada hasta que haya filtro real (búsqueda
+  // o se pulse "Mostrar todo"), para no abrumar con cientos de filas.
+  const hasActiveFilter = !!searchText || filterMinValor > 0 || filterDivision > 0 ||
+    filterMinRatio > 0.8 || filterTipo !== 'all' || filterEstado !== 'nuevo' ||
+    filterAnioMin !== CURRENT_YEAR - 14 || filterAnioMax !== CURRENT_YEAR - 8
+  const shouldList = showAll || hasActiveFilter
+
+  const filteredSignalsRaw = !shouldList ? [] : signals.filter(s => {
     const nombreComp = s.nombre_competicion ?? ''
     const nombreJug = s.nombre_jugador ?? ''
     const nombreEq = s.nombre_equipo ?? ''
@@ -161,6 +203,16 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs }
       ) return false
     }
     return true
+  })
+
+  const filteredSignals = [...filteredSignalsRaw].sort((a, b) => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    const av = a[sortKey], bv = b[sortKey]
+    if (av == null && bv == null) return 0
+    if (av == null) return 1
+    if (bv == null) return -1
+    if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir
+    return String(av).localeCompare(String(bv)) * dir
   })
 
   // ── Actions ──────────────────────────────────────────────────
@@ -343,32 +395,48 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs }
                 </div>
               </div>
             </div>
-            <p className="text-xs text-gray-400 mt-2">
-              Mostrando <strong className="text-gray-600">{filteredSignals.length}</strong> señales · Valor = (G/P) × nivel división · F7=1, F11=2, solo goleadores F7+F11
-            </p>
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-xs text-gray-400">
+                {shouldList
+                  ? <>Mostrando <strong className="text-gray-600">{filteredSignals.length}</strong> señales · ordenadas por <strong className="text-gray-600">{sortKey}</strong> {sortDir === 'desc' ? '↓' : '↑'}</>
+                  : <>Hay <strong className="text-gray-600">{signals.length}</strong> señales en total · usa la búsqueda o cambia un filtro para verlas</>}
+              </p>
+              <button
+                onClick={() => setShowAll(v => !v)}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                {showAll ? 'Ocultar todo por defecto' : 'Mostrar todo igualmente'}
+              </button>
+            </div>
           </div>
 
           {/* Signals table */}
-          {filteredSignals.length === 0 ? (
+          {!shouldList ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+              <Search className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+              <p className="text-gray-500 font-medium">Empieza buscando o filtrando</p>
+              <p className="text-sm text-gray-400 mt-1">Para no saturar la vista, escribe un nombre/equipo o ajusta un filtro. También puedes &quot;Mostrar todo igualmente&quot;.</p>
+            </div>
+          ) : filteredSignals.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
               <Search className="w-10 h-10 mx-auto mb-3 text-gray-300" />
               <p className="text-gray-500 font-medium">No hay señales con estos filtros</p>
-              <p className="text-sm text-gray-400 mt-1">Prueba a ajustar los filtros o lanza un "Barrido goleadores"</p>
+              <p className="text-sm text-gray-400 mt-1">Prueba a ajustar los filtros o lanza un &quot;Barrido goleadores&quot;</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600">Jugador</th>
+                    <SortTh label="Jugador" k="nombre_jugador" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600">Equipo</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 hidden lg:table-cell">Competición</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-600">Div</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-600">Año</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-600">G</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-600">PJ</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-600">G/P</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold text-gray-600">⭐ Valor</th>
+                    <SortTh label="Div" k="division_level" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                    <SortTh label="Año" k="anio_nacimiento" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                    <SortTh label="G" k="goles" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                    <SortTh label="PJ" k="partidos_jugados" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                    <SortTh label="G/P" k="goles_por_partido" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+                    <SortTh label="⭐ Valor" k="valor_score" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
                     <th className="text-center px-3 py-3 text-xs font-semibold text-gray-600">Acciones</th>
                   </tr>
                 </thead>
@@ -426,6 +494,14 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs }
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
                           </a>
+                          <button
+                            onClick={() => handleDownloadPdf(s)}
+                            disabled={pdfBusyId === s.id}
+                            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors disabled:opacity-50"
+                            title="Descargar informe PDF"
+                          >
+                            <FileDown className={`w-3.5 h-3.5 ${pdfBusyId === s.id ? 'animate-pulse' : ''}`} />
+                          </button>
                           {s.estado !== 'captado' && (
                             <>
                               {s.estado === 'nuevo' && (
@@ -766,5 +842,30 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs }
         </div>
       )}
     </div>
+  )
+}
+
+// ── Sortable column header ───────────────────────────────────
+function SortTh<K extends string>({
+  label, k, sortKey, sortDir, onClick, align = 'center',
+}: {
+  label: string
+  k: K
+  sortKey: K
+  sortDir: 'asc' | 'desc'
+  onClick: (k: K) => void
+  align?: 'left' | 'center'
+}) {
+  const active = sortKey === k
+  return (
+    <th
+      onClick={() => onClick(k)}
+      className={`${align === 'left' ? 'text-left px-4' : 'text-center px-3'} py-3 text-xs font-semibold cursor-pointer select-none ${active ? 'text-blue-700' : 'text-gray-600 hover:text-gray-900'}`}
+    >
+      <span className="inline-flex items-center gap-0.5">
+        {label}
+        {active && (sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+      </span>
+    </th>
   )
 }

@@ -180,3 +180,64 @@ export async function getLastSyncStatus(syncType?: string): Promise<{
     return { success: false, error: (e as Error).message }
   }
 }
+
+// ── PDF export ────────────────────────────────────────────────
+
+export async function exportSignalPdf(signalId: string): Promise<{
+  success: boolean
+  error?: string
+  filename?: string
+  base64?: string
+}> {
+  try {
+    const { clubId, memberId } = await getClubContext()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+
+    const { data: signal, error } = await sb
+      .from('rffm_scouting_signals')
+      .select('*')
+      .eq('id', signalId)
+      .eq('club_id', clubId)
+      .single()
+
+    if (error || !signal) return { success: false, error: error?.message ?? 'No encontrado' }
+
+    let generatedBy = 'Equipo de scouting'
+    if (memberId) {
+      const { data: member } = await sb
+        .from('club_members')
+        .select('name')
+        .eq('id', memberId)
+        .single()
+      if (member?.name) generatedBy = member.name
+    }
+
+    const { generateRffmSignalPDF } = await import('@/lib/pdf/generate-rffm-signal')
+    const pdf = await generateRffmSignalPDF({
+      nombreJugador: signal.nombre_jugador,
+      nombreEquipo: signal.nombre_equipo,
+      nombreCompeticion: signal.nombre_competicion,
+      nombreGrupo: signal.nombre_grupo ?? '',
+      goles: Number(signal.goles ?? 0),
+      partidosJugados: Number(signal.partidos_jugados ?? 0),
+      golesPenalti: Number(signal.goles_penalti ?? 0),
+      golesPorPartido: Number(signal.goles_por_partido ?? 0),
+      divisionLevel: Number(signal.division_level ?? 0),
+      valorScore: Number(signal.valor_score ?? 0),
+      anioNacimiento: signal.anio_nacimiento ?? null,
+      codjugador: signal.codjugador,
+      generatedBy,
+      generatedAt: new Date().toISOString(),
+    })
+
+    const safeName = (signal.nombre_jugador as string).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_')
+    return {
+      success: true,
+      filename: `scouting_${safeName}.pdf`,
+      base64: pdf.toString('base64'),
+    }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
