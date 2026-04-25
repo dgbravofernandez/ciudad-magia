@@ -126,9 +126,9 @@ export async function createCalendarEvent(data: {
     title: data.title,
     start_at: data.startAt,
     end_at: data.endAt,
-    event_type: data.type,
-    attendee_ids: data.attendeeIds,
-    notes: data.notes || null,
+    type: data.type,
+    attendees: data.attendeeIds,
+    description: data.notes || null,
   })
 
   if (error) return { success: false, error: error.message }
