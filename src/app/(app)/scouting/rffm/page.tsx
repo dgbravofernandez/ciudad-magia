@@ -25,8 +25,9 @@ export default async function RffmPage() {
       .select('*')
       .eq('club_id', clubId)
       .neq('estado', 'descartado')
-      .order('valor_score', { ascending: false })
-      .limit(500),
+      .gte('goles_por_partido', 0.8)   // pre-filtro DB para acotar
+      .order('goles_por_partido', { ascending: false })  // columna real, indexable
+      .limit(300),
     sb
       .from('rffm_card_alerts')
       .select('*, rffm_tracked_competitions(nombre_competicion, nombre_grupo)')
