@@ -646,23 +646,37 @@ export async function saveScoutingReport(
     comment: string
   }
 ) {
-  const supabase = createAdminClient()
-  const { clubId, memberId } = await getClubContext()
+  try {
+    const { clubId, memberId } = await getClubContext()
+    if (!clubId) return { success: false, error: 'Sin club activo' }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = createAdminClient() as any
 
-  const { error } = await supabase.from('scouting_reports').insert({
-    club_id: clubId,
-    session_id: sessionId,
-    reported_by: memberId,
-    rival_team: data.rival_team,
-    dorsal: data.dorsal,
-    position: data.position,
-    comment: data.comment,
-  })
+    const payload = {
+      club_id: clubId,
+      session_id: sessionId,
+      reported_by: memberId ?? null,
+      rival_team: data.rival_team?.trim() || 'Desconocido',
+      dorsal: data.dorsal?.trim() || null,
+      position: data.position?.trim() || null,
+      comment: data.comment?.trim() || null,
+      interest_level: 3,
+      status: 'new' as const,
+    }
 
-  if (error) return { success: false, error: error.message }
+    const { error } = await supabase.from('scouting_reports').insert(payload)
+    if (error) {
+      console.error('saveScoutingReport insert error', error)
+      return { success: false, error: error.message }
+    }
 
-  revalidatePath(`/entrenadores/partidos/${sessionId}`)
-  return { success: true }
+    revalidatePath(`/entrenadores/partidos/${sessionId}`)
+    revalidatePath('/scouting')
+    return { success: true }
+  } catch (e) {
+    console.error('saveScoutingReport caught', e)
+    return { success: false, error: (e as Error).message }
+  }
 }
 
 export async function createObservation(formData: FormData) {

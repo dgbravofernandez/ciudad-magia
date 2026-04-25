@@ -11,17 +11,17 @@ export default async function ScoutingPage() {
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
 
-  const sb = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
 
-  const { data: reports } = await sb
+  const { data: reports, error } = await sb
     .from('scouting_reports')
-    .select(`
-      *,
-      reporter:reported_by(full_name)
-    `)
+    .select('*, reporter:club_members!scouting_reports_reported_by_fkey(full_name)')
     .eq('club_id', clubId)
     .order('created_at', { ascending: false })
     .limit(500)
+
+  if (error) console.error('scouting list query error', error)
 
   return (
     <div className="flex flex-col h-full">
