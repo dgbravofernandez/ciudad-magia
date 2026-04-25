@@ -13,8 +13,12 @@
       "schedule": "0 22 * * 0"
     },
     {
-      "path": "/api/cron/rffm-sync?type=scorers",
+      "path": "/api/cron/rffm-sync?type=scorers_f7",
       "schedule": "0 23 * * 0"
+    },
+    {
+      "path": "/api/cron/rffm-sync?type=scorers_f11",
+      "schedule": "30 23 * * 0"
     },
     {
       "path": "/api/cron/rffm-sync?type=actas",

@@ -19,8 +19,10 @@ const MAX_PROFILE_FETCHES_PER_RUN = 200
 export async function syncAllScorers(
   clubId: string,
   codTemporada: string = CURRENT_SEASON,
-  tiposjuego: string[] = SCORER_SWEEP_TIPOJUEGOS  // F7 + F11 only
+  tiposjuego: string[] = SCORER_SWEEP_TIPOJUEGOS,  // F7 + F11 only
+  options: { enrich?: boolean } = {}
 ): Promise<{ signalsCreated: number; playersFetched: number; errors: number; errorDetail: string[] }> {
+  const enrich = options.enrich ?? true
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
 
@@ -92,6 +94,11 @@ export async function syncAllScorers(
   }
 
   // ── Step 4: Enrich top candidates with birth year ─────────────
+  // Skipped on manual runs (too slow for Vercel Hobby 60s). Only in cron.
+  if (!enrich) {
+    return { signalsCreated, playersFetched, errors, errorDetail }
+  }
+
   // Only enrich signals where anio_nacimiento is null, sorted by valor_score desc
   const { data: toEnrich } = await sb
     .from('rffm_scouting_signals')

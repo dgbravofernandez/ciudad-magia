@@ -6,6 +6,8 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Scouting RFFM' }
 export const dynamic = 'force-dynamic'
+// Server actions (triggerRffmSync) corren en este segmento — subimos a 60s (máx Hobby).
+export const maxDuration = 60
 
 export default async function RffmPage() {
   const { clubId } = await getClubContext()

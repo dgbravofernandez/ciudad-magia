@@ -165,13 +165,14 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs }
 
   // ── Actions ──────────────────────────────────────────────────
 
-  function handleSync(type: 'full' | 'calendar' | 'actas' | 'scorers') {
+  function handleSync(type: 'full' | 'calendar' | 'actas' | 'scorers' | 'scorers_f7' | 'scorers_f11') {
     startTransition(async () => {
-      toast.loading('Sincronizando con RFFM...')
+      const toastId = toast.loading('Sincronizando con RFFM...')
       const r = await triggerRffmSync(type)
-      toast.dismiss()
+      toast.dismiss(toastId)
       if (r.success) {
-        toast.success('Sync completado')
+        const signals = (r.result?.signalsCreated as number | undefined) ?? 0
+        toast.success(`Sync OK — ${signals} señales`)
         router.refresh()
       } else {
         toast.error(r.error ?? 'Error en sync')
@@ -243,12 +244,22 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs }
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => handleSync('scorers')}
+            onClick={() => handleSync('scorers_f7')}
             disabled={isPending}
+            title="Barrido solo Fútbol 7 (más rápido)"
             className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
           >
             <Search className="w-4 h-4" />
-            Barrido goleadores
+            Goleadores F7
+          </button>
+          <button
+            onClick={() => handleSync('scorers_f11')}
+            disabled={isPending}
+            title="Barrido solo Fútbol 11"
+            className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+          >
+            <Search className="w-4 h-4" />
+            Goleadores F11
           </button>
           <button
             onClick={() => handleSync('full')}

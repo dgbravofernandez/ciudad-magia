@@ -6,7 +6,7 @@ import { syncAllScorers } from './syncAllScorers'
 import { CURRENT_SEASON } from '../constants'
 import type { SyncResult } from '../types'
 
-export type SyncType = 'full' | 'calendar' | 'actas' | 'scorers' | 'card_alerts'
+export type SyncType = 'full' | 'calendar' | 'actas' | 'scorers' | 'scorers_f7' | 'scorers_f11' | 'card_alerts'
 
 /**
  * Main orchestrator — runs the requested sync type and logs to rffm_sync_log.
@@ -14,7 +14,7 @@ export type SyncType = 'full' | 'calendar' | 'actas' | 'scorers' | 'card_alerts'
 export async function runSync(
   clubId: string,
   syncType: SyncType,
-  options?: { codTemporada?: string; actasLimit?: number }
+  options?: { codTemporada?: string; actasLimit?: number; enrichProfiles?: boolean }
 ): Promise<SyncResult> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
@@ -60,8 +60,23 @@ export async function runSync(
       result.errorsCount += alerts.errors
     }
 
-    if (syncType === 'full' || syncType === 'scorers') {
-      const scorers = await syncAllScorers(clubId, codTemporada)
+    if (
+      syncType === 'full' ||
+      syncType === 'scorers' ||
+      syncType === 'scorers_f7' ||
+      syncType === 'scorers_f11'
+    ) {
+      // tipojuego=1 → F11, tipojuego=2 → F7
+      const tiposjuego =
+        syncType === 'scorers_f7' ? ['2'] :
+        syncType === 'scorers_f11' ? ['1'] :
+        undefined  // default sweep (F7 + F11)
+
+      // Manual runs skip profile enrichment (too slow for Vercel Hobby 60s).
+      // Cron / 'full' does full enrichment.
+      const enrich = options?.enrichProfiles ?? (syncType === 'full')
+
+      const scorers = await syncAllScorers(clubId, codTemporada, tiposjuego, { enrich })
       result.signalsCreated += scorers.signalsCreated
       result.playersFetched += scorers.playersFetched
       result.errorsCount += scorers.errors

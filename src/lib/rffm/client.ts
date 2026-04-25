@@ -6,7 +6,7 @@
 // ──────────────────────────────────────────────────────────────
 
 const BASE_URL = 'https://www.rffm.es'
-const RATE_LIMIT_MS = 800
+const RATE_LIMIT_MS = 350
 const MAX_RETRIES = 3
 
 // ── BuildId cache ──────────────────────────────────────────────

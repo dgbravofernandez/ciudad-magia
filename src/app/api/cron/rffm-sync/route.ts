@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runSync } from '@/lib/rffm/sync'
 
+// Vercel Hobby max 60s. Full scorer sweep + enrichment may need it all.
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
+
 // Protected by CRON_SECRET (same as other cron endpoints)
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -14,7 +18,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const syncType = (req.nextUrl.searchParams.get('type') as 'full' | 'calendar' | 'actas' | 'scorers' | 'card_alerts') ?? 'full'
+  const syncType = (req.nextUrl.searchParams.get('type') as 'full' | 'calendar' | 'actas' | 'scorers' | 'scorers_f7' | 'scorers_f11' | 'card_alerts') ?? 'full'
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
