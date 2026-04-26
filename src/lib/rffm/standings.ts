@@ -60,24 +60,30 @@ export async function getStandings(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data = await fetchRffmSSR<any>('competicion/clasificaciones', params)
 
-  // Buscamos un array de equipos en pageProps. Probamos las rutas
-  // más probables; si no encontramos, devolvemos vacío sin lanzar
-  // (el cron lo registra como standings sin filas en lugar de error).
+  // RFFM real shape: pageProps.standings.clasificacion[]
+  // Buscamos defensivamente en varias rutas posibles.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let raw: any[] | null = null
-  const candidates: string[] = [
-    'clasificacion',
-    'clasificaciones',
-    'tabla',
-    'standings',
-    'equipos',
-  ]
-  for (const k of candidates) {
-    const v = data?.[k]
-    if (Array.isArray(v) && v.length) { raw = v; break }
+
+  // Ruta principal RFFM
+  if (data?.standings?.clasificacion && Array.isArray(data.standings.clasificacion)) {
+    raw = data.standings.clasificacion
   }
-  // Algunos endpoints anidan: clasificacion.equipos[]
-  if (!raw && data?.clasificacion && Array.isArray(data.clasificacion.equipos)) {
+  // Fallbacks por si cambia el shape
+  if (!raw) {
+    const candidates: string[] = [
+      'clasificacion',
+      'clasificaciones',
+      'tabla',
+      'standings',
+      'equipos',
+    ]
+    for (const k of candidates) {
+      const v = data?.[k]
+      if (Array.isArray(v) && v.length) { raw = v; break }
+    }
+  }
+  if (!raw && data?.clasificacion?.equipos && Array.isArray(data.clasificacion.equipos)) {
     raw = data.clasificacion.equipos
   }
   if (!raw) return []
@@ -85,19 +91,20 @@ export async function getStandings(
   const rows: StandingRow[] = []
   for (let i = 0; i < raw.length; i++) {
     const r = raw[i]
-    const codigo = pickStr(r, 'codigo_equipo', 'codigoEquipo', 'codigo', 'cod_equipo')
-    const nombre = pickStr(r, 'nombre_equipo', 'nombreEquipo', 'nombre', 'equipo')
+    // RFFM usa 'codequipo' (sin underscore) y 'nombre'
+    const codigo = pickStr(r, 'codequipo', 'codigo_equipo', 'codigoEquipo', 'codigo', 'cod_equipo')
+    const nombre = pickStr(r, 'nombre', 'nombre_equipo', 'nombreEquipo', 'equipo')
     if (!codigo || !nombre) continue
     rows.push({
       posicion: pickNum(r, 'posicion', 'pos', 'puesto') || (i + 1),
       codigo_equipo: codigo,
       nombre_equipo: nombre,
-      pj: pickNum(r, 'partidos_jugados', 'pj', 'jugados'),
-      pg: pickNum(r, 'partidos_ganados', 'pg', 'ganados'),
-      pe: pickNum(r, 'partidos_empatados', 'pe', 'empatados'),
-      pp: pickNum(r, 'partidos_perdidos', 'pp', 'perdidos'),
-      gf: pickNum(r, 'goles_favor', 'gf', 'goles_a_favor'),
-      gc: pickNum(r, 'goles_contra', 'gc', 'goles_en_contra'),
+      pj: pickNum(r, 'jugados', 'partidos_jugados', 'pj'),
+      pg: pickNum(r, 'ganados', 'partidos_ganados', 'pg'),
+      pe: pickNum(r, 'empatados', 'partidos_empatados', 'pe'),
+      pp: pickNum(r, 'perdidos', 'partidos_perdidos', 'pp'),
+      gf: pickNum(r, 'goles_a_favor', 'goles_favor', 'gf'),
+      gc: pickNum(r, 'goles_en_contra', 'goles_contra', 'gc'),
       pts: pickNum(r, 'puntos', 'pts'),
     })
   }
