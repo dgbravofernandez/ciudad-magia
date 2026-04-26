@@ -251,7 +251,12 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
       if (filterTipo === '1' && !isF7) return false
       if (filterTipo === '2' && isF7) return false
     }
-    if (s.anio_nacimiento) {
+    // Filtro de año:
+    // - Si el filtro está en defaults abiertos (1990–año actual) dejamos pasar todo (incluyendo sin año)
+    // - Si el usuario ajusta cualquier extremo, EXCLUIMOS los que no tienen año conocido
+    const yearFilterActive = filterAnioMin !== 1990 || filterAnioMax !== CURRENT_YEAR
+    if (yearFilterActive) {
+      if (!s.anio_nacimiento) return false
       if (s.anio_nacimiento < filterAnioMin || s.anio_nacimiento > filterAnioMax) return false
     }
     if (Number(s.goles_por_partido) < filterMinRatio) return false
@@ -474,10 +479,13 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-between mt-2">
+            <div className="flex items-center justify-between mt-2 gap-3 flex-wrap">
               <p className="text-xs text-gray-400">
                 {shouldList
-                  ? <>Mostrando <strong className="text-gray-600">{filteredSignals.length}</strong> señales · ordenadas por <strong className="text-gray-600">{sortKey}</strong> {sortDir === 'desc' ? '↓' : '↑'}</>
+                  ? <>Mostrando <strong className="text-gray-600">{filteredSignals.length}</strong> señales · ordenadas por <strong className="text-gray-600">{sortKey}</strong> {sortDir === 'desc' ? '↓' : '↑'}{(() => {
+                      const sinAnio = signals.filter(s => !s.anio_nacimiento).length
+                      return sinAnio > 0 ? <> · <strong className="text-amber-600">{sinAnio}</strong> sin año conocido (filtro de año los excluye)</> : null
+                    })()}</>
                   : <>Hay <strong className="text-gray-600">{signals.length}</strong> señales en total · usa la búsqueda o cambia un filtro para verlas</>}
               </p>
               <button
