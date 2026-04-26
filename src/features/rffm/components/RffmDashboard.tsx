@@ -1,5 +1,5 @@
 'use client'
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
@@ -88,15 +88,48 @@ interface SyncLog {
   finished_at: string | null
 }
 
+interface RffmMatch {
+  id: string
+  tracked_competition_id: string | null
+  jornada: number | null
+  fecha: string | null
+  hora: string | null
+  codigo_equipo_local: string | null
+  equipo_local: string | null
+  codigo_equipo_visitante: string | null
+  equipo_visitante: string | null
+  goles_local: number | null
+  goles_visitante: number | null
+  acta_cerrada: boolean
+  is_our_match: boolean
+  campo: string | null
+}
+
 interface Props {
   signals: Signal[]
   cardAlerts: CardAlert[]
   trackedComps: TrackedComp[]
   recentSyncs: SyncLog[]
+  matches: RffmMatch[]
 }
 
-const TABS = ['Señales', 'Alertas amarillas', 'Competiciones', 'Sync'] as const
+const TABS = ['Mis equipos', 'Señales', 'Alertas amarillas', 'Competiciones', 'Sync'] as const
 type Tab = typeof TABS[number]
+
+// Detectar categoría desde nombre de la competición
+type Categoria = 'Prebenjamín' | 'Benjamín' | 'Alevín' | 'Infantil' | 'Cadete' | 'Juvenil' | 'Senior' | 'Otra'
+const CATEGORIES_ORDER: Categoria[] = ['Prebenjamín', 'Benjamín', 'Alevín', 'Infantil', 'Cadete', 'Juvenil', 'Senior', 'Otra']
+function detectCategoria(nombre: string | null | undefined): Categoria {
+  const n = (nombre ?? '').toUpperCase()
+  if (n.includes('PREBENJAMIN') || n.includes('PREBENJAMÍN')) return 'Prebenjamín'
+  if (n.includes('BENJAMIN') || n.includes('BENJAMÍN')) return 'Benjamín'
+  if (n.includes('ALEVIN') || n.includes('ALEVÍN')) return 'Alevín'
+  if (n.includes('INFANTIL')) return 'Infantil'
+  if (n.includes('CADETE')) return 'Cadete'
+  if (n.includes('JUVENIL')) return 'Juvenil'
+  if (n.includes('SENIOR') || n.includes('SÉNIOR') || n.includes('AFICIONADO') || n.includes('REGIONAL')) return 'Senior'
+  return 'Otra'
+}
 
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -116,10 +149,40 @@ const defaultForm = {
 
 // ── Main component ─────────────────────────────────────────────
 
-export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs }: Props) {
+export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, matches }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [activeTab, setActiveTab] = useState<Tab>('Señales')
+  const [activeTab, setActiveTab] = useState<Tab>('Mis equipos')
+
+  // ── Mis equipos: filtros + agrupación ─────────────────────────
+  const [misEquiposCat, setMisEquiposCat] = useState<Categoria | 'all'>('all')
+
+  // Categorías presentes (con al menos una competición seguida)
+  const categoriasDisponibles = useMemo(() => {
+    const set = new Set<Categoria>()
+    for (const c of trackedComps) set.add(detectCategoria(c.nombre_competicion))
+    return CATEGORIES_ORDER.filter(c => set.has(c))
+  }, [trackedComps])
+
+  // Tracked comps filtradas por categoría
+  const compsFiltradas = useMemo(() => {
+    return trackedComps.filter(c =>
+      misEquiposCat === 'all' || detectCategoria(c.nombre_competicion) === misEquiposCat,
+    )
+  }, [trackedComps, misEquiposCat])
+
+  // Matches indexados por tracked_competition_id
+  const matchesByComp = useMemo(() => {
+    const m = new Map<string, RffmMatch[]>()
+    for (const x of matches) {
+      if (!x.tracked_competition_id) continue
+      if (!m.has(x.tracked_competition_id)) m.set(x.tracked_competition_id, [])
+      m.get(x.tracked_competition_id)!.push(x)
+    }
+    return m
+  }, [matches])
+
+  const todayIso = new Date().toISOString().slice(0, 10)
 
   // Signal filters — defaults abiertos para no esconder filas
   const [filterAnioMin, setFilterAnioMin] = useState(1990)
@@ -350,6 +413,19 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs }
           </button>
         ))}
       </div>
+
+      {/* ── TAB: Mis equipos ── */}
+      {activeTab === 'Mis equipos' && (
+        <MisEquiposTab
+          comps={compsFiltradas}
+          allComps={trackedComps}
+          matchesByComp={matchesByComp}
+          categoriasDisponibles={categoriasDisponibles}
+          activeCat={misEquiposCat}
+          setActiveCat={setMisEquiposCat}
+          todayIso={todayIso}
+        />
+      )}
 
       {/* ── TAB: Señales ── */}
       {activeTab === 'Señales' && (
@@ -870,5 +946,227 @@ function SortTh<K extends string>({
         {active && (sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
       </span>
     </th>
+  )
+}
+
+// ── Mis equipos tab ────────────────────────────────────────────
+interface StandingRow {
+  codigo: string
+  nombre: string
+  pj: number; pg: number; pe: number; pp: number
+  gf: number; gc: number; pts: number
+  esNuestro: boolean
+}
+
+function computeStandings(matches: RffmMatch[], nuestroCodigo: string | null): StandingRow[] {
+  const map = new Map<string, StandingRow>()
+  function ensure(codigo: string | null, nombre: string | null) {
+    if (!codigo || !nombre) return null
+    if (!map.has(codigo)) {
+      map.set(codigo, {
+        codigo, nombre,
+        pj: 0, pg: 0, pe: 0, pp: 0, gf: 0, gc: 0, pts: 0,
+        esNuestro: !!nuestroCodigo && codigo === nuestroCodigo,
+      })
+    }
+    return map.get(codigo)!
+  }
+  for (const m of matches) {
+    if (!m.acta_cerrada) continue
+    if (m.goles_local == null || m.goles_visitante == null) continue
+    const local = ensure(m.codigo_equipo_local, m.equipo_local)
+    const away = ensure(m.codigo_equipo_visitante, m.equipo_visitante)
+    if (!local || !away) continue
+    local.pj++; away.pj++
+    local.gf += m.goles_local; local.gc += m.goles_visitante
+    away.gf += m.goles_visitante; away.gc += m.goles_local
+    if (m.goles_local > m.goles_visitante) {
+      local.pg++; local.pts += 3; away.pp++
+    } else if (m.goles_local < m.goles_visitante) {
+      away.pg++; away.pts += 3; local.pp++
+    } else {
+      local.pe++; away.pe++; local.pts++; away.pts++
+    }
+  }
+  return [...map.values()].sort((a, b) =>
+    b.pts - a.pts ||
+    (b.gf - b.gc) - (a.gf - a.gc) ||
+    b.gf - a.gf ||
+    a.nombre.localeCompare(b.nombre),
+  )
+}
+
+function MisEquiposTab({
+  comps, allComps, matchesByComp, categoriasDisponibles, activeCat, setActiveCat, todayIso,
+}: {
+  comps: TrackedComp[]
+  allComps: TrackedComp[]
+  matchesByComp: Map<string, RffmMatch[]>
+  categoriasDisponibles: Categoria[]
+  activeCat: Categoria | 'all'
+  setActiveCat: (c: Categoria | 'all') => void
+  todayIso: string
+}) {
+  const [expandedComp, setExpandedComp] = useState<string | null>(null)
+
+  if (allComps.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <p className="text-gray-500">Aún no sigues ninguna competición.</p>
+        <p className="text-sm text-gray-400 mt-1">Ve a la tab &quot;Competiciones&quot; para añadir las de tus equipos.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Filtros por categoría */}
+      <div className="flex flex-wrap gap-2 items-center bg-white rounded-xl border border-gray-200 p-3">
+        <button
+          onClick={() => setActiveCat('all')}
+          className={`px-3 py-1.5 text-sm rounded-md border ${
+            activeCat === 'all' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+          }`}
+        >
+          Todas ({allComps.length})
+        </button>
+        {categoriasDisponibles.map(cat => {
+          const count = allComps.filter(c => detectCategoria(c.nombre_competicion) === cat).length
+          return (
+            <button
+              key={cat}
+              onClick={() => setActiveCat(cat)}
+              className={`px-3 py-1.5 text-sm rounded-md border ${
+                activeCat === cat ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              {cat} ({count})
+            </button>
+          )
+        })}
+      </div>
+
+      {comps.length === 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+          <p className="text-sm text-gray-500">No hay competiciones en esta categoría.</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {comps.map(c => {
+          const compMatches = (matchesByComp.get(c.id) ?? []).slice().sort((a, b) =>
+            (a.fecha ?? '').localeCompare(b.fecha ?? ''),
+          )
+          const ourCode = c.codigo_equipo_nuestro || null
+          const isOur = (m: RffmMatch) => ourCode && (m.codigo_equipo_local === ourCode || m.codigo_equipo_visitante === ourCode)
+          const ourMatches = compMatches.filter(isOur)
+          const proximo = ourMatches.find(m => (m.fecha ?? '') >= todayIso && !m.acta_cerrada)
+          const ultimo = [...ourMatches].reverse().find(m => m.acta_cerrada)
+          const standings = computeStandings(compMatches, ourCode)
+          const ourPos = standings.findIndex(r => r.esNuestro)
+          const expanded = expandedComp === c.id
+
+          return (
+            <div key={c.id} className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500 mb-0.5">
+                    {detectCategoria(c.nombre_competicion)} · {TIPOJUEGO_LABELS[c.cod_tipojuego] ?? c.cod_tipojuego}
+                  </p>
+                  <h3 className="font-semibold text-gray-900 text-sm truncate" title={c.nombre_competicion}>{c.nombre_competicion}</h3>
+                  <p className="text-xs text-gray-500 truncate">{c.nombre_grupo}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xs text-gray-500">Nuestro equipo</p>
+                  <p className="text-sm font-medium text-gray-900">{c.nombre_equipo_nuestro || '—'}</p>
+                  {ourPos >= 0 && (
+                    <p className="text-xs text-blue-700 font-semibold">Posición #{ourPos + 1} · {standings[ourPos].pts} pts</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Próximo + último */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <MatchPill label="Próximo" m={proximo ?? null} ourCode={ourCode} />
+                <MatchPill label="Último" m={ultimo ?? null} ourCode={ourCode} />
+              </div>
+
+              {/* Toggle clasificación */}
+              <button
+                onClick={() => setExpandedComp(expanded ? null : c.id)}
+                className="w-full text-xs text-blue-600 hover:underline text-left"
+              >
+                {expanded ? '↑ Ocultar clasificación' : `↓ Ver clasificación (${standings.length} equipos)`}
+              </button>
+
+              {expanded && standings.length > 0 && (
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 border-y border-gray-200">
+                      <tr className="text-gray-600">
+                        <th className="text-left px-2 py-1.5">#</th>
+                        <th className="text-left px-2 py-1.5">Equipo</th>
+                        <th className="text-center px-2 py-1.5">PJ</th>
+                        <th className="text-center px-2 py-1.5">G</th>
+                        <th className="text-center px-2 py-1.5">E</th>
+                        <th className="text-center px-2 py-1.5">P</th>
+                        <th className="text-center px-2 py-1.5">GF</th>
+                        <th className="text-center px-2 py-1.5">GC</th>
+                        <th className="text-center px-2 py-1.5 font-bold">Pts</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {standings.map((r, i) => (
+                        <tr key={r.codigo} className={`border-b border-gray-100 ${r.esNuestro ? 'bg-blue-50 font-medium' : ''}`}>
+                          <td className="px-2 py-1.5">{i + 1}</td>
+                          <td className="px-2 py-1.5 truncate max-w-[180px]" title={r.nombre}>{r.nombre}</td>
+                          <td className="text-center px-2 py-1.5">{r.pj}</td>
+                          <td className="text-center px-2 py-1.5">{r.pg}</td>
+                          <td className="text-center px-2 py-1.5">{r.pe}</td>
+                          <td className="text-center px-2 py-1.5">{r.pp}</td>
+                          <td className="text-center px-2 py-1.5">{r.gf}</td>
+                          <td className="text-center px-2 py-1.5">{r.gc}</td>
+                          <td className="text-center px-2 py-1.5 font-bold text-gray-900">{r.pts}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function MatchPill({ label, m, ourCode }: { label: string; m: RffmMatch | null; ourCode: string | null }) {
+  if (!m) {
+    return (
+      <div className="bg-gray-50 rounded-lg p-2 text-center">
+        <p className="text-xs text-gray-500">{label}</p>
+        <p className="text-xs text-gray-400 italic mt-0.5">Sin datos</p>
+      </div>
+    )
+  }
+  const localOurs = ourCode === m.codigo_equipo_local
+  const fecha = m.fecha ? new Date(m.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '—'
+  const hora = m.hora ? m.hora.slice(0, 5) : ''
+  const score = m.acta_cerrada && m.goles_local != null && m.goles_visitante != null
+    ? `${m.goles_local}–${m.goles_visitante}`
+    : 'vs'
+  return (
+    <div className="bg-gray-50 rounded-lg p-2">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs text-gray-500">{label}</p>
+        <p className="text-xs text-gray-500">J{m.jornada ?? '?'} · {fecha} {hora}</p>
+      </div>
+      <p className="text-xs text-gray-900">
+        <span className={localOurs ? 'font-semibold' : ''}>{m.equipo_local}</span>
+        <span className="mx-1.5 text-gray-500">{score}</span>
+        <span className={!localOurs ? 'font-semibold' : ''}>{m.equipo_visitante}</span>
+      </p>
+    </div>
   )
 }

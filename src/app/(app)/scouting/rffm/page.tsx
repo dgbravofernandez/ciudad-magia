@@ -21,6 +21,7 @@ export default async function RffmPage() {
     { data: cardAlerts },
     { data: trackedComps },
     { data: lastSync },
+    { data: matches },
   ] = await Promise.all([
     sb
       .from('rffm_scouting_signals')
@@ -47,6 +48,12 @@ export default async function RffmPage() {
       .eq('club_id', clubId)
       .order('started_at', { ascending: false })
       .limit(5),
+    sb
+      .from('rffm_matches')
+      .select('id,tracked_competition_id,jornada,fecha,hora,codigo_equipo_local,equipo_local,codigo_equipo_visitante,equipo_visitante,goles_local,goles_visitante,acta_cerrada,is_our_match,campo')
+      .eq('club_id', clubId)
+      .order('fecha', { ascending: true })
+      .limit(3000),
   ])
 
   return (
@@ -58,6 +65,7 @@ export default async function RffmPage() {
           cardAlerts={(cardAlerts ?? []) as never[]}
           trackedComps={(trackedComps ?? []) as never[]}
           recentSyncs={(lastSync ?? []) as never[]}
+          matches={(matches ?? []) as never[]}
         />
       </div>
     </div>
