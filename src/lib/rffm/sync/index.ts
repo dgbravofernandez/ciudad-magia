@@ -4,10 +4,11 @@ import { syncActas } from './syncActas'
 import { syncCardAlerts } from './syncCardAlerts'
 import { syncAllScorers } from './syncAllScorers'
 import { enrichSignalsBatch } from './syncEnrich'
+import { syncStandings } from './syncStandings'
 import { CURRENT_SEASON } from '../constants'
 import type { SyncResult } from '../types'
 
-export type SyncType = 'full' | 'calendar' | 'actas' | 'scorers' | 'scorers_f7' | 'scorers_f11' | 'card_alerts' | 'enrich'
+export type SyncType = 'full' | 'calendar' | 'actas' | 'scorers' | 'scorers_f7' | 'scorers_f11' | 'card_alerts' | 'enrich' | 'standings'
 
 /**
  * Main orchestrator — runs the requested sync type and logs to rffm_sync_log.
@@ -91,6 +92,14 @@ export async function runSync(
       result.errorsCount += er.failed
       if (er.errors.length) {
         result.errorDetail = [result.errorDetail, ...er.errors].filter(Boolean).join('; ')
+      }
+    }
+
+    if (syncType === 'full' || syncType === 'standings') {
+      const st = await syncStandings(clubId)
+      result.errorsCount += st.errors
+      if (st.errorDetail.length) {
+        result.errorDetail = [result.errorDetail, ...st.errorDetail].filter(Boolean).join('; ')
       }
     }
 

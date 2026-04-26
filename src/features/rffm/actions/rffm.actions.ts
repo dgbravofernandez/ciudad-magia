@@ -81,6 +81,27 @@ export async function removeTrackedCompetition(id: string): Promise<{ success: b
 // ── Enrich on-demand ───────────────────────────────────────────
 
 import { enrichSignalsBatch } from '@/lib/rffm/sync/syncEnrich'
+import { syncStandings } from '@/lib/rffm/sync/syncStandings'
+
+export async function refreshStandingsNow(): Promise<{
+  success: boolean; error?: string;
+  result?: { processed: number; totalRows: number; errors: number }
+}> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    const r = await syncStandings(clubId)
+    revalidatePath('/scouting/rffm')
+    return {
+      success: true,
+      result: { processed: r.processed, totalRows: r.totalRows, errors: r.errors },
+    }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
 
 export async function enrichSignalsNow(
   batchSize: number = 50,

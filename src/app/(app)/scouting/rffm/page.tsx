@@ -22,6 +22,7 @@ export default async function RffmPage() {
     { data: trackedComps },
     { data: lastSync },
     { data: matches },
+    { data: standings },
   ] = await Promise.all([
     sb
       .from('rffm_scouting_signals')
@@ -54,6 +55,11 @@ export default async function RffmPage() {
       .eq('club_id', clubId)
       .order('fecha', { ascending: true })
       .limit(1500),
+    sb
+      .from('rffm_standings')
+      .select('id,tracked_competition_id,posicion,codigo_equipo,nombre_equipo,pj,pg,pe,pp,gf,gc,pts,fetched_at')
+      .eq('club_id', clubId)
+      .order('posicion', { ascending: true }),
   ])
 
   // Pendientes de enrich (señales sin año, con menos de 3 intentos fallidos)
@@ -90,6 +96,7 @@ export default async function RffmPage() {
           trackedComps={(trackedComps ?? []) as never[]}
           recentSyncs={(lastSync ?? []) as never[]}
           matches={(matches ?? []) as never[]}
+          standings={(standings ?? []) as never[]}
           enrichPending={enrichPendingCount ?? 0}
           enrichExhausted={enrichExhaustedCount ?? 0}
           signalsTotal={signalsTotalCount ?? 0}

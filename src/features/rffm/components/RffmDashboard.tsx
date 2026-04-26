@@ -15,6 +15,7 @@ import {
   removeTrackedCompetition,
   exportSignalPdf,
   enrichSignalsNow,
+  refreshStandingsNow,
 } from '@/features/rffm/actions/rffm.actions'
 
 // ── Constants ──────────────────────────────────────────────────
@@ -106,12 +107,24 @@ interface RffmMatch {
   campo: string | null
 }
 
+interface RffmStandingDb {
+  id: string
+  tracked_competition_id: string
+  posicion: number
+  codigo_equipo: string
+  nombre_equipo: string
+  pj: number; pg: number; pe: number; pp: number
+  gf: number; gc: number; pts: number
+  fetched_at: string
+}
+
 interface Props {
   signals: Signal[]
   cardAlerts: CardAlert[]
   trackedComps: TrackedComp[]
   recentSyncs: SyncLog[]
   matches: RffmMatch[]
+  standings: RffmStandingDb[]
   enrichPending: number
   enrichExhausted: number
   signalsTotal: number
@@ -153,7 +166,7 @@ const defaultForm = {
 
 // ── Main component ─────────────────────────────────────────────
 
-export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, matches, enrichPending, enrichExhausted, signalsTotal }: Props) {
+export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, matches, standings, enrichPending, enrichExhausted, signalsTotal }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [activeTab, setActiveTab] = useState<Tab>('Mis equipos')
@@ -185,6 +198,17 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
     }
     return m
   }, [matches])
+
+  // Clasificaciones (BD) indexadas por tracked_competition_id
+  const standingsByComp = useMemo(() => {
+    const m = new Map<string, RffmStandingDb[]>()
+    for (const s of standings) {
+      if (!m.has(s.tracked_competition_id)) m.set(s.tracked_competition_id, [])
+      m.get(s.tracked_competition_id)!.push(s)
+    }
+    for (const arr of m.values()) arr.sort((a, b) => a.posicion - b.posicion)
+    return m
+  }, [standings])
 
   const todayIso = new Date().toISOString().slice(0, 10)
 
@@ -472,6 +496,7 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
           comps={compsFiltradas}
           allComps={trackedComps}
           matchesByComp={matchesByComp}
+          standingsByComp={standingsByComp}
           categoriasDisponibles={categoriasDisponibles}
           activeCat={misEquiposCat}
           setActiveCat={setMisEquiposCat}
@@ -1052,17 +1077,34 @@ function computeStandings(matches: RffmMatch[], nuestroCodigo: string | null): S
 }
 
 function MisEquiposTab({
-  comps, allComps, matchesByComp, categoriasDisponibles, activeCat, setActiveCat, todayIso,
+  comps, allComps, matchesByComp, standingsByComp, categoriasDisponibles, activeCat, setActiveCat, todayIso,
 }: {
   comps: TrackedComp[]
   allComps: TrackedComp[]
   matchesByComp: Map<string, RffmMatch[]>
+  standingsByComp: Map<string, RffmStandingDb[]>
   categoriasDisponibles: Categoria[]
   activeCat: Categoria | 'all'
   setActiveCat: (c: Categoria | 'all') => void
   todayIso: string
 }) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
   const [expandedComp, setExpandedComp] = useState<string | null>(null)
+
+  function handleRefreshStandings() {
+    startTransition(async () => {
+      const toastId = toast.loading('Refrescando clasificaciones…')
+      const r = await refreshStandingsNow()
+      toast.dismiss(toastId)
+      if (r.success && r.result) {
+        toast.success(`OK — ${r.result.processed} comp · ${r.result.totalRows} equipos · ${r.result.errors} errores`)
+        router.refresh()
+      } else {
+        toast.error(r.error ?? 'Error refrescando clasificaciones')
+      }
+    })
+  }
 
   if (allComps.length === 0) {
     return (
@@ -1075,7 +1117,7 @@ function MisEquiposTab({
 
   return (
     <div className="space-y-4">
-      {/* Filtros por categoría */}
+      {/* Filtros por categoría + refresh */}
       <div className="flex flex-wrap gap-2 items-center bg-white rounded-xl border border-gray-200 p-3">
         <button
           onClick={() => setActiveCat('all')}
@@ -1099,6 +1141,16 @@ function MisEquiposTab({
             </button>
           )
         })}
+        <div className="ml-auto">
+          <button
+            onClick={handleRefreshStandings}
+            disabled={isPending}
+            className="px-3 py-1.5 text-sm rounded-md bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+            title="Refresca clasificaciones desde RFFM (1 llamada por competición)"
+          >
+            {isPending ? 'Refrescando…' : 'Refrescar clasificaciones'}
+          </button>
+        </div>
       </div>
 
       {comps.length === 0 && (
@@ -1117,7 +1169,19 @@ function MisEquiposTab({
           const ourMatches = compMatches.filter(isOur)
           const proximo = ourMatches.find(m => (m.fecha ?? '') >= todayIso && !m.acta_cerrada)
           const ultimo = [...ourMatches].reverse().find(m => m.acta_cerrada)
-          const standings = computeStandings(compMatches, ourCode)
+
+          // Standings: preferir los scrapeados de RFFM (BD); si no hay, fallback al cálculo local
+          const dbStandings = standingsByComp.get(c.id) ?? []
+          const standings: StandingRow[] = dbStandings.length
+            ? dbStandings.map(s => ({
+                codigo: s.codigo_equipo,
+                nombre: s.nombre_equipo,
+                pj: s.pj, pg: s.pg, pe: s.pe, pp: s.pp, gf: s.gf, gc: s.gc, pts: s.pts,
+                esNuestro: !!ourCode && s.codigo_equipo === ourCode,
+              }))
+            : computeStandings(compMatches, ourCode)
+          const standingsSource: 'rffm' | 'calculado' = dbStandings.length ? 'rffm' : 'calculado'
+          const lastFetched = dbStandings[0]?.fetched_at
           const ourPos = standings.findIndex(r => r.esNuestro)
           const expanded = expandedComp === c.id
 
@@ -1156,6 +1220,11 @@ function MisEquiposTab({
 
               {expanded && standings.length > 0 && (
                 <div className="mt-3 overflow-x-auto">
+                  <p className="text-[10px] text-gray-400 mb-1">
+                    {standingsSource === 'rffm'
+                      ? <>Datos oficiales RFFM{lastFetched ? ` · actualizado ${new Date(lastFetched).toLocaleString('es-ES')}` : ''}</>
+                      : <>Calculado desde actas (sin datos oficiales · pulsa &quot;Refrescar clasificaciones&quot;)</>}
+                  </p>
                   <table className="w-full text-xs">
                     <thead className="bg-gray-50 border-y border-gray-200">
                       <tr className="text-gray-600">
