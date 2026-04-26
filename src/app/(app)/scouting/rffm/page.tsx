@@ -62,7 +62,8 @@ export default async function RffmPage() {
       .order('posicion', { ascending: true }),
   ])
 
-  // Pendientes de enrich (señales sin año, con menos de 3 intentos fallidos)
+  // Pendientes de enrich: solo goleadores relevantes (≥5 goles), sin año, con
+  // menos de 3 intentos fallidos. El cron ignora el resto para tiempos lógicos.
   const [
     { count: enrichPendingCount },
     { count: enrichExhaustedCount },
@@ -73,17 +74,20 @@ export default async function RffmPage() {
       .eq('club_id', clubId)
       .neq('estado', 'descartado')
       .is('anio_nacimiento', null)
+      .gte('goles', 5)
       .lt('enrich_attempts', 3),
     sb.from('rffm_scouting_signals')
       .select('*', { count: 'exact', head: true })
       .eq('club_id', clubId)
       .neq('estado', 'descartado')
       .is('anio_nacimiento', null)
+      .gte('goles', 5)
       .gte('enrich_attempts', 3),
     sb.from('rffm_scouting_signals')
       .select('*', { count: 'exact', head: true })
       .eq('club_id', clubId)
-      .neq('estado', 'descartado'),
+      .neq('estado', 'descartado')
+      .gte('goles', 5),
   ])
 
   return (

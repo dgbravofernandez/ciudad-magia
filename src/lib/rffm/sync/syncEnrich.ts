@@ -6,6 +6,11 @@ import { getPlayerProfile } from '../player'
 // Vercel Hobby limita el cron a 1 ejecución diaria, así que apuramos el batch.
 const DEFAULT_BATCH = 140
 const MAX_ATTEMPTS = 3
+// Solo enriquecemos goleadores relevantes (5+ goles en la temporada).
+// Los demás se quedan en BD pero sin año hasta que sean interesantes.
+// Threshold conservador para que el universo a enriquecer sea ~2-3k jugadores
+// y se complete en ~1 semana con 3 crons/día × 140 perfiles.
+const MIN_GOLES_FOR_ENRICH = 5
 
 export interface EnrichResult {
   attempted: number
@@ -32,9 +37,10 @@ export async function enrichSignalsBatch(
     .select('id, codjugador, cod_temporada')
     .eq('club_id', clubId)
     .is('anio_nacimiento', null)
+    .gte('goles', MIN_GOLES_FOR_ENRICH)
     .lt('enrich_attempts', MAX_ATTEMPTS)
+    .order('goles', { ascending: false })
     .order('enrich_attempts', { ascending: true })
-    .order('goles_por_partido', { ascending: false })
     .limit(batchSize)
 
   if (pErr) throw new Error(`enrich: select pendientes failed: ${pErr.message}`)
@@ -103,12 +109,13 @@ export async function enrichSignalsBatch(
     }
   }
 
-  // Cuántos quedan pendientes para informar al usuario
+  // Cuántos quedan pendientes (relevantes: 10+ goles) para informar al usuario
   const { count } = await sb
     .from('rffm_scouting_signals')
     .select('*', { count: 'exact', head: true })
     .eq('club_id', clubId)
     .is('anio_nacimiento', null)
+    .gte('goles', MIN_GOLES_FOR_ENRICH)
     .lt('enrich_attempts', MAX_ATTEMPTS)
 
   result.pending = count ?? 0
