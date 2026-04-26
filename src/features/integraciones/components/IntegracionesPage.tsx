@@ -1,50 +1,81 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { ExternalLink, FileSpreadsheet, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
-import { exportToBackendSheet, checkBackendSheet } from '@/features/integraciones/actions/backend-sheet.actions'
-
-const STORAGE_KEY = 'cm_backend_sheet_id'
+import { ExternalLink, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, Copy, Save } from 'lucide-react'
+import {
+  exportToBackendSheet,
+  checkBackendSheet,
+  saveBackendSheetId,
+  getBackendSheetConfig,
+  type BackendSheetConfig,
+} from '@/features/integraciones/actions/backend-sheet.actions'
 
 export function IntegracionesPage() {
-  const [sheetId, setSheetId] = useState<string>(() => {
-    if (typeof window !== 'undefined') return localStorage.getItem(STORAGE_KEY) ?? ''
-    return ''
-  })
+  const [config, setConfig] = useState<BackendSheetConfig | null>(null)
+  const [draftId, setDraftId] = useState('')
   const [isPending, startTransition] = useTransition()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [lastExport, setLastExport] = useState<any>(null)
   const [meta, setMeta] = useState<{ title: string; url: string; tabs: string[] } | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  function persistId() {
-    localStorage.setItem(STORAGE_KEY, sheetId.trim())
+  // Cargar config inicial
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const r = await getBackendSheetConfig()
+      if (cancelled) return
+      if (r.success && r.config) {
+        setConfig(r.config)
+        setDraftId(r.config.sheetId ?? '')
+      } else if (r.error) {
+        toast.error(r.error)
+      }
+      setLoading(false)
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  function handleSave() {
+    if (!draftId.trim()) { toast.error('Pega el ID o la URL primero'); return }
+    startTransition(async () => {
+      const r = await saveBackendSheetId(draftId.trim())
+      if (r.success && r.sheetId) {
+        setConfig(c => c ? { ...c, sheetId: r.sheetId! } : c)
+        setDraftId(r.sheetId)
+        toast.success('ID guardado')
+      } else {
+        toast.error(r.error ?? 'Error guardando')
+      }
+    })
   }
 
   function handleCheck() {
-    if (!sheetId.trim()) { toast.error('Pega el ID de la hoja primero'); return }
-    persistId()
+    if (!config?.sheetId) { toast.error('Guarda el ID primero'); return }
     startTransition(async () => {
-      const r = await checkBackendSheet(sheetId.trim())
+      const r = await checkBackendSheet()
       if (r.success && r.data) {
         setMeta(r.data)
         toast.success(`Acceso OK a "${r.data.title}"`)
       } else {
         setMeta(null)
-        toast.error(r.error ?? 'Sin acceso')
+        toast.error(r.error ?? 'Sin acceso. ¿Has compartido la hoja con el email de la service account?')
       }
     })
   }
 
   function handleExport() {
-    if (!sheetId.trim()) { toast.error('Pega el ID de la hoja primero'); return }
-    persistId()
+    if (!config?.sheetId) { toast.error('Guarda el ID primero'); return }
     startTransition(async () => {
       const toastId = toast.loading('Exportando todas las tablas a Sheets…')
-      const r = await exportToBackendSheet(sheetId.trim())
+      const r = await exportToBackendSheet()
       toast.dismiss(toastId)
       if (r.success && r.result) {
         setLastExport(r.result)
+        // Recargar config para tener el lastSync nuevo
+        const c = await getBackendSheetConfig()
+        if (c.success && c.config) setConfig(c.config)
         toast.success(`Exportadas ${r.result.tabs.length} pestañas · ${r.result.totalRows} filas · ${r.result.errorCount} errores`)
       } else {
         toast.error(r.error ?? 'Error en exportación')
@@ -52,7 +83,18 @@ export function IntegracionesPage() {
     })
   }
 
-  const sheetUrl = sheetId.trim() ? `https://docs.google.com/spreadsheets/d/${sheetId.trim()}` : null
+  function copyEmail() {
+    if (!config?.serviceAccountEmail) return
+    navigator.clipboard.writeText(config.serviceAccountEmail)
+    toast.success('Email copiado al portapapeles')
+  }
+
+  const sheetUrl = config?.sheetId ? `https://docs.google.com/spreadsheets/d/${config.sheetId}` : null
+  const draftDiffersFromSaved = draftId.trim() && draftId.trim() !== (config?.sheetId ?? '')
+
+  if (loading) {
+    return <div className="text-sm text-slate-500">Cargando configuración…</div>
+  }
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -65,36 +107,58 @@ export function IntegracionesPage() {
             <p className="text-sm text-slate-500 mt-0.5">
               Vuelca todas las tablas importantes (jugadores, pagos, gastos, transferencias,
               cierres caja, lesiones, sanciones, cartas de prueba…) a una hoja de cálculo
-              como respaldo y para consulta.
+              como respaldo y para consulta. Configuración guardada en BD.
             </p>
           </div>
         </div>
 
-        {/* Setup */}
-        <details className="mb-4 bg-slate-50 rounded-lg p-3 text-sm text-slate-700">
-          <summary className="font-medium cursor-pointer">¿Cómo lo configuro? (primera vez)</summary>
-          <ol className="list-decimal list-inside mt-2 space-y-1.5 text-sm">
-            <li>Crea una hoja de cálculo nueva en <a href="https://sheets.new" target="_blank" rel="noreferrer" className="text-blue-600 underline">sheets.new</a></li>
-            <li>Pulsa <strong>Compartir</strong> arriba a la derecha</li>
-            <li>
-              Comparte con la cuenta de servicio (busca este email en tu .env como
-              <code className="bg-white px-1 mx-1 rounded">GOOGLE_SERVICE_ACCOUNT_EMAIL</code>)
-              dándole permiso <strong>Editor</strong>
-            </li>
-            <li>Copia el ID de la URL: en <code className="bg-white px-1 mx-1 rounded">.../spreadsheets/d/<strong>ESTE_ES_EL_ID</strong>/edit</code></li>
-            <li>Pégalo abajo, dale a <strong>Comprobar</strong> y luego <strong>Exportar ahora</strong></li>
-          </ol>
-        </details>
+        {/* PASO 1: Compartir hoja con service account */}
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+          <p className="text-sm font-medium text-amber-900 mb-1.5">
+            Paso 1 · Comparte la hoja con esta cuenta como <strong>Editor</strong>:
+          </p>
+          {config?.serviceAccountEmail ? (
+            <div className="flex items-center gap-2">
+              <code className="flex-1 px-2 py-1.5 text-xs bg-white border border-amber-300 rounded font-mono text-slate-800 truncate" title={config.serviceAccountEmail}>
+                {config.serviceAccountEmail}
+              </code>
+              <button
+                onClick={copyEmail}
+                className="px-2.5 py-1.5 text-xs rounded-md bg-amber-600 hover:bg-amber-700 text-white flex items-center gap-1"
+              >
+                <Copy className="w-3 h-3" /> Copiar
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-amber-800">
+              ⚠️ No encuentro el email de la service account en las variables de entorno.
+              Necesitas <code>GOOGLE_SERVICE_ACCOUNT_EMAIL</code> o <code>GOOGLE_SERVICE_ACCOUNT_KEY</code>.
+            </p>
+          )}
+          <p className="text-xs text-amber-800 mt-2">
+            En la hoja → <strong>Compartir</strong> (arriba derecha) → pega el email → cambia a <strong>Editor</strong> → Enviar.
+          </p>
+        </div>
 
-        {/* Input ID */}
-        <label className="block text-xs font-medium text-slate-600 mb-1">ID de la hoja</label>
+        {/* PASO 2: Pegar ID o URL */}
+        <label className="block text-xs font-medium text-slate-600 mb-1">
+          Paso 2 · ID o URL completa de la hoja
+        </label>
         <div className="flex gap-2 mb-3">
           <input
-            value={sheetId}
-            onChange={e => setSheetId(e.target.value)}
-            placeholder="1AbCdEf...xyz"
+            value={draftId}
+            onChange={e => setDraftId(e.target.value)}
+            placeholder="https://docs.google.com/spreadsheets/d/..."
             className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
           />
+          <button
+            onClick={handleSave}
+            disabled={isPending || !draftDiffersFromSaved}
+            className="px-3 py-2 text-sm rounded-md bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-40 flex items-center gap-1.5"
+          >
+            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Guardar
+          </button>
           {sheetUrl && (
             <a
               href={sheetUrl}
@@ -107,24 +171,38 @@ export function IntegracionesPage() {
           )}
         </div>
 
-        {/* Botones */}
-        <div className="flex gap-2">
-          <button
-            onClick={handleCheck}
-            disabled={isPending}
-            className="px-4 py-2 text-sm rounded-md border border-slate-300 hover:bg-slate-50 disabled:opacity-50 flex items-center gap-2"
-          >
-            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-            Comprobar acceso
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={isPending}
-            className="px-4 py-2 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50 flex items-center gap-2"
-          >
-            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-            Exportar ahora
-          </button>
+        {config?.sheetId && (
+          <p className="text-xs text-slate-500 mb-3 font-mono break-all">
+            Guardado: {config.sheetId}
+            {config.lastSync && (
+              <span className="text-slate-400 ml-2">
+                · último export: {new Date(config.lastSync).toLocaleString('es-ES')}
+              </span>
+            )}
+          </p>
+        )}
+
+        {/* PASO 3: Exportar */}
+        <div className="border-t border-slate-100 pt-4 mt-4">
+          <p className="text-xs font-medium text-slate-600 mb-2">Paso 3 · Comprobar y exportar</p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleCheck}
+              disabled={isPending || !config?.sheetId}
+              className="px-4 py-2 text-sm rounded-md border border-slate-300 hover:bg-slate-50 disabled:opacity-50 flex items-center gap-2"
+            >
+              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+              Comprobar acceso
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={isPending || !config?.sheetId}
+              className="px-4 py-2 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50 flex items-center gap-2"
+            >
+              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+              Exportar ahora
+            </button>
+          </div>
         </div>
 
         {/* Resultado check */}
