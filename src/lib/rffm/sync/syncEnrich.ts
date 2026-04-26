@@ -3,7 +3,8 @@ import { getPlayerProfile } from '../player'
 
 // Cuántos perfiles enriquecer en una pasada del cron.
 // 60s budget / ~0.4s por request RFFM (rate limit) ≈ 150 — dejamos margen.
-const DEFAULT_BATCH = 100
+// Vercel Hobby limita el cron a 1 ejecución diaria, así que apuramos el batch.
+const DEFAULT_BATCH = 140
 const MAX_ATTEMPTS = 3
 
 export interface EnrichResult {
