@@ -121,10 +121,10 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs }
   const [isPending, startTransition] = useTransition()
   const [activeTab, setActiveTab] = useState<Tab>('Señales')
 
-  // Signal filters
-  const [filterAnioMin, setFilterAnioMin] = useState(CURRENT_YEAR - 14)
-  const [filterAnioMax, setFilterAnioMax] = useState(CURRENT_YEAR - 8)
-  const [filterMinRatio, setFilterMinRatio] = useState(0.8)
+  // Signal filters — defaults abiertos para no esconder filas
+  const [filterAnioMin, setFilterAnioMin] = useState(1990)
+  const [filterAnioMax, setFilterAnioMax] = useState(CURRENT_YEAR)
+  const [filterMinRatio, setFilterMinRatio] = useState(0)
   const [filterMinValor, setFilterMinValor] = useState(0)
   const [filterDivision, setFilterDivision] = useState(0)
   const [filterTipo, setFilterTipo] = useState('all')
@@ -172,8 +172,8 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs }
   // Default: no mostrar nada hasta que haya filtro real (búsqueda
   // o se pulse "Mostrar todo"), para no abrumar con cientos de filas.
   const hasActiveFilter = !!searchText || filterMinValor > 0 || filterDivision > 0 ||
-    filterMinRatio > 0.8 || filterTipo !== 'all' || filterEstado !== 'nuevo' ||
-    filterAnioMin !== CURRENT_YEAR - 14 || filterAnioMax !== CURRENT_YEAR - 8
+    filterMinRatio > 0 || filterTipo !== 'all' || filterEstado !== 'nuevo' ||
+    filterAnioMin !== 1990 || filterAnioMax !== CURRENT_YEAR
   const shouldList = showAll || hasActiveFilter
 
   const filteredSignalsRaw = !shouldList ? [] : signals.filter(s => {
@@ -211,9 +211,12 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs }
     if (av == null && bv == null) return 0
     if (av == null) return 1
     if (bv == null) return -1
-    if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir
-    return String(av).localeCompare(String(bv)) * dir
-  })
+    // Postgres NUMERIC viene como string en supabase-js → Number() para comparar
+    const an = typeof av === 'string' && !isNaN(Number(av)) ? Number(av) : av
+    const bn = typeof bv === 'string' && !isNaN(Number(bv)) ? Number(bv) : bv
+    if (typeof an === 'number' && typeof bn === 'number') return (an - bn) * dir
+    return String(an).localeCompare(String(bn)) * dir
+  }).slice(0, 500) // tope de seguridad para no colgar el render
 
   // ── Actions ──────────────────────────────────────────────────
 
