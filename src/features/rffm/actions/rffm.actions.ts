@@ -78,6 +78,31 @@ export async function removeTrackedCompetition(id: string): Promise<{ success: b
   }
 }
 
+// ── Enrich on-demand ───────────────────────────────────────────
+
+import { enrichSignalsBatch } from '@/lib/rffm/sync/syncEnrich'
+
+export async function enrichSignalsNow(
+  batchSize: number = 50,
+): Promise<{ success: boolean; error?: string; result?: { attempted: number; enriched: number; failed: number; pending: number } }> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    // Cap razonable: 100 perfiles ≈ 50s con rate limit, deja margen para Vercel 60s
+    const safeBatch = Math.max(1, Math.min(batchSize, 100))
+    const r = await enrichSignalsBatch(clubId, safeBatch)
+    revalidatePath('/scouting/rffm')
+    return {
+      success: true,
+      result: { attempted: r.attempted, enriched: r.enriched, failed: r.failed, pending: r.pending },
+    }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
 // ── Scouting signals management ───────────────────────────────
 
 export async function updateSignalStatus(

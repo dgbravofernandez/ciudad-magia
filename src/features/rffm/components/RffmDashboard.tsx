@@ -14,6 +14,7 @@ import {
   addTrackedCompetition,
   removeTrackedCompetition,
   exportSignalPdf,
+  enrichSignalsNow,
 } from '@/features/rffm/actions/rffm.actions'
 
 // ── Constants ──────────────────────────────────────────────────
@@ -111,6 +112,9 @@ interface Props {
   trackedComps: TrackedComp[]
   recentSyncs: SyncLog[]
   matches: RffmMatch[]
+  enrichPending: number
+  enrichExhausted: number
+  signalsTotal: number
 }
 
 const TABS = ['Mis equipos', 'Señales', 'Alertas amarillas', 'Competiciones', 'Sync'] as const
@@ -149,7 +153,7 @@ const defaultForm = {
 
 // ── Main component ─────────────────────────────────────────────
 
-export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, matches }: Props) {
+export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, matches, enrichPending, enrichExhausted, signalsTotal }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [activeTab, setActiveTab] = useState<Tab>('Mis equipos')
@@ -303,6 +307,20 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
     })
   }
 
+  function handleEnrichNow() {
+    startTransition(async () => {
+      const toastId = toast.loading('Enriqueciendo perfiles…')
+      const r = await enrichSignalsNow(50)
+      toast.dismiss(toastId)
+      if (r.success && r.result) {
+        toast.success(`Enriquecidos ${r.result.enriched}/${r.result.attempted}. Quedan ${r.result.pending} pendientes.`)
+        router.refresh()
+      } else {
+        toast.error(r.error ?? 'Error en enrich')
+      }
+    })
+  }
+
   function handleSignalAction(id: string, action: 'visto' | 'descartado' | 'captado') {
     startTransition(async () => {
       const r = action === 'captado'
@@ -395,6 +413,35 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
           </button>
         </div>
       </div>
+
+      {/* Banner enrich pendiente */}
+      {(enrichPending > 0 || enrichExhausted > 0) && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 flex flex-wrap items-center gap-3 text-sm">
+          <div className="flex-1 min-w-[260px]">
+            <p className="font-medium text-amber-900">
+              {enrichPending > 0
+                ? <>Año de nacimiento pendiente: <strong>{enrichPending}</strong> de {signalsTotal} señales</>
+                : <>Sin pendientes de enrich</>
+              }
+              {enrichExhausted > 0 && (
+                <span className="ml-2 text-amber-700">· {enrichExhausted} fallaron tras 3 intentos</span>
+              )}
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Se procesan ~100/hora automáticamente (cron). El primer barrido completo de la temporada puede tardar varias horas.
+            </p>
+          </div>
+          {enrichPending > 0 && (
+            <button
+              onClick={handleEnrichNow}
+              disabled={isPending}
+              className="px-3 py-1.5 text-sm font-medium rounded-md bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 whitespace-nowrap"
+            >
+              Enriquecer 50 ahora
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-0 mb-6 border-b border-gray-200">

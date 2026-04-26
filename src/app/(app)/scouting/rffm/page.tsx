@@ -56,6 +56,30 @@ export default async function RffmPage() {
       .limit(1500),
   ])
 
+  // Pendientes de enrich (señales sin año, con menos de 3 intentos fallidos)
+  const [
+    { count: enrichPendingCount },
+    { count: enrichExhaustedCount },
+    { count: signalsTotalCount },
+  ] = await Promise.all([
+    sb.from('rffm_scouting_signals')
+      .select('*', { count: 'exact', head: true })
+      .eq('club_id', clubId)
+      .neq('estado', 'descartado')
+      .is('anio_nacimiento', null)
+      .lt('enrich_attempts', 3),
+    sb.from('rffm_scouting_signals')
+      .select('*', { count: 'exact', head: true })
+      .eq('club_id', clubId)
+      .neq('estado', 'descartado')
+      .is('anio_nacimiento', null)
+      .gte('enrich_attempts', 3),
+    sb.from('rffm_scouting_signals')
+      .select('*', { count: 'exact', head: true })
+      .eq('club_id', clubId)
+      .neq('estado', 'descartado'),
+  ])
+
   return (
     <div className="flex flex-col h-full">
       <Topbar title="Scouting RFFM" />
@@ -66,6 +90,9 @@ export default async function RffmPage() {
           trackedComps={(trackedComps ?? []) as never[]}
           recentSyncs={(lastSync ?? []) as never[]}
           matches={(matches ?? []) as never[]}
+          enrichPending={enrichPendingCount ?? 0}
+          enrichExhausted={enrichExhaustedCount ?? 0}
+          signalsTotal={signalsTotalCount ?? 0}
         />
       </div>
     </div>

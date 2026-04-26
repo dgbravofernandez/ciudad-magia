@@ -3,10 +3,11 @@ import { syncCalendar } from './syncCalendar'
 import { syncActas } from './syncActas'
 import { syncCardAlerts } from './syncCardAlerts'
 import { syncAllScorers } from './syncAllScorers'
+import { enrichSignalsBatch } from './syncEnrich'
 import { CURRENT_SEASON } from '../constants'
 import type { SyncResult } from '../types'
 
-export type SyncType = 'full' | 'calendar' | 'actas' | 'scorers' | 'scorers_f7' | 'scorers_f11' | 'card_alerts'
+export type SyncType = 'full' | 'calendar' | 'actas' | 'scorers' | 'scorers_f7' | 'scorers_f11' | 'card_alerts' | 'enrich'
 
 /**
  * Main orchestrator — runs the requested sync type and logs to rffm_sync_log.
@@ -14,7 +15,7 @@ export type SyncType = 'full' | 'calendar' | 'actas' | 'scorers' | 'scorers_f7' 
 export async function runSync(
   clubId: string,
   syncType: SyncType,
-  options?: { codTemporada?: string; actasLimit?: number; enrichProfiles?: boolean }
+  options?: { codTemporada?: string; actasLimit?: number; enrichProfiles?: boolean; enrichBatchSize?: number }
 ): Promise<SyncResult> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
@@ -72,16 +73,24 @@ export async function runSync(
         syncType === 'scorers_f11' ? ['1'] :
         undefined  // default sweep (F7 + F11)
 
-      // Manual runs skip profile enrichment (too slow for Vercel Hobby 60s).
-      // Cron / 'full' does full enrichment.
-      const enrich = options?.enrichProfiles ?? (syncType === 'full')
-
-      const scorers = await syncAllScorers(clubId, codTemporada, tiposjuego, { enrich })
+      // Enrichment NUNCA va síncrono — siempre por el cron de enrich
+      // (no cabe en 60s de Vercel Hobby con miles de perfiles).
+      // El override `options.enrichProfiles=true` se ignora deliberadamente aquí.
+      const scorers = await syncAllScorers(clubId, codTemporada, tiposjuego, { enrich: false })
       result.signalsCreated += scorers.signalsCreated
       result.playersFetched += scorers.playersFetched
       result.errorsCount += scorers.errors
       if (scorers.errorDetail.length) {
         result.errorDetail = [result.errorDetail, ...scorers.errorDetail].filter(Boolean).join('; ')
+      }
+    }
+
+    if (syncType === 'enrich') {
+      const er = await enrichSignalsBatch(clubId, options?.enrichBatchSize)
+      result.playersFetched += er.enriched
+      result.errorsCount += er.failed
+      if (er.errors.length) {
+        result.errorDetail = [result.errorDetail, ...er.errors].filter(Boolean).join('; ')
       }
     }
 
