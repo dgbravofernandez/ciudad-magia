@@ -92,6 +92,7 @@ interface SyncLog {
 
 interface RffmMatch {
   id: string
+  codacta: string
   tracked_competition_id: string | null
   jornada: number | null
   fecha: string | null
@@ -118,6 +119,15 @@ interface RffmStandingDb {
   fetched_at: string
 }
 
+interface RffmMatchEvent {
+  codacta: string
+  tipo: string
+  codjugador: string
+  nombre_jugador: string
+  lado: 'local' | 'visitante'
+  minuto: number | null
+}
+
 interface Props {
   signals: Signal[]
   cardAlerts: CardAlert[]
@@ -125,6 +135,7 @@ interface Props {
   recentSyncs: SyncLog[]
   matches: RffmMatch[]
   standings: RffmStandingDb[]
+  matchEvents: RffmMatchEvent[]
   enrichPending: number
   enrichExhausted: number
   signalsTotal: number
@@ -166,7 +177,7 @@ const defaultForm = {
 
 // ── Main component ─────────────────────────────────────────────
 
-export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, matches, standings, enrichPending, enrichExhausted, signalsTotal }: Props) {
+export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, matches, standings, matchEvents, enrichPending, enrichExhausted, signalsTotal }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [activeTab, setActiveTab] = useState<Tab>('Mis equipos')
@@ -209,6 +220,16 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
     for (const arr of m.values()) arr.sort((a, b) => a.posicion - b.posicion)
     return m
   }, [standings])
+
+  // Eventos (goles + tarjetas) indexados por codacta
+  const eventsByActa = useMemo(() => {
+    const m = new Map<string, RffmMatchEvent[]>()
+    for (const e of matchEvents) {
+      if (!m.has(e.codacta)) m.set(e.codacta, [])
+      m.get(e.codacta)!.push(e)
+    }
+    return m
+  }, [matchEvents])
 
   const todayIso = new Date().toISOString().slice(0, 10)
 
@@ -497,6 +518,8 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
           allComps={trackedComps}
           matchesByComp={matchesByComp}
           standingsByComp={standingsByComp}
+          eventsByActa={eventsByActa}
+          allMatches={matches}
           categoriasDisponibles={categoriasDisponibles}
           activeCat={misEquiposCat}
           setActiveCat={setMisEquiposCat}
@@ -1077,12 +1100,14 @@ function computeStandings(matches: RffmMatch[], nuestroCodigo: string | null): S
 }
 
 function MisEquiposTab({
-  comps, allComps, matchesByComp, standingsByComp, categoriasDisponibles, activeCat, setActiveCat, todayIso,
+  comps, allComps, matchesByComp, standingsByComp, eventsByActa, allMatches, categoriasDisponibles, activeCat, setActiveCat, todayIso,
 }: {
   comps: TrackedComp[]
   allComps: TrackedComp[]
   matchesByComp: Map<string, RffmMatch[]>
   standingsByComp: Map<string, RffmStandingDb[]>
+  eventsByActa: Map<string, RffmMatchEvent[]>
+  allMatches: RffmMatch[]
   categoriasDisponibles: Categoria[]
   activeCat: Categoria | 'all'
   setActiveCat: (c: Categoria | 'all') => void
@@ -1091,6 +1116,26 @@ function MisEquiposTab({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [expandedComp, setExpandedComp] = useState<string | null>(null)
+
+  // ── Widget "Resultados última jornada de la escuela" ──────────
+  // Todos los partidos nuestros con resultado en los últimos 14 días.
+  const ultimaJornada = useMemo(() => {
+    const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const items = allMatches
+      .filter(m => m.is_our_match && m.acta_cerrada && (m.fecha ?? '') >= cutoff && (m.fecha ?? '') <= todayIso)
+      .sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''))
+    // Agrupar por categoría (vía tracked_competition_id → comp.nombre_competicion)
+    const compById = new Map<string, TrackedComp>()
+    for (const c of allComps) compById.set(c.id, c)
+    const groups = new Map<Categoria, Array<{ match: RffmMatch; comp: TrackedComp | null }>>()
+    for (const m of items) {
+      const comp = m.tracked_competition_id ? compById.get(m.tracked_competition_id) ?? null : null
+      const cat = detectCategoria(comp?.nombre_competicion)
+      if (!groups.has(cat)) groups.set(cat, [])
+      groups.get(cat)!.push({ match: m, comp })
+    }
+    return { items, groups }
+  }, [allMatches, allComps, todayIso])
 
   function handleRefreshStandings() {
     startTransition(async () => {
@@ -1117,6 +1162,65 @@ function MisEquiposTab({
 
   return (
     <div className="space-y-4">
+      {/* Widget: Resultados última jornada de la escuela */}
+      {ultimaJornada.items.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-slate-900">
+              📋 Resultados últimos 14 días — {ultimaJornada.items.length} partidos
+            </h3>
+            <span className="text-xs text-slate-500">{ultimaJornada.groups.size} categorías</span>
+          </div>
+          <div className="space-y-3">
+            {CATEGORIES_ORDER.filter(cat => ultimaJornada.groups.has(cat)).map(cat => {
+              const grp = ultimaJornada.groups.get(cat) ?? []
+              return (
+                <div key={cat}>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500 mb-1.5">
+                    {cat} <span className="text-slate-400">({grp.length})</span>
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                    {grp.map(({ match, comp }) => {
+                      const ourCode = comp?.codigo_equipo_nuestro
+                      const localOurs = ourCode === match.codigo_equipo_local
+                      const goalsOurs = localOurs ? match.goles_local : match.goles_visitante
+                      const goalsRival = localOurs ? match.goles_visitante : match.goles_local
+                      const won = goalsOurs != null && goalsRival != null && goalsOurs > goalsRival
+                      const lost = goalsOurs != null && goalsRival != null && goalsOurs < goalsRival
+                      const drew = goalsOurs != null && goalsRival != null && goalsOurs === goalsRival
+                      return (
+                        <div
+                          key={match.id}
+                          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs border ${
+                            won ? 'bg-emerald-50 border-emerald-200' :
+                            lost ? 'bg-red-50 border-red-200' :
+                            drew ? 'bg-amber-50 border-amber-200' :
+                            'bg-slate-50 border-slate-200'
+                          }`}
+                        >
+                          <span className="text-slate-400 w-12 shrink-0">
+                            {match.fecha ? new Date(match.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '—'}
+                          </span>
+                          <span className={`flex-1 truncate ${localOurs ? 'font-semibold' : ''}`} title={match.equipo_local ?? ''}>
+                            {match.equipo_local}
+                          </span>
+                          <span className="font-bold text-slate-900 text-sm tabular-nums">
+                            {match.goles_local ?? '?'}–{match.goles_visitante ?? '?'}
+                          </span>
+                          <span className={`flex-1 truncate text-right ${!localOurs ? 'font-semibold' : ''}`} title={match.equipo_visitante ?? ''}>
+                            {match.equipo_visitante}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Filtros por categoría + refresh */}
       <div className="flex flex-wrap gap-2 items-center bg-white rounded-xl border border-gray-200 p-3">
         <button
@@ -1170,6 +1274,38 @@ function MisEquiposTab({
           const proximo = ourMatches.find(m => (m.fecha ?? '') >= todayIso && !m.acta_cerrada)
           const ultimo = [...ourMatches].reverse().find(m => m.acta_cerrada)
 
+          // Goleadores propios + amarillas: agregamos eventos de NUESTROS partidos
+          // donde el `lado` corresponde a nuestro rol en cada partido (local o visitante).
+          const goleadoresProp = new Map<string, { nombre: string; goles: number }>()
+          const amarillas = new Map<string, { nombre: string; amarillas: number; rojas: number }>()
+          for (const m of ourMatches) {
+            const events = eventsByActa.get(m.codacta) ?? []
+            const ourSide: 'local' | 'visitante' | null =
+              m.codigo_equipo_local === ourCode ? 'local' :
+              m.codigo_equipo_visitante === ourCode ? 'visitante' : null
+            if (!ourSide) continue
+            for (const ev of events) {
+              if (ev.lado !== ourSide) continue
+              if (ev.tipo === 'gol') {
+                const cur = goleadoresProp.get(ev.codjugador) ?? { nombre: ev.nombre_jugador, goles: 0 }
+                cur.goles++
+                goleadoresProp.set(ev.codjugador, cur)
+              } else if (ev.tipo === 'amarilla' || ev.tipo === 'roja' || ev.tipo === 'doble_amarilla') {
+                const cur = amarillas.get(ev.codjugador) ?? { nombre: ev.nombre_jugador, amarillas: 0, rojas: 0 }
+                if (ev.tipo === 'amarilla') cur.amarillas++
+                else cur.rojas++
+                amarillas.set(ev.codjugador, cur)
+              }
+            }
+          }
+          const topGoleadores = [...goleadoresProp.values()]
+            .sort((a, b) => b.goles - a.goles)
+            .slice(0, 5)
+          const topAmarillas = [...amarillas.values()]
+            .filter(p => p.amarillas + p.rojas > 0)
+            .sort((a, b) => (b.amarillas + b.rojas * 2) - (a.amarillas + a.rojas * 2))
+            .slice(0, 8)
+
           // Standings: preferir los scrapeados de RFFM (BD); si no hay, fallback al cálculo local
           const dbStandings = standingsByComp.get(c.id) ?? []
           const standings: StandingRow[] = dbStandings.length
@@ -1204,11 +1340,62 @@ function MisEquiposTab({
                 </div>
               </div>
 
+              {/* Diagnóstico: codigo_equipo_nuestro vacío */}
+              {!ourCode && (
+                <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+                  ⚠️ Esta competición no tiene asignado el código del equipo nuestro.
+                  Edítala en la tab &quot;Competiciones&quot; añadiendo <code className="bg-white px-1 rounded">codigo_equipo_nuestro</code>
+                  para ver próximo/último/goleadores filtrados.
+                </div>
+              )}
+
               {/* Próximo + último */}
               <div className="grid grid-cols-2 gap-2 mb-3">
                 <MatchPill label="Próximo" m={proximo ?? null} ourCode={ourCode} />
                 <MatchPill label="Último" m={ultimo ?? null} ourCode={ourCode} />
               </div>
+
+              {/* Diagnóstico: matches no sincronizados */}
+              {ourCode && ourMatches.length === 0 && (
+                <div className="mb-3 p-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600">
+                  Sin partidos sincronizados todavía. Lanza un &quot;Sync completo&quot; o espera al cron diario (01:00).
+                </div>
+              )}
+
+              {/* Goleadores propios + amarillas */}
+              {(topGoleadores.length > 0 || topAmarillas.length > 0) && (
+                <div className="mb-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {topGoleadores.length > 0 && (
+                    <div className="bg-emerald-50/60 rounded-md p-2">
+                      <p className="text-xs font-semibold text-emerald-900 mb-1">⚽ Goleadores propios</p>
+                      <ul className="space-y-0.5 text-xs">
+                        {topGoleadores.map(g => (
+                          <li key={g.nombre} className="flex justify-between gap-2">
+                            <span className="truncate text-slate-700" title={g.nombre}>{g.nombre}</span>
+                            <span className="font-bold text-emerald-700 tabular-nums">{g.goles}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {topAmarillas.length > 0 && (
+                    <div className="bg-amber-50/60 rounded-md p-2">
+                      <p className="text-xs font-semibold text-amber-900 mb-1">🟨 Tarjetas</p>
+                      <ul className="space-y-0.5 text-xs">
+                        {topAmarillas.map(a => (
+                          <li key={a.nombre} className="flex justify-between gap-2">
+                            <span className="truncate text-slate-700" title={a.nombre}>{a.nombre}</span>
+                            <span className="tabular-nums">
+                              {a.amarillas > 0 && <span className="text-amber-700 font-semibold">{a.amarillas}A</span>}
+                              {a.rojas > 0 && <span className="text-red-700 font-semibold ml-1">{a.rojas}R</span>}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Toggle clasificación */}
               <button

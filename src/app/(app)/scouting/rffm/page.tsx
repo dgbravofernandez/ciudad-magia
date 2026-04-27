@@ -51,7 +51,7 @@ export default async function RffmPage() {
       .limit(5),
     sb
       .from('rffm_matches')
-      .select('id,tracked_competition_id,jornada,fecha,hora,codigo_equipo_local,equipo_local,codigo_equipo_visitante,equipo_visitante,goles_local,goles_visitante,acta_cerrada,is_our_match,campo')
+      .select('id,codacta,tracked_competition_id,jornada,fecha,hora,codigo_equipo_local,equipo_local,codigo_equipo_visitante,equipo_visitante,goles_local,goles_visitante,acta_cerrada,is_our_match,campo')
       .eq('club_id', clubId)
       .order('fecha', { ascending: true })
       .limit(1500),
@@ -61,6 +61,31 @@ export default async function RffmPage() {
       .eq('club_id', clubId)
       .order('posicion', { ascending: true }),
   ])
+
+  // Eventos de partido (goles + tarjetas) de los últimos 90 días, solo para
+  // partidos donde estamos involucrados (is_our_match). Se necesita el codacta
+  // que está en rffm_matches.
+  const cutoff90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const recentMatchCodactas: string[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: recentMatchesForEvents } = await sb
+    .from('rffm_matches')
+    .select('codacta')
+    .eq('club_id', clubId)
+    .eq('is_our_match', true)
+    .gte('fecha', cutoff90)
+    .limit(500)
+  for (const m of (recentMatchesForEvents ?? [])) recentMatchCodactas.push(m.codacta)
+
+  let matchEvents: Array<{ codacta: string; tipo: string; codjugador: string; nombre_jugador: string; lado: string; minuto: number | null }> = []
+  if (recentMatchCodactas.length > 0) {
+    const { data: ev } = await sb
+      .from('rffm_match_events')
+      .select('codacta, tipo, codjugador, nombre_jugador, lado, minuto')
+      .in('codacta', recentMatchCodactas)
+      .limit(5000)
+    matchEvents = ev ?? []
+  }
 
   // Pendientes de enrich: solo goleadores relevantes (≥5 goles), sin año, con
   // menos de 3 intentos fallidos. El cron ignora el resto para tiempos lógicos.
@@ -101,6 +126,7 @@ export default async function RffmPage() {
           recentSyncs={(lastSync ?? []) as never[]}
           matches={(matches ?? []) as never[]}
           standings={(standings ?? []) as never[]}
+          matchEvents={matchEvents as never[]}
           enrichPending={enrichPendingCount ?? 0}
           enrichExhausted={enrichExhaustedCount ?? 0}
           signalsTotal={signalsTotalCount ?? 0}
