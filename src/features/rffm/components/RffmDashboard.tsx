@@ -18,6 +18,7 @@ import {
   exportSignalPdf,
   enrichSignalsNow,
   refreshStandingsNow,
+  parseClubPdfAction,
 } from '@/features/rffm/actions/rffm.actions'
 
 // ── Constants ──────────────────────────────────────────────────
@@ -411,6 +412,32 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
   // Edición de competición
   const [editingComp, setEditingComp] = useState<TrackedComp | null>(null)
   const [editForm, setEditForm] = useState({ codigo: '', nombre: '', umbral: '5' })
+
+  // Importar PDF
+  const [showImportPdf, setShowImportPdf] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [pdfResult, setPdfResult] = useState<any>(null)
+  const [pdfError, setPdfError] = useState<string | null>(null)
+
+  function handleParsePdf(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = e.currentTarget
+    const fd = new FormData(form)
+    const file = fd.get('file') as File | null
+    if (!file || !file.name) { toast.error('Selecciona un PDF'); return }
+    setPdfError(null)
+    setPdfResult(null)
+    startTransition(async () => {
+      const r = await parseClubPdfAction(fd)
+      if (r.success && r.result) {
+        setPdfResult(r.result)
+        toast.success(`Detectadas ${r.result.rows.length} competiciones`)
+      } else {
+        setPdfError(r.error ?? 'Error parseando PDF')
+        toast.error(r.error ?? 'Error parseando PDF')
+      }
+    })
+  }
 
   function openEditComp(c: TrackedComp) {
     setEditingComp(c)
@@ -831,13 +858,22 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
               Competiciones de las que se sincronizan calendario, actas y alertas de tarjetas.
               Los goleadores se barren de <strong>toda la RFFM</strong> (F7 + F11) automáticamente.
             </p>
-            <button
-              onClick={() => setShowAddComp(true)}
-              className="flex items-center gap-2 px-4 py-2 text-white rounded-lg text-sm font-medium flex-shrink-0 ml-4"
-              style={{ backgroundColor: 'var(--color-primary)' }}
-            >
-              <Plus className="w-4 h-4" /> Añadir
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+              <button
+                onClick={() => setShowImportPdf(true)}
+                className="flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50"
+                title="Sube el PDF NFG_VisCompeticiones_Club que descargas de RFFM"
+              >
+                📄 Importar PDF
+              </button>
+              <button
+                onClick={() => setShowAddComp(true)}
+                className="flex items-center gap-2 px-4 py-2 text-white rounded-lg text-sm font-medium"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                <Plus className="w-4 h-4" /> Añadir
+              </button>
+            </div>
           </div>
 
           {trackedComps.length === 0 ? (
@@ -985,6 +1021,101 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
                   >
                     {isPending ? 'Guardando…' : 'Guardar'}
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Importar PDF modal */}
+          {showImportPdf && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowImportPdf(false)}>
+              <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Importar competiciones desde PDF</h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Sube el PDF <code className="bg-gray-100 px-1 rounded">NFG_VisCompeticiones_Club</code> que descargas desde la zona privada de tu club en RFFM.
+                      Detectaremos los equipos, categorías, competiciones y grupos. <strong>No crea nada todavía</strong> — primero verás la lista.
+                    </p>
+                  </div>
+                  <button onClick={() => setShowImportPdf(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+                </div>
+                <div className="p-5 space-y-4">
+                  <form onSubmit={handleParsePdf} className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="file"
+                      name="file"
+                      accept="application/pdf"
+                      required
+                      className="text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-1.5 file:text-white file:cursor-pointer"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isPending}
+                      className="rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 text-sm font-medium disabled:opacity-50"
+                    >
+                      {isPending ? 'Parseando…' : 'Parsear PDF'}
+                    </button>
+                  </form>
+
+                  {pdfError && (
+                    <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                      {pdfError}
+                    </div>
+                  )}
+
+                  {pdfResult && (
+                    <div className="space-y-3">
+                      <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                        <p>
+                          <strong>{pdfResult.clubName ?? 'Club'}</strong>
+                          {pdfResult.season && <span> · Temporada {pdfResult.season}</span>}
+                          {' · '}<strong>{pdfResult.rows.length}</strong> competiciones detectadas
+                          {pdfResult.unparsed.length > 0 && <span> · {pdfResult.unparsed.length} sin parsear</span>}
+                        </p>
+                      </div>
+
+                      <div className="overflow-x-auto border border-gray-200 rounded-md">
+                        <table className="w-full text-xs">
+                          <thead className="bg-gray-50 text-gray-600">
+                            <tr>
+                              <th className="text-left px-2 py-1.5">Equipo</th>
+                              <th className="text-left px-2 py-1.5">Categoría</th>
+                              <th className="text-left px-2 py-1.5">Competición</th>
+                              <th className="text-left px-2 py-1.5">Grupo</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pdfResult.rows.map((r: { equipo: string; categoria: string; competicion: string; grupo: string }, i: number) => (
+                              <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
+                                <td className="px-2 py-1.5 font-medium">{r.equipo}</td>
+                                <td className="px-2 py-1.5">{r.categoria}</td>
+                                <td className="px-2 py-1.5 text-gray-600">{r.competicion}</td>
+                                <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.grupo}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {pdfResult.unparsed.length > 0 && (
+                        <details className="text-xs text-gray-500">
+                          <summary className="cursor-pointer">Líneas que no pudimos parsear ({pdfResult.unparsed.length})</summary>
+                          <ul className="mt-2 space-y-1 font-mono">
+                            {pdfResult.unparsed.map((u: string, i: number) => (
+                              <li key={i} className="bg-gray-50 px-2 py-1 rounded">{u}</li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+
+                      <p className="text-xs text-gray-500">
+                        Por ahora esto es <strong>solo lectura</strong> — usa estos datos para añadir las competiciones manualmente
+                        con el botón &quot;Añadir&quot;. La importación masiva con matching automático contra RFFM viene en la siguiente
+                        iteración.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -202,11 +202,19 @@ export async function autoDetectOurTeamCode(
     const best = sorted[0]
     const runnerUps = sorted.slice(1, 5)
 
-    await sb
+    const { data: updated, error: uErr } = await sb
       .from('rffm_tracked_competitions')
       .update({ codigo_equipo_nuestro: best.codigo, nombre_equipo_nuestro: best.nombre })
       .eq('id', trackedCompId)
       .eq('club_id', clubId)
+      .select('id, codigo_equipo_nuestro, nombre_equipo_nuestro')
+
+    if (uErr) {
+      return { success: false, error: `Detectado pero no se pudo guardar: ${uErr.message}` }
+    }
+    if (!updated || (updated as unknown[]).length === 0) {
+      return { success: false, error: 'Detectado pero el UPDATE no afectó a ninguna fila (¿permisos / RLS?)' }
+    }
 
     revalidatePath('/scouting/rffm')
     return { success: true, codigo: best.codigo, nombre: best.nombre, runnerUps }
@@ -240,6 +248,40 @@ export async function removeTrackedCompetition(id: string): Promise<{ success: b
 
 import { enrichSignalsBatch } from '@/lib/rffm/sync/syncEnrich'
 import { syncStandings } from '@/lib/rffm/sync/syncStandings'
+import { parseClubCompetitionsPdf, type PdfParseResult } from '@/lib/rffm/parse-club-pdf'
+
+/**
+ * Parsea el PDF "NFG_VisCompeticiones_Club" del club y devuelve la lista
+ * de competiciones detectadas. NO crea nada en BD — solo lee.
+ * El usuario después puede usar la lista para crear tracked_competitions
+ * a mano (una a una) o, en el futuro, en bulk con matching automático
+ * contra los endpoints de RFFM.
+ */
+export async function parseClubPdfAction(formData: FormData): Promise<{
+  success: boolean
+  error?: string
+  result?: PdfParseResult
+}> {
+  try {
+    const { roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    const file = formData.get('file') as File | null
+    if (!file) return { success: false, error: 'Falta el PDF' }
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      return { success: false, error: 'El archivo debe ser PDF' }
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return { success: false, error: 'PDF demasiado grande (>5 MB)' }
+    }
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const result = await parseClubCompetitionsPdf(buffer)
+    return { success: true, result }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
 
 export async function refreshStandingsNow(): Promise<{
   success: boolean; error?: string;
