@@ -50,8 +50,18 @@ export async function addTrackedCompetition(input: {
       .select('id')
       .single()
     if (error) return { success: false, error: error.message }
+    const newId = (data as { id: string }).id
+
+    // Auto-rellenar codigo_equipo_nuestro si el usuario no lo puso
+    // (best-effort — silenciamos errores para no romper el insert)
+    if (!input.codigo_equipo_nuestro) {
+      try {
+        await autoDetectOurTeamCode(newId)
+      } catch { /* no-op */ }
+    }
+
     revalidatePath('/scouting/rffm')
-    return { success: true, id: (data as { id: string }).id }
+    return { success: true, id: newId }
   } catch (e) {
     return { success: false, error: (e as Error).message }
   }
@@ -89,14 +99,51 @@ export async function updateTrackedCompetition(
 }
 
 /**
+ * Tokeniza un nombre de equipo/club en palabras significativas (>=3 letras),
+ * sin acentos, sin puntuación, sin stopwords típicas del fútbol español.
+ */
+function tokenize(name: string): string[] {
+  const STOPWORDS = new Set([
+    'CF', 'FC', 'EF', 'AD', 'CD', 'CDE', 'UD', 'CP', 'AC', 'SAD', 'SD', 'AGR',
+    'DE', 'DEL', 'LA', 'EL', 'LOS', 'LAS', 'Y', 'I',
+    'AT', 'ATCO', 'CLUB', 'DEPORTIVO', 'POL', 'POLIDEPORTIVO',
+  ])
+  return (name ?? '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '') // quita tildes
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]+/g, ' ')                     // solo alfanumérico
+    .split(/\s+/)
+    .filter(w => w.length >= 3 && !STOPWORDS.has(w) && !/^\d+$/.test(w))
+}
+
+/**
+ * Score = número de tokens significativos del club que aparecen en el nombre del equipo.
+ * Más tokens coincidentes = mejor match.
+ */
+function scoreCandidate(clubTokens: string[], teamName: string): number {
+  const teamTokens = tokenize(teamName)
+  const teamSet = new Set(teamTokens)
+  let score = 0
+  for (const t of clubTokens) if (teamSet.has(t)) score++
+  return score
+}
+
+/**
  * Auto-detecta el código del equipo nuestro en una competición seguida
- * buscando en el calendario un equipo cuyo nombre contenga el del club.
- * Útil cuando el usuario añadió la competición sin saber el código.
+ * buscando en el calendario el equipo cuyo nombre se parezca MÁS al
+ * nombre del club configurado (no hardcodeado).
+ *
+ * Ej: club "E.F. Ciudad de Getafe" → tokens [CIUDAD, GETAFE]
+ *  - "E.F. CIUDAD DE GETAFE 'A'" matchea 2 tokens → score 2
+ *  - "SANTA BARBARA GETAFE" matchea 1 → score 1
+ *  - Gana el de score más alto.
+ *
+ * `needle` es opcional: si se pasa, se usa en lugar del nombre del club.
  */
 export async function autoDetectOurTeamCode(
   trackedCompId: string,
-  needle: string = 'GETAFE',
-): Promise<{ success: boolean; error?: string; codigo?: string; nombre?: string }> {
+  needle?: string,
+): Promise<{ success: boolean; error?: string; codigo?: string; nombre?: string; runnerUps?: Array<{ codigo: string; nombre: string; score: number }> }> {
   try {
     const { clubId, roles } = await getClubContext()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
@@ -104,6 +151,15 @@ export async function autoDetectOurTeamCode(
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
+
+    // Nombre del club desde BD (no hardcodeado)
+    const { data: club } = await sb.from('clubs').select('name').eq('id', clubId).single()
+    const clubName = needle ?? (club?.name as string | undefined) ?? ''
+    const clubTokens = tokenize(clubName)
+    if (clubTokens.length === 0) {
+      return { success: false, error: 'No se pudo extraer nombre significativo del club. Configúralo en /configuracion/club.' }
+    }
+
     const { data: comp, error: cErr } = await sb
       .from('rffm_tracked_competitions')
       .select('cod_temporada, cod_tipojuego, cod_competicion, cod_grupo')
@@ -114,32 +170,46 @@ export async function autoDetectOurTeamCode(
 
     const { getCalendar } = await import('@/lib/rffm/calendar')
     const matches = await getCalendar(comp.cod_temporada, comp.cod_tipojuego, comp.cod_competicion, comp.cod_grupo)
-    if (!matches.length) return { success: false, error: 'No hay partidos sincronizados en esta competición' }
+    if (!matches.length) return { success: false, error: 'No hay partidos en esta competición. Lanza primero "Sync nuestros equipos".' }
 
-    const upperNeedle = needle.toUpperCase()
-    const candidates = new Map<string, string>()
+    // Recolectar candidatos únicos con score
+    const ranked = new Map<string, { codigo: string; nombre: string; score: number }>()
     for (const m of matches) {
-      if (m.equipo_local && m.equipo_local.toUpperCase().includes(upperNeedle) && m.codigo_equipo_local) {
-        candidates.set(m.codigo_equipo_local, m.equipo_local)
+      if (m.codigo_equipo_local && m.equipo_local) {
+        const sc = scoreCandidate(clubTokens, m.equipo_local)
+        if (sc > 0) {
+          const existing = ranked.get(m.codigo_equipo_local)
+          if (!existing || sc > existing.score) {
+            ranked.set(m.codigo_equipo_local, { codigo: m.codigo_equipo_local, nombre: m.equipo_local, score: sc })
+          }
+        }
       }
-      if (m.equipo_visitante && m.equipo_visitante.toUpperCase().includes(upperNeedle) && m.codigo_equipo_visitante) {
-        candidates.set(m.codigo_equipo_visitante, m.equipo_visitante)
+      if (m.codigo_equipo_visitante && m.equipo_visitante) {
+        const sc = scoreCandidate(clubTokens, m.equipo_visitante)
+        if (sc > 0) {
+          const existing = ranked.get(m.codigo_equipo_visitante)
+          if (!existing || sc > existing.score) {
+            ranked.set(m.codigo_equipo_visitante, { codigo: m.codigo_equipo_visitante, nombre: m.equipo_visitante, score: sc })
+          }
+        }
       }
     }
-    if (candidates.size === 0) {
-      return { success: false, error: `No se encontró ningún equipo con "${needle}" en el calendario` }
+    if (ranked.size === 0) {
+      return { success: false, error: `No se encontró ningún equipo parecido a "${clubName}" en el calendario` }
     }
-    // Coge el primero (en F11/Aficionado normalmente solo hay uno por grupo)
-    const [[codigo, nombre]] = candidates.entries()
+
+    const sorted = [...ranked.values()].sort((a, b) => b.score - a.score)
+    const best = sorted[0]
+    const runnerUps = sorted.slice(1, 5)
 
     await sb
       .from('rffm_tracked_competitions')
-      .update({ codigo_equipo_nuestro: codigo, nombre_equipo_nuestro: nombre })
+      .update({ codigo_equipo_nuestro: best.codigo, nombre_equipo_nuestro: best.nombre })
       .eq('id', trackedCompId)
       .eq('club_id', clubId)
 
     revalidatePath('/scouting/rffm')
-    return { success: true, codigo, nombre }
+    return { success: true, codigo: best.codigo, nombre: best.nombre, runnerUps }
   } catch (e) {
     return { success: false, error: (e as Error).message }
   }
