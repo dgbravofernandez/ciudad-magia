@@ -13,6 +13,8 @@ import {
   captureSignalToScouting,
   addTrackedCompetition,
   removeTrackedCompetition,
+  updateTrackedCompetition,
+  autoDetectOurTeamCode,
   exportSignalPdf,
   enrichSignalsNow,
   refreshStandingsNow,
@@ -392,6 +394,51 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
     })
   }
 
+  function handleAutoDetect(id: string, nombre: string) {
+    startTransition(async () => {
+      const toastId = toast.loading(`Auto-detectando equipo en "${nombre}"…`)
+      const r = await autoDetectOurTeamCode(id)
+      toast.dismiss(toastId)
+      if (r.success && r.codigo) {
+        toast.success(`✓ ${r.nombre} (código ${r.codigo})`)
+        router.refresh()
+      } else {
+        toast.error(r.error ?? 'No se pudo auto-detectar')
+      }
+    })
+  }
+
+  // Edición de competición
+  const [editingComp, setEditingComp] = useState<TrackedComp | null>(null)
+  const [editForm, setEditForm] = useState({ codigo: '', nombre: '', umbral: '5' })
+
+  function openEditComp(c: TrackedComp) {
+    setEditingComp(c)
+    setEditForm({
+      codigo: c.codigo_equipo_nuestro ?? '',
+      nombre: c.nombre_equipo_nuestro ?? '',
+      umbral: String(c.umbral_amarillas ?? 5),
+    })
+  }
+
+  function handleSaveEditComp() {
+    if (!editingComp) return
+    startTransition(async () => {
+      const r = await updateTrackedCompetition(editingComp.id, {
+        codigo_equipo_nuestro: editForm.codigo.trim() || undefined,
+        nombre_equipo_nuestro: editForm.nombre.trim() || undefined,
+        umbral_amarillas: parseInt(editForm.umbral, 10) || 5,
+      })
+      if (r.success) {
+        toast.success('Actualizado')
+        setEditingComp(null)
+        router.refresh()
+      } else {
+        toast.error(r.error ?? 'Error guardando')
+      }
+    })
+  }
+
   function handleAddComp() {
     if (!compForm.cod_competicion || !compForm.cod_grupo || !compForm.nombre_competicion) {
       toast.error('Rellena al menos: código competición, grupo y nombre')
@@ -454,7 +501,7 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
             style={{ backgroundColor: 'var(--color-primary)' }}
           >
             <RefreshCw className={`w-4 h-4 ${isPending ? 'animate-spin' : ''}`} />
-            Sync completo
+            Sync nuestros equipos
           </button>
         </div>
       </div>
@@ -824,7 +871,13 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
                           {TIPOJUEGO_LABELS[c.cod_tipojuego] ?? `Tipo ${c.cod_tipojuego}`}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-700 text-sm">{c.nombre_equipo_nuestro}</td>
+                      <td className="px-4 py-3 text-gray-700 text-sm">
+                        <div>{c.nombre_equipo_nuestro || <span className="text-gray-400 italic">sin asignar</span>}</div>
+                        {c.codigo_equipo_nuestro
+                          ? <div className="text-[10px] text-gray-400 font-mono">cod {c.codigo_equipo_nuestro}</div>
+                          : <div className="text-[10px] text-amber-600">⚠ sin código</div>
+                        }
+                      </td>
                       <td className="px-4 py-3 text-center text-gray-700">{c.umbral_amarillas}</td>
                       <td className="px-4 py-3 text-center text-xs text-gray-500">
                         {c.last_calendar_sync
@@ -832,19 +885,108 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
                           : <span className="text-gray-300">—</span>}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleRemoveComp(c.id, c.nombre_competicion)}
-                          disabled={isPending}
-                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Dejar de seguir"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          {!c.codigo_equipo_nuestro && (
+                            <button
+                              onClick={() => handleAutoDetect(c.id, c.nombre_competicion)}
+                              disabled={isPending}
+                              className="px-2 py-1 text-[10px] font-semibold rounded bg-amber-500 hover:bg-amber-600 text-white"
+                              title="Buscar el código del equipo en el calendario de la competición"
+                            >
+                              Auto
+                            </button>
+                          )}
+                          <button
+                            onClick={() => openEditComp(c)}
+                            disabled={isPending}
+                            className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                            title="Editar"
+                          >
+                            <Settings className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleRemoveComp(c.id, c.nombre_competicion)}
+                            disabled={isPending}
+                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Dejar de seguir"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Edit comp modal */}
+          {editingComp && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditingComp(null)}>
+              <div className="bg-white rounded-2xl shadow-xl max-w-md w-full" onClick={e => e.stopPropagation()}>
+                <div className="p-5 border-b border-gray-100">
+                  <h3 className="font-semibold text-gray-900">Editar competición</h3>
+                  <p className="text-xs text-gray-500 mt-1">{editingComp.nombre_competicion} · {editingComp.nombre_grupo}</p>
+                </div>
+                <div className="p-5 space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Código equipo nuestro (RFFM)</label>
+                    <div className="flex gap-2">
+                      <input
+                        value={editForm.codigo}
+                        onChange={e => setEditForm(f => ({ ...f, codigo: e.target.value }))}
+                        placeholder="466882"
+                        className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleAutoDetect(editingComp.id, editingComp.nombre_competicion)}
+                        disabled={isPending}
+                        className="px-3 py-2 text-xs font-semibold rounded-md bg-amber-500 hover:bg-amber-600 text-white whitespace-nowrap"
+                      >
+                        Auto-detectar
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Lo encuentras en la URL de la ficha del equipo: rffm.es/fichaequipo/<strong>466882</strong>
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Nombre del equipo nuestro</label>
+                    <input
+                      value={editForm.nombre}
+                      onChange={e => setEditForm(f => ({ ...f, nombre: e.target.value }))}
+                      placeholder="EF CIUDAD DE GETAFE 'A'"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Umbral amarillas (sanción)</label>
+                    <input
+                      type="number"
+                      value={editForm.umbral}
+                      onChange={e => setEditForm(f => ({ ...f, umbral: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="p-4 border-t border-gray-100 flex justify-end gap-2">
+                  <button
+                    onClick={() => setEditingComp(null)}
+                    className="px-4 py-2 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSaveEditComp}
+                    disabled={isPending}
+                    className="px-4 py-2 text-sm rounded-md bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                  >
+                    {isPending ? 'Guardando…' : 'Guardar'}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -942,7 +1084,7 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {([
-              ['Sync completo', 'full', 'Calendario + Actas + Tarjetas + Goleadores', 'text-purple-600'],
+              ['Sync nuestros equipos', 'full', 'Calendario + 15 actas pendientes + Tarjetas (cabe en 60s)', 'text-purple-600'],
               ['Barrido goleadores', 'scorers', 'Recorre TODOS los grupos F7+F11 de la RFFM', 'text-blue-600'],
               ['Calendario + actas', 'calendar', 'Actualiza partidos y procesa actas cerradas', 'text-green-600'],
               ['Solo actas pendientes', 'actas', 'Procesa únicamente actas sin sincronizar', 'text-gray-600'],
@@ -1358,7 +1500,7 @@ function MisEquiposTab({
               {/* Diagnóstico: matches no sincronizados */}
               {ourCode && ourMatches.length === 0 && (
                 <div className="mb-3 p-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600">
-                  Sin partidos sincronizados todavía. Lanza un &quot;Sync completo&quot; o espera al cron diario (01:00).
+                  Sin partidos sincronizados todavía. Ve a la tab &quot;Sync&quot; y pulsa &quot;Sync nuestros equipos&quot; o espera al cron diario (01:00).
                 </div>
               )}
 

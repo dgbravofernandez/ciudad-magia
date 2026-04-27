@@ -57,6 +57,94 @@ export async function addTrackedCompetition(input: {
   }
 }
 
+export async function updateTrackedCompetition(
+  id: string,
+  fields: Partial<{
+    nombre_competicion: string
+    nombre_grupo: string
+    codigo_equipo_nuestro: string
+    nombre_equipo_nuestro: string
+    umbral_amarillas: number
+    active: boolean
+  }>,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+    const { error } = await sb
+      .from('rffm_tracked_competitions')
+      .update(fields)
+      .eq('id', id)
+      .eq('club_id', clubId)
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/scouting/rffm')
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+/**
+ * Auto-detecta el código del equipo nuestro en una competición seguida
+ * buscando en el calendario un equipo cuyo nombre contenga el del club.
+ * Útil cuando el usuario añadió la competición sin saber el código.
+ */
+export async function autoDetectOurTeamCode(
+  trackedCompId: string,
+  needle: string = 'GETAFE',
+): Promise<{ success: boolean; error?: string; codigo?: string; nombre?: string }> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+    const { data: comp, error: cErr } = await sb
+      .from('rffm_tracked_competitions')
+      .select('cod_temporada, cod_tipojuego, cod_competicion, cod_grupo')
+      .eq('id', trackedCompId)
+      .eq('club_id', clubId)
+      .single()
+    if (cErr || !comp) return { success: false, error: 'Competición no encontrada' }
+
+    const { getCalendar } = await import('@/lib/rffm/calendar')
+    const matches = await getCalendar(comp.cod_temporada, comp.cod_tipojuego, comp.cod_competicion, comp.cod_grupo)
+    if (!matches.length) return { success: false, error: 'No hay partidos sincronizados en esta competición' }
+
+    const upperNeedle = needle.toUpperCase()
+    const candidates = new Map<string, string>()
+    for (const m of matches) {
+      if (m.equipo_local && m.equipo_local.toUpperCase().includes(upperNeedle) && m.codigo_equipo_local) {
+        candidates.set(m.codigo_equipo_local, m.equipo_local)
+      }
+      if (m.equipo_visitante && m.equipo_visitante.toUpperCase().includes(upperNeedle) && m.codigo_equipo_visitante) {
+        candidates.set(m.codigo_equipo_visitante, m.equipo_visitante)
+      }
+    }
+    if (candidates.size === 0) {
+      return { success: false, error: `No se encontró ningún equipo con "${needle}" en el calendario` }
+    }
+    // Coge el primero (en F11/Aficionado normalmente solo hay uno por grupo)
+    const [[codigo, nombre]] = candidates.entries()
+
+    await sb
+      .from('rffm_tracked_competitions')
+      .update({ codigo_equipo_nuestro: codigo, nombre_equipo_nuestro: nombre })
+      .eq('id', trackedCompId)
+      .eq('club_id', clubId)
+
+    revalidatePath('/scouting/rffm')
+    return { success: true, codigo, nombre }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
 export async function removeTrackedCompetition(id: string): Promise<{ success: boolean; error?: string }> {
   try {
     const { clubId, roles } = await getClubContext()

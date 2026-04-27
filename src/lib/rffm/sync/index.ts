@@ -52,7 +52,11 @@ export async function runSync(
     }
 
     if (syncType === 'full' || syncType === 'actas') {
-      const actas = await syncActas(clubId, options?.actasLimit)
+      // En 'full' limitamos actas a 15 para que el total quepa en 60s
+      // (calendar ~27s + 15 actas × ~1.5s = ~50s). El resto cae en el
+      // cron diario de actas a las 01:00.
+      const actasLimit = syncType === 'full' ? 15 : options?.actasLimit
+      const actas = await syncActas(clubId, actasLimit)
       result.actasProcessed += actas.processed
       result.errorsCount += actas.errors
     }
@@ -62,21 +66,19 @@ export async function runSync(
       result.errorsCount += alerts.errors
     }
 
+    // 'scorers'/'scorers_f7'/'scorers_f11' YA NO van en 'full' — son
+    // demasiado pesados (sweep de TODOS los grupos RFFM) y revientan
+    // los 60s de Vercel Hobby. Se ejecutan por separado (cron domingo
+    // o botones dedicados).
     if (
-      syncType === 'full' ||
       syncType === 'scorers' ||
       syncType === 'scorers_f7' ||
       syncType === 'scorers_f11'
     ) {
-      // tipojuego=1 → F11, tipojuego=2 → F7
       const tiposjuego =
         syncType === 'scorers_f7' ? ['2'] :
         syncType === 'scorers_f11' ? ['1'] :
-        undefined  // default sweep (F7 + F11)
-
-      // Enrichment NUNCA va síncrono — siempre por el cron de enrich
-      // (no cabe en 60s de Vercel Hobby con miles de perfiles).
-      // El override `options.enrichProfiles=true` se ignora deliberadamente aquí.
+        undefined
       const scorers = await syncAllScorers(clubId, codTemporada, tiposjuego, { enrich: false })
       result.signalsCreated += scorers.signalsCreated
       result.playersFetched += scorers.playersFetched
@@ -95,7 +97,10 @@ export async function runSync(
       }
     }
 
-    if (syncType === 'full' || syncType === 'standings') {
+    // 'standings' fuera de 'full' también — son 67 llamadas (~27s)
+    // que se acumulan al calendar+actas y revientan el budget.
+    // Cron diario a las 02:00 + botón "Refrescar clasificaciones".
+    if (syncType === 'standings') {
       const st = await syncStandings(clubId)
       result.errorsCount += st.errors
       if (st.errorDetail.length) {

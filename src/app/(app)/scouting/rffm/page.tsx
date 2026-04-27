@@ -53,8 +53,8 @@ export default async function RffmPage() {
       .from('rffm_matches')
       .select('id,codacta,tracked_competition_id,jornada,fecha,hora,codigo_equipo_local,equipo_local,codigo_equipo_visitante,equipo_visitante,goles_local,goles_visitante,acta_cerrada,is_our_match,campo')
       .eq('club_id', clubId)
-      .order('fecha', { ascending: true })
-      .limit(1500),
+      .order('fecha', { ascending: false })
+      .limit(2000),
     sb
       .from('rffm_standings')
       .select('id,tracked_competition_id,posicion,codigo_equipo,nombre_equipo,pj,pg,pe,pp,gf,gc,pts,fetched_at')
