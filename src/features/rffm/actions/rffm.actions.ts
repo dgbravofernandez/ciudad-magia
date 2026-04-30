@@ -248,7 +248,8 @@ export async function removeTrackedCompetition(id: string): Promise<{ success: b
 
 import { enrichSignalsBatch } from '@/lib/rffm/sync/syncEnrich'
 import { syncStandings } from '@/lib/rffm/sync/syncStandings'
-import { parseClubCompetitionsPdf, type PdfParseResult } from '@/lib/rffm/parse-club-pdf'
+import { parseClubCompetitionsPdf, type PdfParseResult, type PdfRow } from '@/lib/rffm/parse-club-pdf'
+import { importClubFromPdfRows, type MatchedRow, type ImportResult } from '@/lib/rffm/club-importer'
 
 /**
  * Parsea el PDF "NFG_VisCompeticiones_Club" del club y devuelve la lista
@@ -257,6 +258,107 @@ import { parseClubCompetitionsPdf, type PdfParseResult } from '@/lib/rffm/parse-
  * a mano (una a una) o, en el futuro, en bulk con matching automático
  * contra los endpoints de RFFM.
  */
+/**
+ * Hace match de las filas parseadas del PDF contra los endpoints de RFFM:
+ *   /api/competitions, /api/groups y /fichaclub/{codigoClub}
+ * Devuelve un plan de inserción con los códigos resueltos por cada fila.
+ *
+ * NO escribe nada en BD — solo es preview.
+ */
+export async function matchClubPdfRows(
+  rows: PdfRow[],
+  codigoClub: string,
+): Promise<{ success: boolean; error?: string; result?: ImportResult }> {
+  try {
+    const { roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    if (!codigoClub.trim()) return { success: false, error: 'Falta el código del club RFFM' }
+    if (!rows?.length) return { success: false, error: 'No hay filas que importar' }
+
+    const result = await importClubFromPdfRows(rows, codigoClub.trim())
+    return { success: true, result }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+/**
+ * Inserta las filas seleccionadas en rffm_tracked_competitions.
+ * Aplica idempotencia: si ya existe la combinación
+ * (club_id, cod_competicion, cod_grupo) hace UPDATE en lugar de INSERT.
+ */
+export async function bulkInsertTrackedFromPdf(
+  matched: MatchedRow[],
+): Promise<{ success: boolean; error?: string; inserted?: number; updated?: number; skipped?: number }> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    if (!matched?.length) return { success: false, error: 'No hay filas seleccionadas' }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+
+    let inserted = 0
+    let updated = 0
+    let skipped = 0
+
+    for (const m of matched) {
+      // Solo insertamos las que tienen al menos cod_competicion + cod_grupo
+      if (!m.cod_competicion || !m.cod_grupo) {
+        skipped++
+        continue
+      }
+
+      // Buscar si ya existe
+      const { data: existing } = await sb
+        .from('rffm_tracked_competitions')
+        .select('id')
+        .eq('club_id', clubId)
+        .eq('cod_competicion', m.cod_competicion)
+        .eq('cod_grupo', m.cod_grupo)
+        .maybeSingle()
+
+      const payload = {
+        club_id: clubId,
+        cod_temporada: m.cod_temporada,
+        cod_tipojuego: m.cod_tipojuego,
+        cod_competicion: m.cod_competicion,
+        cod_grupo: m.cod_grupo,
+        nombre_competicion: m.nombre_competicion ?? m.pdf.competicion,
+        nombre_grupo: m.nombre_grupo ?? m.pdf.grupo,
+        codigo_equipo_nuestro: m.codigo_equipo_nuestro ?? null,
+        nombre_equipo_nuestro: m.nombre_equipo_nuestro ?? null,
+        umbral_amarillas: 5,
+        active: true,
+      }
+
+      if (existing) {
+        const { error } = await sb
+          .from('rffm_tracked_competitions')
+          .update(payload)
+          .eq('id', existing.id)
+        if (!error) updated++
+        else { skipped++; console.error('bulkInsert update error:', error.message) }
+      } else {
+        const { error } = await sb
+          .from('rffm_tracked_competitions')
+          .insert(payload)
+        if (!error) inserted++
+        else { skipped++; console.error('bulkInsert insert error:', error.message) }
+      }
+    }
+
+    revalidatePath('/scouting/rffm')
+    return { success: true, inserted, updated, skipped }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
 export async function parseClubPdfAction(formData: FormData): Promise<{
   success: boolean
   error?: string

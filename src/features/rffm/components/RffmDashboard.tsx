@@ -19,6 +19,8 @@ import {
   enrichSignalsNow,
   refreshStandingsNow,
   parseClubPdfAction,
+  matchClubPdfRows,
+  bulkInsertTrackedFromPdf,
 } from '@/features/rffm/actions/rffm.actions'
 
 // ── Constants ──────────────────────────────────────────────────
@@ -418,6 +420,10 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [pdfResult, setPdfResult] = useState<any>(null)
   const [pdfError, setPdfError] = useState<string | null>(null)
+  const [pdfClubCode, setPdfClubCode] = useState('')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [pdfMatchResult, setPdfMatchResult] = useState<any>(null)
+  const [pdfSelected, setPdfSelected] = useState<Set<number>>(new Set())
 
   function handleParsePdf(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -427,6 +433,8 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
     if (!file || !file.name) { toast.error('Selecciona un PDF'); return }
     setPdfError(null)
     setPdfResult(null)
+    setPdfMatchResult(null)
+    setPdfSelected(new Set())
     startTransition(async () => {
       const r = await parseClubPdfAction(fd)
       if (r.success && r.result) {
@@ -435,6 +443,46 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
       } else {
         setPdfError(r.error ?? 'Error parseando PDF')
         toast.error(r.error ?? 'Error parseando PDF')
+      }
+    })
+  }
+
+  function handleMatchPdf() {
+    if (!pdfResult?.rows?.length) { toast.error('Parsea primero el PDF'); return }
+    if (!pdfClubCode.trim()) { toast.error('Pega el código del club RFFM (ej. 3824)'); return }
+    setPdfMatchResult(null)
+    setPdfSelected(new Set())
+    startTransition(async () => {
+      const toastId = toast.loading('Matcheando con RFFM (puede tardar 20-30s)…')
+      const r = await matchClubPdfRows(pdfResult.rows, pdfClubCode.trim())
+      toast.dismiss(toastId)
+      if (r.success && r.result) {
+        setPdfMatchResult(r.result)
+        // Pre-seleccionar todos los que estén OK (al menos competition + grupo)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const goodOnes = new Set<number>(r.result.matched.map((m: any, i: number) => (m.cod_competicion && m.cod_grupo) ? i : -1).filter((i: number) => i >= 0))
+        setPdfSelected(goodOnes)
+        toast.success(`OK: ${r.result.okCount} · Parcial: ${r.result.partialCount} · Sin match: ${r.result.failedCount}`)
+      } else {
+        toast.error(r.error ?? 'Error matcheando')
+      }
+    })
+  }
+
+  function handleBulkInsert() {
+    if (!pdfMatchResult || pdfSelected.size === 0) { toast.error('Selecciona al menos una fila'); return }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const selected = pdfMatchResult.matched.filter((_: any, i: number) => pdfSelected.has(i))
+    startTransition(async () => {
+      const toastId = toast.loading(`Insertando ${selected.length} competiciones…`)
+      const r = await bulkInsertTrackedFromPdf(selected)
+      toast.dismiss(toastId)
+      if (r.success) {
+        toast.success(`Creadas ${r.inserted} · Actualizadas ${r.updated} · Saltadas ${r.skipped}`)
+        setShowImportPdf(false)
+        router.refresh()
+      } else {
+        toast.error(r.error ?? 'Error insertando')
       }
     })
   }
@@ -1109,11 +1157,138 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
                         </details>
                       )}
 
-                      <p className="text-xs text-gray-500">
-                        Por ahora esto es <strong>solo lectura</strong> — usa estos datos para añadir las competiciones manualmente
-                        con el botón &quot;Añadir&quot;. La importación masiva con matching automático contra RFFM viene en la siguiente
-                        iteración.
-                      </p>
+                      {/* Step 2: Match con RFFM */}
+                      <div className="border-t border-gray-200 pt-4 mt-4">
+                        <h4 className="font-medium text-gray-900 text-sm mb-2">Paso 2 · Matchear con RFFM API</h4>
+                        <p className="text-xs text-gray-500 mb-2">
+                          Pega el <strong>código del club RFFM</strong> (ej. <code>3824</code>). Lo encuentras en la URL de cualquiera de tus equipos: <code>rffm.es/fichaequipo/<strong>466882</strong></code> abre el equipo y mira <code>codigo_club</code> en el HTML, o pásamelo si lo conoces.
+                        </p>
+                        <div className="flex gap-2 mb-2">
+                          <input
+                            value={pdfClubCode}
+                            onChange={e => setPdfClubCode(e.target.value)}
+                            placeholder="3824"
+                            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <button
+                            onClick={handleMatchPdf}
+                            disabled={isPending || !pdfClubCode.trim()}
+                            className="px-4 py-2 text-sm rounded-md bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 whitespace-nowrap"
+                          >
+                            {isPending ? 'Matcheando…' : 'Matchear con RFFM'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Step 3: Resultado matching + selección */}
+                      {pdfMatchResult && (
+                        <div className="border-t border-gray-200 pt-4 mt-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-medium text-gray-900 text-sm">
+                              Paso 3 · Selecciona y crea ({pdfSelected.size} de {pdfMatchResult.matched.length})
+                            </h4>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => {
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                  const all = new Set<number>(pdfMatchResult.matched.map((_: any, i: number) => i))
+                                  setPdfSelected(all)
+                                }}
+                                className="text-xs text-blue-600 hover:underline"
+                              >
+                                Todas
+                              </button>
+                              <span className="text-xs text-gray-400">·</span>
+                              <button
+                                onClick={() => setPdfSelected(new Set())}
+                                className="text-xs text-blue-600 hover:underline"
+                              >
+                                Ninguna
+                              </button>
+                              <span className="text-xs text-gray-400">·</span>
+                              <button
+                                onClick={() => {
+                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                  const ok = new Set<number>(pdfMatchResult.matched.map((m: any, i: number) => (m.cod_competicion && m.cod_grupo) ? i : -1).filter((i: number) => i >= 0))
+                                  setPdfSelected(ok)
+                                }}
+                                className="text-xs text-emerald-700 hover:underline"
+                              >
+                                Solo OK
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500 mb-2">
+                            <span className="text-emerald-700">✓ {pdfMatchResult.okCount} OK</span> ·
+                            <span className="text-amber-700"> ⚠ {pdfMatchResult.partialCount} parciales</span> ·
+                            <span className="text-red-700"> ✗ {pdfMatchResult.failedCount} sin match</span>
+                          </p>
+                          <div className="overflow-x-auto border border-gray-200 rounded-md max-h-96 overflow-y-auto">
+                            <table className="w-full text-xs">
+                              <thead className="bg-gray-50 text-gray-600 sticky top-0">
+                                <tr>
+                                  <th className="text-center px-1 py-1.5 w-8"></th>
+                                  <th className="text-left px-2 py-1.5">Equipo</th>
+                                  <th className="text-left px-2 py-1.5">Comp · Grupo</th>
+                                  <th className="text-left px-2 py-1.5 w-32">Estado</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                                {pdfMatchResult.matched.map((m: any, i: number) => {
+                                  const ok = m.cod_competicion && m.cod_grupo
+                                  const eqOk = !!m.codigo_equipo_nuestro
+                                  const checked = pdfSelected.has(i)
+                                  return (
+                                    <tr key={i} className={`border-t border-gray-100 ${checked ? 'bg-blue-50/50' : ''}`}>
+                                      <td className="text-center px-1 py-1.5">
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          disabled={!ok}
+                                          onChange={(e) => {
+                                            const next = new Set(pdfSelected)
+                                            if (e.target.checked) next.add(i)
+                                            else next.delete(i)
+                                            setPdfSelected(next)
+                                          }}
+                                        />
+                                      </td>
+                                      <td className="px-2 py-1.5">
+                                        <div className="font-medium truncate max-w-[200px]">{m.pdf.equipo}</div>
+                                        {m.nombre_equipo_nuestro && m.nombre_equipo_nuestro !== m.pdf.equipo && (
+                                          <div className="text-[10px] text-gray-500 truncate max-w-[200px]">→ {m.nombre_equipo_nuestro}</div>
+                                        )}
+                                      </td>
+                                      <td className="px-2 py-1.5">
+                                        <div className="truncate max-w-[280px]" title={m.nombre_competicion ?? m.pdf.competicion}>
+                                          {m.nombre_competicion ?? m.pdf.competicion}
+                                        </div>
+                                        <div className="text-[10px] text-gray-500">{m.nombre_grupo ?? m.pdf.grupo}</div>
+                                      </td>
+                                      <td className="px-2 py-1.5">
+                                        {ok && eqOk && <span className="text-emerald-700">✓ Listo</span>}
+                                        {ok && !eqOk && <span className="text-amber-700" title="Sin código de equipo">⚠ Sin equipo</span>}
+                                        {!ok && m.cod_competicion && <span className="text-amber-700" title="Sin grupo">⚠ Sin grupo</span>}
+                                        {!m.cod_competicion && <span className="text-red-700" title={m.reason}>✗ Sin comp</span>}
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-3">
+                            <button
+                              onClick={handleBulkInsert}
+                              disabled={isPending || pdfSelected.size === 0}
+                              className="px-4 py-2 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50"
+                            >
+                              {isPending ? 'Insertando…' : `Crear ${pdfSelected.size} competiciones`}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
