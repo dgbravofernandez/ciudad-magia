@@ -98,8 +98,12 @@ function extractCategoria(rest: string): { categoria: string; competicion: strin
 
 /**
  * Parsea el texto extraído del PDF de RFFM y devuelve las filas estructuradas.
+ *
+ * `clubNameHint` es el nombre del club tal como aparece en BD (ej. "E.F. Ciudad de Getafe")
+ * — se usa para detectar el inicio de cada fila. Si no se pasa, se intenta detectar de la
+ * cabecera del PDF (tipo "ESCUELA FUTBOL CIUDAD DE GETAFE").
  */
-export function parseClubCompetitionsText(text: string): PdfParseResult {
+export function parseClubCompetitionsText(text: string, clubNameHint?: string): PdfParseResult {
   // Detectar nombre del club y temporada en cabecera
   let clubName: string | null = null
   let season: string | null = null
@@ -111,11 +115,25 @@ export function parseClubCompetitionsText(text: string): PdfParseResult {
   const seasonMatch = text.match(/Temporada\s*:?\s*(\d{4}[-/]\d{2,4})/i)
   if (seasonMatch) season = seasonMatch[1]
 
-  // Tokenizar el club name para reconocer el inicio de las filas
-  // Ej: "ESCUELA FUTBOL CIUDAD DE GETAFE" → buscar las dos palabras
-  // más distintivas: "CIUDAD" + "GETAFE"
-  // Patrón mínimo: el nombre del club abreviado o completo seguido de letra
-  const TEAM_PREFIX_RE = /^(E\.?F\.?\s+CIUDAD\s+DE\s+GETAFE(?:\s+["'][A-Z]["'])?)/i
+  // Construir patrón de prefijo de equipo desde el nombre del club:
+  // de "E.F. Ciudad de Getafe" → tokens significativos [CIUDAD, GETAFE]
+  // → patrón regex que matchea cualquier prefijo que contenga ambos en orden
+  const STOPWORDS = new Set(['CF','FC','EF','AD','CD','CDE','UD','CP','AC','SAD','SD','AGR','DE','DEL','LA','EL','LOS','LAS','Y','I','AT','ATCO','CLUB','DEPORTIVO','POL','POLIDEPORTIVO','ESCUELA','FUTBOL','FÚTBOL'])
+  const sourceForTokens = (clubNameHint || clubName || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+  const significantTokens = sourceForTokens
+    .replace(/[^A-Z0-9 ]+/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length >= 3 && !STOPWORDS.has(w) && !/^\d+$/.test(w))
+
+  // Si no hay tokens del nombre del club, fallback: buscar "GETAFE" (legacy)
+  const fallbackTokens = significantTokens.length > 0 ? significantTokens : ['GETAFE']
+
+  // Patrón: cualquier secuencia de palabras (incluyendo abreviaturas con puntos)
+  // que contenga TODOS los tokens significativos del club, opcionalmente seguido
+  // de sufijo letra entre comillas. Ej: 'E.F. CIUDAD DE GETAFE "A"'
+  // Regex laxo: empieza al inicio de la línea, captura hasta el último token + opcional sufijo
+  const tokensPattern = fallbackTokens.map(t => `\\b${t}\\b`).join('[^\\n]*?')
+  const TEAM_PREFIX_RE = new RegExp(`^([A-ZÁÉÍÓÚÑ.][A-ZÁÉÍÓÚÑ.\\s]*?${tokensPattern}(?:\\s+["'][A-Z]["'])?)`, 'i')
 
   // Dividir texto en líneas significativas
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
@@ -125,6 +143,8 @@ export function parseClubCompetitionsText(text: string): PdfParseResult {
 
   for (const line of lines) {
     if (!TEAM_PREFIX_RE.test(line)) continue
+    // Saltar la fila de cabecera del PDF (contiene la palabra "Temporada" o "Equipo Categoría")
+    if (/^equipo\s+categor/i.test(line)) continue
     // Extraer equipo + sufijo
     const teamMatch = line.match(TEAM_PREFIX_RE)
     if (!teamMatch) continue
@@ -152,9 +172,9 @@ export function parseClubCompetitionsText(text: string): PdfParseResult {
 /**
  * Lee y parsea un PDF como Buffer (vía pdf-parse, dynamic import).
  */
-export async function parseClubCompetitionsPdf(buffer: Buffer): Promise<PdfParseResult> {
+export async function parseClubCompetitionsPdf(buffer: Buffer, clubNameHint?: string): Promise<PdfParseResult> {
   const mod = await import('pdf-parse')
   const pdfParse = (mod as { default: (b: Buffer) => Promise<{ text: string }> }).default
   const { text } = await pdfParse(buffer)
-  return parseClubCompetitionsText(text)
+  return parseClubCompetitionsText(text, clubNameHint)
 }

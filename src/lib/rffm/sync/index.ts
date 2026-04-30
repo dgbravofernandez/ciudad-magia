@@ -22,6 +22,20 @@ export async function runSync(
   const sb = createAdminClient() as any
   const codTemporada = options?.codTemporada ?? CURRENT_SEASON
 
+  // ── Limpia zombies: syncs en estado 'running' de más de 10 min
+  // (la función Vercel los mató al timeout pero nunca actualizaron el log).
+  const cutoff10min = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+  await sb
+    .from('rffm_sync_log')
+    .update({
+      status: 'timeout',
+      error_detail: 'Función Vercel timeout (>60s). Estado marcado por cleanup automático.',
+      finished_at: new Date().toISOString(),
+    })
+    .eq('club_id', clubId)
+    .eq('status', 'running')
+    .lt('started_at', cutoff10min)
+
   // ── Create log entry ──────────────────────────────────────────
   const { data: logRow } = await sb
     .from('rffm_sync_log')

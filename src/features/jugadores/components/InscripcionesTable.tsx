@@ -16,6 +16,9 @@ import {
   applyInscriptionSync,
   previewCoachSync,
   applyCoachSync,
+  assignUnmatchedToPlayer,
+  createPlayerFromUnmatched,
+  type UnmatchedRow,
 } from '@/features/jugadores/actions/sync-inscriptions.actions'
 import { INSCRIPTIONS_SHEET_ID, COACHES_SHEET_ID, COACHES_GID } from '@/features/jugadores/constants'
 import { toast } from 'sonner'
@@ -90,6 +93,10 @@ export function InscripcionesTable({
   const [trialClub, setTrialClub] = useState('')
   const [trialDate, setTrialDate] = useState('')
   const [sendingTrial, setSendingTrial] = useState(false)
+
+  // Inscripciones sin coincidencia
+  const [unmatchedRows, setUnmatchedRows] = useState<UnmatchedRow[]>([])
+  const [showUnmatched, setShowUnmatched] = useState(false)
 
   const stats = useMemo(() => {
     const counts = { pending: 0, continuing: 0, dismissed: 0, total: players.length }
@@ -183,13 +190,25 @@ export function InscripcionesTable({
 
       const preview = await previewInscriptionSync(mainRows, formRows1, formRows2)
       if (preview.error) { toast.error(`Error: ${preview.error}`); return }
-      if (preview.matches.length === 0) { toast.info('Sin cambios pendientes'); return }
+
+      // Guardar los unmatched para que el usuario pueda asignarlos
+      setUnmatchedRows(preview.unmatchedDetails ?? [])
+      if ((preview.unmatchedDetails ?? []).length > 0) setShowUnmatched(true)
+
+      if (preview.matches.length === 0 && preview.unmatched === 0) {
+        toast.info('Sin cambios pendientes')
+        return
+      }
+      if (preview.matches.length === 0) {
+        toast.info(`${preview.unmatched} respuestas sin coincidencia (revísalas abajo)`)
+        return
+      }
 
       const { updated } = await applyInscriptionSync(preview.matches)
       const withForm = preview.matches.filter(m => m.forms_link).length
       const withResp = preview.matches.filter(m => m.wants_to_continue !== null).length
       toast.success(
-        `Sync: ${updated} actualizados · ${withForm} links · ${withResp} respuestas${preview.unmatched > 0 ? ` · ${preview.unmatched} sin coincidencia` : ''}`
+        `Sync: ${updated} actualizados · ${withForm} links · ${withResp} respuestas${preview.unmatched > 0 ? ` · ${preview.unmatched} sin coincidencia (revísalas abajo)` : ''}`
       )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al sincronizar')
@@ -369,8 +388,27 @@ export function InscripcionesTable({
             <RefreshCw className={cn('w-4 h-4', syncing && 'animate-spin')} />
             {syncing ? 'Sincronizando...' : 'Sync Sheets'}
           </button>
+          {unmatchedRows.length > 0 && (
+            <button
+              onClick={() => setShowUnmatched(v => !v)}
+              className="btn-secondary gap-2 flex items-center text-sm border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
+              title="Respuestas del Sheets que no encontraron jugador"
+            >
+              ⚠️ Sin coincidencia: {unmatchedRows.length}
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Panel de respuestas sin coincidencia */}
+      {showUnmatched && unmatchedRows.length > 0 && (
+        <UnmatchedPanel
+          rows={unmatchedRows}
+          players={players}
+          onClose={() => setShowUnmatched(false)}
+          onResolve={(rowKey) => setUnmatchedRows(prev => prev.filter(r => `${r.source}_${r.rowIndex}_${r.nameRaw}` !== rowKey))}
+        />
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -996,6 +1034,170 @@ function DismissMenu({
           >
             Por impago de reserva
           </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Panel de respuestas sin coincidencia ──────────────────────────────────────
+function UnmatchedPanel({
+  rows,
+  players,
+  onClose,
+  onResolve,
+}: {
+  rows: UnmatchedRow[]
+  players: PlayerWithTeam[]
+  onClose: () => void
+  onResolve: (rowKey: string) => void
+}) {
+  return (
+    <div className="card border-amber-300 bg-amber-50/50 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-amber-900">⚠️ Respuestas sin coincidencia ({rows.length})</h3>
+          <p className="text-xs text-amber-700">
+            Asigna cada respuesta a un jugador existente o crea uno nuevo con esos datos.
+          </p>
+        </div>
+        <button onClick={onClose} className="text-amber-700 hover:text-amber-900 text-sm">Cerrar</button>
+      </div>
+      <div className="space-y-2">
+        {rows.map((row) => {
+          const rowKey = `${row.source}_${row.rowIndex}_${row.nameRaw}`
+          return (
+            <UnmatchedRowCard
+              key={rowKey}
+              row={row}
+              players={players}
+              onResolve={() => onResolve(rowKey)}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function UnmatchedRowCard({
+  row,
+  players,
+  onResolve,
+}: {
+  row: UnmatchedRow
+  players: PlayerWithTeam[]
+  onResolve: () => void
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const candidates = useMemo(() => {
+    const q = searchTerm.toLowerCase().trim()
+    if (!q) return players.slice(0, 30)
+    return players.filter((p) => {
+      const name = `${p.first_name} ${p.last_name}`.toLowerCase()
+      return name.includes(q) || (p.tutor_email ?? '').toLowerCase().includes(q) || (p.dni ?? '').toLowerCase().includes(q)
+    }).slice(0, 50)
+  }, [players, searchTerm])
+
+  async function handleAssign(playerId: string) {
+    setBusy(true)
+    try {
+      const r = await assignUnmatchedToPlayer(playerId, {
+        formLink: row.formLink,
+        respuestaParsed: row.respuestaParsed,
+        email: row.email,
+      })
+      if (r.success) { toast.success('Asignado'); onResolve() }
+      else toast.error(r.error ?? 'Error')
+    } finally {
+      setBusy(false)
+      setPickerOpen(false)
+    }
+  }
+
+  async function handleCreate() {
+    setBusy(true)
+    try {
+      const r = await createPlayerFromUnmatched({
+        nameRaw: row.nameRaw,
+        email: row.email,
+        formLink: row.formLink,
+        respuestaParsed: row.respuestaParsed,
+      })
+      if (r.success) { toast.success(`Jugador creado: ${row.nameRaw}`); onResolve() }
+      else toast.error(r.error ?? 'Error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-md border border-amber-200 p-3">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-sm">{row.nameRaw}</p>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground mt-0.5">
+            {row.email && <span>📧 {row.email}</span>}
+            {row.respuestaRaw && (
+              <span>
+                Respuesta: <strong className={row.respuestaParsed === true ? 'text-green-600' : row.respuestaParsed === false ? 'text-red-600' : ''}>
+                  {row.respuestaRaw}
+                </strong>
+              </span>
+            )}
+            {row.formLink && <span>🔗 form link</span>}
+            <span className="text-muted-foreground/60">{row.source} · fila {row.rowIndex}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPickerOpen(v => !v)}
+            disabled={busy}
+            className="btn-secondary text-xs"
+          >
+            Asignar a jugador
+          </button>
+          <button
+            onClick={handleCreate}
+            disabled={busy}
+            className="btn-primary text-xs"
+          >
+            Crear nuevo
+          </button>
+        </div>
+      </div>
+
+      {pickerOpen && (
+        <div className="mt-3 border-t border-amber-100 pt-3">
+          <input
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            autoFocus
+            placeholder="Buscar jugador por nombre, email o DNI..."
+            className="input text-sm w-full mb-2"
+          />
+          <div className="max-h-48 overflow-y-auto space-y-1">
+            {candidates.length === 0 && (
+              <p className="text-xs text-muted-foreground p-2">Sin resultados</p>
+            )}
+            {candidates.map(p => (
+              <button
+                key={p.id}
+                onClick={() => handleAssign(p.id)}
+                disabled={busy}
+                className="w-full text-left p-2 rounded text-xs hover:bg-muted transition-colors flex items-center justify-between"
+              >
+                <span>
+                  <span className="font-medium">{p.first_name} {p.last_name}</span>
+                  {p.tutor_email && <span className="text-muted-foreground ml-2">{p.tutor_email}</span>}
+                </span>
+                <span className="text-muted-foreground text-xs">{p.teams?.name ?? ''}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

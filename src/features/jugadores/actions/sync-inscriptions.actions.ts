@@ -347,6 +347,16 @@ function wordOverlap(a: string, b: string): number {
   return wa.filter(w => wb.has(w)).length / wa.length
 }
 
+export interface UnmatchedRow {
+  source: 'main' | 'form1' | 'form2'
+  rowIndex: number
+  nameRaw: string
+  email: string | null
+  formLink: string | null
+  respuestaRaw: string | null
+  respuestaParsed: boolean | null
+}
+
 export interface InscriptionSyncPreview {
   matches: Array<{
     player_id: string
@@ -357,6 +367,7 @@ export interface InscriptionSyncPreview {
     sheet_email: string | null
   }>
   unmatched: number
+  unmatchedDetails: UnmatchedRow[]
   error?: string
 }
 
@@ -409,7 +420,7 @@ export async function previewInscriptionSync(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = createAdminClient() as any
     const clubId = await getClubId()
-    if (!clubId) return { matches: [], unmatched: 0, error: 'no_club' }
+    if (!clubId) return { matches: [], unmatched: 0, unmatchedDetails: [], error: 'no_club' }
 
     const { data: players } = await supabase
       .from('players')
@@ -419,12 +430,13 @@ export async function previewInscriptionSync(
       .or('status.is.null,status.neq.low')
       .limit(2000)
 
-    if (!players?.length) return { matches: [], unmatched: 0, error: 'no_players' }
+    if (!players?.length) return { matches: [], unmatched: 0, unmatchedDetails: [], error: 'no_players' }
 
     // Build a map: player_id → accumulated update
     type Update = { forms_link: string | null; wants_to_continue: boolean | null; sheet_email: string | null; player_name: string; tutor_email: string | null }
     const updateMap = new Map<string, Update>()
     let unmatched = 0
+    const unmatchedDetails: UnmatchedRow[] = []
 
     // --- Main sheet: cols B(1)=nombre, C(2)=email, N(13)=link, O(14)=respuesta ---
     for (let r = 1; r < mainRows.length; r++) {
@@ -436,7 +448,19 @@ export async function previewInscriptionSync(
       if (!nameRaw.trim() || (!formLink && !respuestaRaw)) continue
 
       const player = matchPlayer(nameRaw, players as PlayerRow[])
-      if (!player) { unmatched++; continue }
+      if (!player) {
+        unmatched++
+        unmatchedDetails.push({
+          source: 'main',
+          rowIndex: r,
+          nameRaw: nameRaw.trim(),
+          email: sheetEmail || null,
+          formLink: formLink || null,
+          respuestaRaw: respuestaRaw?.trim() || null,
+          respuestaParsed: parseRespuesta(respuestaRaw),
+        })
+        continue
+      }
 
       const existing = updateMap.get(player.id)
       updateMap.set(player.id, {
@@ -449,7 +473,11 @@ export async function previewInscriptionSync(
     }
 
     // --- Form response sheets: detect nombre column dynamically ---
-    for (const formRows of [formRows1, formRows2]) {
+    const formSheets: Array<['form1' | 'form2', string[][]]> = [
+      ['form1', formRows1],
+      ['form2', formRows2],
+    ]
+    for (const [source, formRows] of formSheets) {
       if (formRows.length < 2) continue
       const nombreCol = detectNombreCol(formRows)
 
@@ -497,7 +525,19 @@ export async function previewInscriptionSync(
         if (!respuestaRaw) continue
 
         const player = matchPlayer(nameRaw, players as PlayerRow[])
-        if (!player) continue
+        if (!player) {
+          unmatched++
+          unmatchedDetails.push({
+            source,
+            rowIndex: r,
+            nameRaw,
+            email: null,
+            formLink: null,
+            respuestaRaw: respuestaRaw.trim(),
+            respuestaParsed: parseRespuesta(respuestaRaw),
+          })
+          continue
+        }
 
         const wantsToContinue = parseRespuesta(respuestaRaw)
         if (wantsToContinue === null) continue
@@ -531,9 +571,108 @@ export async function previewInscriptionSync(
       })
     }
 
-    return { matches, unmatched }
+    // Dedupe unmatched by normalized name (same person can show in main + form sheets)
+    const seenUnmatched = new Set<string>()
+    const dedupedUnmatched: UnmatchedRow[] = []
+    for (const u of unmatchedDetails) {
+      const key = norm(u.nameRaw)
+      if (key && !seenUnmatched.has(key)) {
+        seenUnmatched.add(key)
+        dedupedUnmatched.push(u)
+      }
+    }
+
+    return { matches, unmatched: dedupedUnmatched.length, unmatchedDetails: dedupedUnmatched }
   } catch (err) {
-    return { matches: [], unmatched: 0, error: err instanceof Error ? err.message : 'Error desconocido' }
+    return { matches: [], unmatched: 0, unmatchedDetails: [], error: err instanceof Error ? err.message : 'Error desconocido' }
+  }
+}
+
+/**
+ * Asigna una respuesta sin coincidencia a un jugador existente.
+ * Aplica los datos del sheet (form_link / wants_to_continue / email) al jugador.
+ */
+export async function assignUnmatchedToPlayer(
+  playerId: string,
+  data: { formLink?: string | null; respuestaParsed?: boolean | null; email?: string | null },
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = createAdminClient() as any
+    const clubId = await getClubId()
+    if (!clubId) return { success: false, error: 'no_club' }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updates: Record<string, any> = {}
+    if (data.formLink) updates.forms_link = data.formLink
+    if (data.respuestaParsed !== null && data.respuestaParsed !== undefined) updates.wants_to_continue = data.respuestaParsed
+    if (data.email) updates.tutor_email = data.email
+
+    if (Object.keys(updates).length === 0) return { success: false, error: 'sin datos para asignar' }
+
+    const { error } = await supabase
+      .from('players')
+      .update(updates)
+      .eq('id', playerId)
+      .eq('club_id', clubId)
+    if (error) return { success: false, error: error.message }
+
+    revalidatePath('/jugadores/inscripciones')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Error' }
+  }
+}
+
+/**
+ * Crea un jugador NUEVO con los datos de la respuesta no encontrada.
+ * Útil cuando la familia rellena el formulario antes de estar dado de alta en el sistema.
+ */
+export async function createPlayerFromUnmatched(
+  data: { nameRaw: string; email?: string | null; formLink?: string | null; respuestaParsed?: boolean | null },
+): Promise<{ success: boolean; error?: string; playerId?: string }> {
+  try {
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = createAdminClient() as any
+    const clubId = await getClubId()
+    if (!clubId) return { success: false, error: 'no_club' }
+
+    // Split nombreRaw into first/last name (best effort: last word(s) = apellido(s))
+    const trimmed = data.nameRaw.trim()
+    if (!trimmed) return { success: false, error: 'nombre vacío' }
+    const parts = trimmed.split(/\s+/)
+    let first_name = trimmed
+    let last_name = ''
+    if (parts.length >= 2) {
+      first_name = parts[0]
+      last_name = parts.slice(1).join(' ')
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const newPlayer: Record<string, any> = {
+      club_id: clubId,
+      first_name,
+      last_name,
+      status: 'pending',  // pendiente de revisar
+    }
+    if (data.email) newPlayer.tutor_email = data.email
+    if (data.formLink) newPlayer.forms_link = data.formLink
+    if (data.respuestaParsed !== null && data.respuestaParsed !== undefined) newPlayer.wants_to_continue = data.respuestaParsed
+
+    const { data: created, error } = await supabase
+      .from('players')
+      .insert(newPlayer)
+      .select('id')
+      .single()
+    if (error || !created) return { success: false, error: error?.message ?? 'error creando' }
+
+    revalidatePath('/jugadores/inscripciones')
+    revalidatePath('/jugadores')
+    return { success: true, playerId: created.id }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Error' }
   }
 }
 

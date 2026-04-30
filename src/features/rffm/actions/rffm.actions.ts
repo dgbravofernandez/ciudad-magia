@@ -263,7 +263,7 @@ export async function parseClubPdfAction(formData: FormData): Promise<{
   result?: PdfParseResult
 }> {
   try {
-    const { roles } = await getClubContext()
+    const { clubId, roles } = await getClubContext()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
@@ -275,8 +275,15 @@ export async function parseClubPdfAction(formData: FormData): Promise<{
     if (file.size > 5 * 1024 * 1024) {
       return { success: false, error: 'PDF demasiado grande (>5 MB)' }
     }
+
+    // Pasar nombre del club desde BD para que el parser detecte el prefijo de fila
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+    const { data: club } = await sb.from('clubs').select('name').eq('id', clubId).single()
+    const clubNameHint = (club?.name as string | undefined) ?? undefined
+
     const buffer = Buffer.from(await file.arrayBuffer())
-    const result = await parseClubCompetitionsPdf(buffer)
+    const result = await parseClubCompetitionsPdf(buffer, clubNameHint)
     return { success: true, result }
   } catch (e) {
     return { success: false, error: (e as Error).message }
