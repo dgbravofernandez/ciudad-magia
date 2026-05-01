@@ -63,12 +63,13 @@ function sleep(ms: number): Promise<void> {
  */
 export async function fetchRffmSSR<T>(
   path: string,
-  params?: Record<string, string>
+  params?: Record<string, string>,
+  options: { skipRateLimit?: boolean } = {}
 ): Promise<T> {
   const qs = params ? '?' + new URLSearchParams(params).toString() : ''
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    await waitRateLimit()
+    if (!options.skipRateLimit) await waitRateLimit()
 
     const buildId = await getBuildId()
     const url = `${BASE_URL}/_next/data/${buildId}/${path}.json${qs}`

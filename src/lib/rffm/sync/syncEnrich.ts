@@ -2,15 +2,16 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getPlayerProfile } from '../player'
 
 // Cuántos perfiles enriquecer en una pasada del cron.
-// 60s budget / ~0.4s por request RFFM (rate limit) ≈ 150 — dejamos margen.
-// Vercel Hobby limita el cron a 1 ejecución diaria, así que apuramos el batch.
-const DEFAULT_BATCH = 140
+// 60s budget. Con concurrency=4 (en lugar de serial) bajamos efectivamente
+// el tiempo por perfil de ~0.4s a ~0.1s, así que cabe mucho más en 60s.
+const DEFAULT_BATCH = 250
 const MAX_ATTEMPTS = 3
-// Solo enriquecemos goleadores relevantes (5+ goles en la temporada).
-// Los demás se quedan en BD pero sin año hasta que sean interesantes.
-// Threshold conservador para que el universo a enriquecer sea ~2-3k jugadores
-// y se complete en ~1 semana con 3 crons/día × 140 perfiles.
-const MIN_GOLES_FOR_ENRICH = 5
+// Solo enriquecemos goleadores relevantes (10+ goles en la temporada).
+// Subir el threshold reduce el universo de ~16k a ~1-1.5k, consiguiendo
+// que el barrido se complete en 2-3 ejecuciones del cron.
+const MIN_GOLES_FOR_ENRICH = 10
+// Concurrencia paralela en RFFM. RFFM aguanta sin bloquear con 4 simultáneas.
+const CONCURRENCY = 4
 
 export interface EnrichResult {
   attempted: number
@@ -59,16 +60,18 @@ export async function enrichSignalsBatch(
     if (!uniquePorCodjugador.has(p.codjugador)) uniquePorCodjugador.set(p.codjugador, p)
   }
 
-  for (const p of uniquePorCodjugador.values()) {
+  const candidates = [...uniquePorCodjugador.values()]
+
+  // Procesa un único codjugador (fetch perfil + actualizar BD)
+  async function processOne(p: { codjugador: string }): Promise<void> {
     result.attempted++
     let anio: number | null = null
     let errorMsg: string | null = null
 
     try {
-      const profile = await getPlayerProfile(p.codjugador)
+      const profile = await getPlayerProfile(p.codjugador, { skipRateLimit: true })
       anio = profile.anio_nacimiento ? parseInt(profile.anio_nacimiento, 10) || null : null
 
-      // Guardar también en rffm_players (cache permanente del perfil)
       if (anio) {
         await sb.from('rffm_players').upsert({
           codjugador: p.codjugador,
@@ -84,7 +87,6 @@ export async function enrichSignalsBatch(
       result.failed++
     }
 
-    // Actualizar TODAS las señales de ese jugador (puede estar en varias comps)
     const update: Record<string, unknown> = {
       enriched_at: new Date().toISOString(),
       enrich_error: errorMsg,
@@ -93,7 +95,6 @@ export async function enrichSignalsBatch(
       update.anio_nacimiento = anio
       result.enriched++
     }
-    // increment attempts: usamos rpc-less manual update con +1
     const { data: rows } = await sb
       .from('rffm_scouting_signals')
       .select('id, enrich_attempts')
@@ -108,6 +109,24 @@ export async function enrichSignalsBatch(
         .eq('id', row.id)
     }
   }
+
+  // pMap: ejecuta processOne con concurrencia limitada (workers paralelos).
+  // Esto saca de RFFM ~CONCURRENCY perfiles a la vez en lugar de uno secuencial.
+  let cursor = 0
+  async function worker() {
+    while (cursor < candidates.length) {
+      const idx = cursor++
+      try {
+        await processOne(candidates[idx])
+      } catch (e) {
+        // Por si processOne lanza fuera de su try interno
+        result.errors.push(`worker error: ${(e as Error).message}`)
+      }
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, candidates.length) }, () => worker()),
+  )
 
   // Cuántos quedan pendientes (relevantes: 10+ goles) para informar al usuario
   const { count } = await sb

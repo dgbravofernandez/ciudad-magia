@@ -587,7 +587,7 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
           <div className="flex-1 min-w-[260px]">
             <p className="font-medium text-amber-900">
               {enrichPending > 0
-                ? <>Año de nacimiento pendiente: <strong>{enrichPending}</strong> de {signalsTotal} goleadores relevantes (≥5 goles)</>
+                ? <>Año de nacimiento pendiente: <strong>{enrichPending}</strong> de {signalsTotal} goleadores relevantes (≥10 goles)</>
                 : <>Sin pendientes de enrich</>
               }
               {enrichExhausted > 0 && (
@@ -595,7 +595,7 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
               )}
             </p>
             <p className="text-xs text-amber-700 mt-0.5">
-              Cron 3 veces/día (07:00, 15:00, 23:00) · ~140 perfiles cada vez. Primer barrido de temporada: ~1 semana.
+              Cron 3 veces/día (07:00, 15:00, 23:00) · ~250 perfiles paralelos cada vez. Primer barrido: ~2-3 días.
             </p>
           </div>
           {enrichPending > 0 && (

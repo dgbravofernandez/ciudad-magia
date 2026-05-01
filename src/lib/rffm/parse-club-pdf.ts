@@ -171,9 +171,13 @@ export function parseClubCompetitionsText(text: string, clubNameHint?: string): 
 
 /**
  * Lee y parsea un PDF como Buffer (vía pdf-parse, dynamic import).
+ *
+ * NOTA: importamos el módulo interno `pdf-parse/lib/pdf-parse.js` para evitar
+ * el bug del index.js de pdf-parse@1.1.1 que intenta abrir un PDF de demo
+ * (`./test/data/05-versions-space.pdf`) que no existe en runtime serverless.
  */
 export async function parseClubCompetitionsPdf(buffer: Buffer, clubNameHint?: string): Promise<PdfParseResult> {
-  const mod = await import('pdf-parse')
+  const mod = await import('pdf-parse/lib/pdf-parse.js')
   const pdfParse = (mod as { default: (b: Buffer) => Promise<{ text: string }> }).default
   const { text } = await pdfParse(buffer)
   return parseClubCompetitionsText(text, clubNameHint)

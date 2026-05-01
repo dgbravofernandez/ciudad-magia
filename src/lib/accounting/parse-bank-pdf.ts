@@ -17,8 +17,9 @@ const DATE_RE = /\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/
 const AMOUNT_RE = /(?<![\d,.])(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})\s*(?:€|EUR|EUROS)?/i
 
 export async function parseBankPdf(buffer: Buffer): Promise<ParsedTransfer[]> {
-  // Carga dinámica para evitar problemas de bundling de pdf-parse
-  const mod = await import('pdf-parse')
+  // Carga dinámica del módulo interno para evitar el bug del index.js de
+  // pdf-parse@1.1.1 que intenta abrir un PDF de demo en runtime
+  const mod = await import('pdf-parse/lib/pdf-parse.js')
   const pdfParse = (mod as { default: (b: Buffer) => Promise<{ text: string }> }).default
   const { text } = await pdfParse(buffer)
   return extractTransfersFromText(text)

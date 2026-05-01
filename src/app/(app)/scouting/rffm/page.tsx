@@ -87,7 +87,7 @@ export default async function RffmPage() {
     matchEvents = ev ?? []
   }
 
-  // Pendientes de enrich: solo goleadores relevantes (≥5 goles), sin año, con
+  // Pendientes de enrich: solo goleadores relevantes (≥10 goles), sin año, con
   // menos de 3 intentos fallidos. El cron ignora el resto para tiempos lógicos.
   const [
     { count: enrichPendingCount },
@@ -99,20 +99,20 @@ export default async function RffmPage() {
       .eq('club_id', clubId)
       .neq('estado', 'descartado')
       .is('anio_nacimiento', null)
-      .gte('goles', 5)
+      .gte('goles', 10)
       .lt('enrich_attempts', 3),
     sb.from('rffm_scouting_signals')
       .select('*', { count: 'exact', head: true })
       .eq('club_id', clubId)
       .neq('estado', 'descartado')
       .is('anio_nacimiento', null)
-      .gte('goles', 5)
+      .gte('goles', 10)
       .gte('enrich_attempts', 3),
     sb.from('rffm_scouting_signals')
       .select('*', { count: 'exact', head: true })
       .eq('club_id', clubId)
       .neq('estado', 'descartado')
-      .gte('goles', 5),
+      .gte('goles', 10),
   ])
 
   return (

@@ -8,10 +8,18 @@ interface FichaPageProps {
 /**
  * Fetches a player profile from RFFM.
  * Key field: anio_nacimiento (birth year for age filtering).
+ *
+ * `options.skipRateLimit` permite saltarse la cola serial de fetchRffmSSR
+ * cuando el caller orquesta su propia concurrencia (e.g. enrich batch).
  */
-export async function getPlayerProfile(codjugador: string): Promise<RffmPlayer> {
+export async function getPlayerProfile(
+  codjugador: string,
+  options: { skipRateLimit?: boolean } = {},
+): Promise<RffmPlayer> {
   const data = await fetchRffmSSR<FichaPageProps>(
-    `fichajugador/${codjugador}`
+    `fichajugador/${codjugador}`,
+    undefined,
+    options,
   )
   if (!data.player) throw new Error(`RFFM: jugador ${codjugador} no encontrado`)
   return data.player
