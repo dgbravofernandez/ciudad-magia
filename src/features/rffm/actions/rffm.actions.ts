@@ -249,7 +249,7 @@ export async function removeTrackedCompetition(id: string): Promise<{ success: b
 import { enrichSignalsBatch } from '@/lib/rffm/sync/syncEnrich'
 import { syncStandings } from '@/lib/rffm/sync/syncStandings'
 import { parseClubCompetitionsPdf, type PdfParseResult, type PdfRow } from '@/lib/rffm/parse-club-pdf'
-import { importClubFromPdfRows, type MatchedRow, type ImportResult } from '@/lib/rffm/club-importer'
+import { importClubFromPdfRows, resolveRowFromUrl, type MatchedRow, type ImportResult } from '@/lib/rffm/club-importer'
 
 /**
  * Parsea el PDF "NFG_VisCompeticiones_Club" del club y devuelve la lista
@@ -285,13 +285,47 @@ export async function matchClubPdfRows(
 }
 
 /**
+ * Resuelve manualmente una fila usando una URL de RFFM (clasificaciones / calendario).
+ * El usuario pega el link y nosotros extraemos cod_temporada / cod_tipojuego /
+ * cod_competicion / cod_grupo y los verificamos contra la API.
+ */
+export async function resolveRowWithUrl(
+  pdfRow: { equipo: string; categoria: string; competicion: string; grupo: string; raw: string },
+  url: string,
+  codigoClub: string,
+): Promise<{ success: boolean; error?: string; row?: MatchedRow }> {
+  try {
+    const { roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    if (!url.trim()) return { success: false, error: 'Pega la URL de la competición primero' }
+    if (!codigoClub.trim()) return { success: false, error: 'Falta el código del club' }
+    const row = await resolveRowFromUrl(pdfRow, url.trim(), codigoClub.trim())
+    return { success: true, row }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+/**
  * Inserta las filas seleccionadas en rffm_tracked_competitions.
  * Aplica idempotencia: si ya existe la combinación
  * (club_id, cod_competicion, cod_grupo) hace UPDATE en lugar de INSERT.
+ *
+ * Devuelve detalle por fila para que el UI pueda señalar exactamente
+ * cuáles fallaron y por qué.
  */
 export async function bulkInsertTrackedFromPdf(
   matched: MatchedRow[],
-): Promise<{ success: boolean; error?: string; inserted?: number; updated?: number; skipped?: number }> {
+): Promise<{
+  success: boolean
+  error?: string
+  inserted?: number
+  updated?: number
+  skipped?: number
+  perRow?: Array<{ index: number; status: 'inserted' | 'updated' | 'skipped' | 'error'; reason?: string }>
+}> {
   try {
     const { clubId, roles } = await getClubContext()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
@@ -305,11 +339,14 @@ export async function bulkInsertTrackedFromPdf(
     let inserted = 0
     let updated = 0
     let skipped = 0
+    const perRow: Array<{ index: number; status: 'inserted' | 'updated' | 'skipped' | 'error'; reason?: string }> = []
 
-    for (const m of matched) {
+    for (let i = 0; i < matched.length; i++) {
+      const m = matched[i]
       // Solo insertamos las que tienen al menos cod_competicion + cod_grupo
       if (!m.cod_competicion || !m.cod_grupo) {
         skipped++
+        perRow.push({ index: i, status: 'skipped', reason: !m.cod_competicion ? 'sin cod_competicion' : 'sin cod_grupo' })
         continue
       }
 
@@ -341,19 +378,27 @@ export async function bulkInsertTrackedFromPdf(
           .from('rffm_tracked_competitions')
           .update(payload)
           .eq('id', existing.id)
-        if (!error) updated++
-        else { skipped++; console.error('bulkInsert update error:', error.message) }
+        if (!error) {
+          updated++
+          perRow.push({ index: i, status: 'updated' })
+        } else {
+          perRow.push({ index: i, status: 'error', reason: error.message })
+        }
       } else {
         const { error } = await sb
           .from('rffm_tracked_competitions')
           .insert(payload)
-        if (!error) inserted++
-        else { skipped++; console.error('bulkInsert insert error:', error.message) }
+        if (!error) {
+          inserted++
+          perRow.push({ index: i, status: 'inserted' })
+        } else {
+          perRow.push({ index: i, status: 'error', reason: error.message })
+        }
       }
     }
 
     revalidatePath('/scouting/rffm')
-    return { success: true, inserted, updated, skipped }
+    return { success: true, inserted, updated, skipped, perRow }
   } catch (e) {
     return { success: false, error: (e as Error).message }
   }

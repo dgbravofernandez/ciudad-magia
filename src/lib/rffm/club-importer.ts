@@ -228,6 +228,103 @@ function matchEquipoClub(rowEquipo: string, rowCategoria: string, equipos: RffmE
   return bestMatch
 }
 
+// ── Parsear URL de RFFM (clasificaciones / calendario / etc) ──────
+
+export function parseRffmCompetitionUrl(url: string): {
+  cod_temporada: string | null
+  cod_tipojuego: string | null
+  cod_competicion: string | null
+  cod_grupo: string | null
+} {
+  try {
+    const u = new URL(url.trim())
+    return {
+      cod_temporada: u.searchParams.get('temporada'),
+      cod_tipojuego: u.searchParams.get('tipojuego'),
+      cod_competicion: u.searchParams.get('competicion'),
+      cod_grupo: u.searchParams.get('grupo'),
+    }
+  } catch {
+    // Acepta también solo los query params sueltos: "temporada=21&competicion=..."
+    try {
+      const params = new URLSearchParams(url.trim().replace(/^[?#]/, ''))
+      return {
+        cod_temporada: params.get('temporada'),
+        cod_tipojuego: params.get('tipojuego'),
+        cod_competicion: params.get('competicion'),
+        cod_grupo: params.get('grupo'),
+      }
+    } catch {
+      return { cod_temporada: null, cod_tipojuego: null, cod_competicion: null, cod_grupo: null }
+    }
+  }
+}
+
+/**
+ * Resuelve UNA sola fila usando una URL RFFM directa.
+ * Útil cuando el usuario pega manualmente el link de la competición
+ * porque el matching automático no la encontró.
+ *
+ * Devuelve un MatchedRow con los códigos extraídos de la URL + verificación
+ * contra /api/competitions y /api/groups para resolver los nombres y
+ * el codigo_equipo_nuestro contra equipos_club.
+ */
+export async function resolveRowFromUrl(
+  pdfRow: PdfRow,
+  url: string,
+  codigoClub: string,
+): Promise<MatchedRow> {
+  const codes = parseRffmCompetitionUrl(url)
+  if (!codes.cod_competicion || !codes.cod_grupo || !codes.cod_tipojuego || !codes.cod_temporada) {
+    return {
+      pdf: pdfRow,
+      cod_temporada: codes.cod_temporada ?? CURRENT_SEASON,
+      cod_tipojuego: codes.cod_tipojuego ?? '',
+      cod_competicion: codes.cod_competicion ?? null,
+      cod_grupo: codes.cod_grupo ?? null,
+      nombre_competicion: null,
+      nombre_grupo: null,
+      codigo_equipo_nuestro: null,
+      nombre_equipo_nuestro: null,
+      reason: 'URL incompleta. Faltan params: temporada, competicion, grupo o tipojuego.',
+      competitionCandidates: 0,
+      groupCandidates: 0,
+    }
+  }
+
+  // Verificar / cargar nombres reales desde RFFM API
+  const cache = new RffmCache()
+  const comps = await cache.getCompetitions(codes.cod_tipojuego, codes.cod_temporada)
+  const comp = comps.find(c => c.codigo === codes.cod_competicion)
+  const groups = await cache.getGroups(codes.cod_competicion)
+  const grp = groups.find(g => g.codigo === codes.cod_grupo)
+
+  // Resolver código de equipo del club (mismo flow que el match automático)
+  let equiposClub: RffmEquipoClub[] = []
+  try {
+    const ficha = await fetchRffmSSR<FichaClubResponse>(`fichaclub/${codigoClub}`)
+    equiposClub = ficha.club?.equipos_club ?? []
+  } catch {/* no-op */}
+  const eqClub = matchEquipoClub(pdfRow.equipo, pdfRow.categoria, equiposClub)
+
+  return {
+    pdf: pdfRow,
+    cod_temporada: codes.cod_temporada,
+    cod_tipojuego: codes.cod_tipojuego,
+    cod_competicion: codes.cod_competicion,
+    cod_grupo: codes.cod_grupo,
+    nombre_competicion: comp?.nombre ?? pdfRow.competicion,
+    nombre_grupo: grp?.nombre ?? pdfRow.grupo,
+    codigo_equipo_nuestro: eqClub?.codigo_equipo ?? null,
+    nombre_equipo_nuestro: eqClub?.nombre_equipo ?? null,
+    reason: comp && grp
+      ? (eqClub ? 'OK (vía URL manual)' : 'OK competition+grupo, sin equipo (vía URL manual)')
+      : (!comp ? 'URL inválida: competición no existe en RFFM' : 'URL inválida: grupo no pertenece a la competición'),
+    competitionCandidates: comps.length,
+    groupCandidates: groups.length,
+  }
+}
+
 // ── Función principal: importa lista de PdfRow ────────────────────
 
 export async function importClubFromPdfRows(

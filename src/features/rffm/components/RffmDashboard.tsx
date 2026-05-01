@@ -21,6 +21,7 @@ import {
   parseClubPdfAction,
   matchClubPdfRows,
   bulkInsertTrackedFromPdf,
+  resolveRowWithUrl,
 } from '@/features/rffm/actions/rffm.actions'
 
 // ── Constants ──────────────────────────────────────────────────
@@ -472,18 +473,80 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
   function handleBulkInsert() {
     if (!pdfMatchResult || pdfSelected.size === 0) { toast.error('Selecciona al menos una fila'); return }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const selected = pdfMatchResult.matched.filter((_: any, i: number) => pdfSelected.has(i))
+    const selectedIdx = [...pdfSelected].sort((a, b) => a - b)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const selected = selectedIdx.map((i: number) => pdfMatchResult.matched[i])
     startTransition(async () => {
       const toastId = toast.loading(`Insertando ${selected.length} competiciones…`)
       const r = await bulkInsertTrackedFromPdf(selected)
       toast.dismiss(toastId)
       if (r.success) {
-        toast.success(`Creadas ${r.inserted} · Actualizadas ${r.updated} · Saltadas ${r.skipped}`)
-        setShowImportPdf(false)
-        router.refresh()
+        const errors = r.perRow?.filter(x => x.status === 'error') ?? []
+        if (errors.length > 0) {
+          toast.error(`${errors.length} fila(s) con error. Creadas ${r.inserted} · Actualizadas ${r.updated}`)
+          // Mostrar primeros errores en consola para inspección
+          console.error('Bulk insert errors:', errors.map(e => ({ idx: e.index, reason: e.reason })))
+        } else {
+          toast.success(`Creadas ${r.inserted} · Actualizadas ${r.updated} · Saltadas ${r.skipped}`)
+          setShowImportPdf(false)
+          router.refresh()
+        }
       } else {
         toast.error(r.error ?? 'Error insertando')
       }
+    })
+  }
+
+  // Resolver fila individual desde URL pegada por el usuario
+  const [resolvingIdx, setResolvingIdx] = useState<number | null>(null)
+  const [urlInput, setUrlInput] = useState('')
+
+  function handleResolveRow(idx: number, applyToSimilar: boolean) {
+    if (!pdfMatchResult || !urlInput.trim()) { toast.error('Pega la URL primero'); return }
+    if (!pdfClubCode.trim()) { toast.error('Falta el código del club'); return }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const targetRow = pdfMatchResult.matched[idx]
+    if (!targetRow) return
+    startTransition(async () => {
+      const r = await resolveRowWithUrl(targetRow.pdf, urlInput.trim(), pdfClubCode.trim())
+      if (!r.success || !r.row) {
+        toast.error(r.error ?? 'No se pudo resolver desde la URL')
+        return
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const newMatched = [...pdfMatchResult.matched]
+      newMatched[idx] = r.row
+      const newSelected = new Set(pdfSelected)
+      if (r.row.cod_competicion && r.row.cod_grupo) newSelected.add(idx)
+      let resolvedCount = 1
+
+      if (applyToSimilar) {
+        // Aplica los mismos cod_competicion + cod_grupo a OTRAS filas con misma
+        // (categoria + competicion + grupo) del PDF — ej. "PRIMERA PREBENJAMIN
+        // Grupo 32" tiene varias filas (Equipo C, Equipo F)
+        for (let i = 0; i < newMatched.length; i++) {
+          if (i === idx) continue
+          const m = newMatched[i]
+          const sameComp = m.pdf.categoria === targetRow.pdf.categoria &&
+                          m.pdf.competicion === targetRow.pdf.competicion &&
+                          m.pdf.grupo === targetRow.pdf.grupo
+          if (sameComp && (!m.cod_competicion || !m.cod_grupo)) {
+            // Re-resolver para esa fila pero con su PROPIO equipo (codigo_equipo distinto)
+            const r2 = await resolveRowWithUrl(m.pdf, urlInput.trim(), pdfClubCode.trim())
+            if (r2.success && r2.row) {
+              newMatched[i] = r2.row
+              if (r2.row.cod_competicion && r2.row.cod_grupo) newSelected.add(i)
+              resolvedCount++
+            }
+          }
+        }
+      }
+
+      setPdfMatchResult({ ...pdfMatchResult, matched: newMatched })
+      setPdfSelected(newSelected)
+      setResolvingIdx(null)
+      setUrlInput('')
+      toast.success(`Resuelta${resolvedCount > 1 ? `s ${resolvedCount} filas` : ''}`)
     })
   }
 
@@ -1267,10 +1330,58 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
                                         <div className="text-[10px] text-gray-500">{m.nombre_grupo ?? m.pdf.grupo}</div>
                                       </td>
                                       <td className="px-2 py-1.5">
-                                        {ok && eqOk && <span className="text-emerald-700">✓ Listo</span>}
-                                        {ok && !eqOk && <span className="text-amber-700" title="Sin código de equipo">⚠ Sin equipo</span>}
-                                        {!ok && m.cod_competicion && <span className="text-amber-700" title="Sin grupo">⚠ Sin grupo</span>}
-                                        {!m.cod_competicion && <span className="text-red-700" title={m.reason}>✗ Sin comp</span>}
+                                        <div className="flex items-center justify-between gap-1">
+                                          <div>
+                                            {ok && eqOk && <span className="text-emerald-700">✓ Listo</span>}
+                                            {ok && !eqOk && <span className="text-amber-700" title="Sin código de equipo">⚠ Sin equipo</span>}
+                                            {!ok && m.cod_competicion && <span className="text-amber-700" title="Sin grupo">⚠ Sin grupo</span>}
+                                            {!m.cod_competicion && <span className="text-red-700" title={m.reason}>✗ Sin comp</span>}
+                                          </div>
+                                          {!ok && (
+                                            <button
+                                              onClick={() => setResolvingIdx(resolvingIdx === i ? null : i)}
+                                              className="text-[10px] text-blue-600 hover:underline whitespace-nowrap"
+                                              title="Pegar URL de RFFM para resolver manualmente"
+                                            >
+                                              🔗 URL
+                                            </button>
+                                          )}
+                                        </div>
+                                        {resolvingIdx === i && (
+                                          <div className="mt-1 space-y-1">
+                                            <input
+                                              type="text"
+                                              value={urlInput}
+                                              onChange={(e) => setUrlInput(e.target.value)}
+                                              placeholder="https://www.rffm.es/competicion/clasificaciones?temporada=21&..."
+                                              className="w-full text-[10px] px-2 py-1 border border-gray-300 rounded font-mono"
+                                              autoFocus
+                                            />
+                                            <div className="flex gap-1">
+                                              <button
+                                                onClick={() => handleResolveRow(i, false)}
+                                                disabled={isPending}
+                                                className="text-[10px] px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
+                                              >
+                                                Resolver
+                                              </button>
+                                              <button
+                                                onClick={() => handleResolveRow(i, true)}
+                                                disabled={isPending}
+                                                className="text-[10px] px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded disabled:opacity-50"
+                                                title="Aplica esta misma URL a otras filas con la misma competición + grupo del PDF"
+                                              >
+                                                + similares
+                                              </button>
+                                              <button
+                                                onClick={() => { setResolvingIdx(null); setUrlInput('') }}
+                                                className="text-[10px] px-2 py-0.5 text-gray-500"
+                                              >
+                                                ×
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
                                       </td>
                                     </tr>
                                   )
