@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { ArrowLeft, Plus, Trash2, Check, Euro, Receipt } from 'lucide-react'
 import {
   addCharge,
+  addChargesBulk,
   deleteCharge,
   markChargePaid,
   addActivityExpense,
@@ -27,10 +28,11 @@ interface Props {
   activity: Activity
   charges: ActivityCharge[]
   expenses: ActivityExpense[]
-  players: Array<{ id: string; first_name: string; last_name: string }>
+  players: Array<{ id: string; first_name: string; last_name: string; team_id?: string | null }>
+  teams?: Array<{ id: string; name: string }>
 }
 
-export function ActivityDetail({ activity, charges, expenses, players }: Props) {
+export function ActivityDetail({ activity, charges, expenses, players, teams = [] }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<'charges' | 'expenses'>('charges')
   const [isPending, startTransition] = useTransition()
@@ -44,6 +46,66 @@ export function ActivityDetail({ activity, charges, expenses, players }: Props) 
   const [markPaid, setMarkPaid] = useState(true)
   const [method, setMethod] = useState<'cash' | 'card' | 'transfer'>('cash')
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10))
+
+  // Bulk add desde equipos
+  const [showBulk, setShowBulk] = useState(false)
+  const [bulkAmount, setBulkAmount] = useState('')
+  const [bulkConcept, setBulkConcept] = useState('')
+  const [bulkPaid, setBulkPaid] = useState(false)
+  const [bulkMethod, setBulkMethod] = useState<'cash' | 'card' | 'transfer'>('cash')
+  const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set())
+  const [bulkExpandedTeams, setBulkExpandedTeams] = useState<Set<string>>(new Set())
+
+  // IDs de jugadores ya cobrados para excluirlos del modal
+  const alreadyChargedIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const c of charges) if (c.player_id) set.add(c.player_id)
+    return set
+  }, [charges])
+
+  function handleAddTeamToBulk(teamId: string) {
+    const teamPlayerIds = players
+      .filter(p => p.team_id === teamId && !alreadyChargedIds.has(p.id))
+      .map(p => p.id)
+    setBulkSelected(prev => {
+      const next = new Set(prev)
+      for (const id of teamPlayerIds) next.add(id)
+      return next
+    })
+    setBulkExpandedTeams(prev => {
+      const next = new Set(prev)
+      next.add(teamId)
+      return next
+    })
+  }
+
+  function handleSubmitBulk() {
+    const amt = parseFloat(bulkAmount)
+    if (!amt || amt < 0) { toast.error('Importe inválido'); return }
+    if (bulkSelected.size === 0) { toast.error('No hay jugadores seleccionados'); return }
+    startTransition(async () => {
+      const res = await addChargesBulk({
+        activityId: activity.id,
+        playerIds: [...bulkSelected],
+        amount: amt,
+        concept: bulkConcept || undefined,
+        paid: bulkPaid,
+        paymentMethod: bulkPaid ? bulkMethod : null,
+        paymentDate: bulkPaid ? new Date().toISOString().slice(0, 10) : null,
+      })
+      if (res.success) {
+        toast.success(`${res.inserted} cobros añadidos`)
+        setShowBulk(false)
+        setBulkSelected(new Set())
+        setBulkAmount('')
+        setBulkConcept('')
+        setBulkExpandedTeams(new Set())
+        router.refresh()
+      } else {
+        toast.error(res.error ?? 'Error')
+      }
+    })
+  }
 
   // Expense form
   const [expConcept, setExpConcept] = useState('')
@@ -203,7 +265,17 @@ export function ActivityDetail({ activity, charges, expenses, players }: Props) 
         <>
           {/* Add charge */}
           <div className="card p-4 space-y-3">
-            <h3 className="font-semibold text-sm">Añadir cobro</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Añadir cobro</h3>
+              {teams.length > 0 && (
+                <button
+                  onClick={() => setShowBulk(true)}
+                  className="px-3 py-1.5 text-xs font-medium rounded-md bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Añadir desde equipos
+                </button>
+              )}
+            </div>
             <div className="flex gap-2 text-xs">
               <button
                 onClick={() => setUseExisting(true)}
@@ -405,6 +477,173 @@ export function ActivityDetail({ activity, charges, expenses, players }: Props) 
             )}
           </div>
         </>
+      )}
+
+      {/* Modal: Añadir desde equipos */}
+      {showBulk && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowBulk(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-gray-900">Añadir desde equipos</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Selecciona equipos y desmarca los jugadores que no van. Puedes mezclar de varios equipos.
+                  Los ya cobrados no aparecen.
+                </p>
+              </div>
+              <button onClick={() => setShowBulk(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+            </div>
+
+            {/* Importe + concepto + pagado */}
+            <div className="p-5 border-b border-gray-100 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Importe por jugador *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={bulkAmount}
+                    onChange={(e) => setBulkAmount(e.target.value)}
+                    placeholder="25.00"
+                    className="input w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Concepto</label>
+                  <input
+                    type="text"
+                    value={bulkConcept}
+                    onChange={(e) => setBulkConcept(e.target.value)}
+                    placeholder="Inscripción torneo X"
+                    className="input w-full"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap text-sm">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={bulkPaid}
+                    onChange={(e) => setBulkPaid(e.target.checked)}
+                  />
+                  Marcar todos como pagados
+                </label>
+                {bulkPaid && (
+                  <select
+                    value={bulkMethod}
+                    onChange={(e) => setBulkMethod(e.target.value as typeof bulkMethod)}
+                    className="input w-auto text-sm"
+                  >
+                    <option value="cash">Efectivo</option>
+                    <option value="card">Tarjeta</option>
+                    <option value="transfer">Transferencia</option>
+                  </select>
+                )}
+              </div>
+            </div>
+
+            {/* Botones añadir equipo entero */}
+            <div className="p-5 border-b border-gray-100">
+              <p className="text-xs font-medium text-gray-700 mb-2">Añadir todos los jugadores de un equipo</p>
+              <div className="flex flex-wrap gap-1.5">
+                {teams.map((t) => {
+                  const teamPlayers = players.filter(p => p.team_id === t.id && !alreadyChargedIds.has(p.id))
+                  if (teamPlayers.length === 0) return null
+                  const allSelected = teamPlayers.every(p => bulkSelected.has(p.id))
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => handleAddTeamToBulk(t.id)}
+                      className={`px-2.5 py-1 text-xs rounded-md border ${
+                        allSelected
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                          : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      {t.name} ({teamPlayers.length}){allSelected && ' ✓'}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Lista de jugadores agrupada por equipo */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              {teams.map((t) => {
+                const teamPlayers = players.filter(p => p.team_id === t.id && !alreadyChargedIds.has(p.id))
+                if (teamPlayers.length === 0) return null
+                const expanded = bulkExpandedTeams.has(t.id) || teamPlayers.some(p => bulkSelected.has(p.id))
+                if (!expanded) return null
+
+                return (
+                  <div key={t.id} className="border border-gray-200 rounded-md p-2">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-xs font-semibold text-gray-700">{t.name}</p>
+                      <button
+                        onClick={() => {
+                          const ids = teamPlayers.map(p => p.id)
+                          const allSelected = ids.every(id => bulkSelected.has(id))
+                          setBulkSelected(prev => {
+                            const next = new Set(prev)
+                            if (allSelected) for (const id of ids) next.delete(id)
+                            else for (const id of ids) next.add(id)
+                            return next
+                          })
+                        }}
+                        className="text-xs text-blue-600 hover:underline"
+                      >
+                        {teamPlayers.every(p => bulkSelected.has(p.id)) ? 'Desmarcar todos' : 'Marcar todos'}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                      {teamPlayers.map((p) => (
+                        <label key={p.id} className="flex items-center gap-2 text-xs px-2 py-1 hover:bg-gray-50 rounded cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={bulkSelected.has(p.id)}
+                            onChange={(e) => {
+                              setBulkSelected(prev => {
+                                const next = new Set(prev)
+                                if (e.target.checked) next.add(p.id)
+                                else next.delete(p.id)
+                                return next
+                              })
+                            }}
+                          />
+                          <span>{p.last_name}, {p.first_name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="p-4 border-t border-gray-100 flex items-center justify-between gap-3">
+              <p className="text-sm text-gray-600">
+                <strong>{bulkSelected.size}</strong> jugadores seleccionados
+                {bulkAmount && Number(bulkAmount) > 0 && (
+                  <span> · Total: <strong>{formatCurrency(bulkSelected.size * Number(bulkAmount))}</strong></span>
+                )}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowBulk(false)}
+                  className="px-4 py-2 text-sm rounded-md border border-gray-300 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSubmitBulk}
+                  disabled={isPending || bulkSelected.size === 0 || !bulkAmount}
+                  className="px-4 py-2 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50"
+                >
+                  {isPending ? 'Creando…' : `Crear ${bulkSelected.size} cobros`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

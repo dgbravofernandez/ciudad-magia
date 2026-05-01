@@ -20,7 +20,7 @@ export default async function ActividadDetailPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
 
-  const [{ data: activity }, { data: charges }, { data: expenses }, { data: players }] =
+  const [{ data: activity }, { data: charges }, { data: expenses }, { data: players }, { data: teams }] =
     await Promise.all([
       sb.from('activities').select('*').eq('id', id).eq('club_id', clubId).single(),
       sb
@@ -35,10 +35,16 @@ export default async function ActividadDetailPage({
         .order('expense_date', { ascending: false }),
       sb
         .from('players')
-        .select('id, first_name, last_name')
+        .select('id, first_name, last_name, team_id')
         .eq('club_id', clubId)
         .neq('status', 'low')
         .order('last_name'),
+      sb
+        .from('teams')
+        .select('id, name')
+        .eq('club_id', clubId)
+        .eq('active', true)
+        .order('name'),
     ])
 
   if (!activity) {
@@ -63,7 +69,8 @@ export default async function ActividadDetailPage({
           activity={activity}
           charges={charges ?? []}
           expenses={expenses ?? []}
-          players={(players ?? []) as Array<{ id: string; first_name: string; last_name: string }>}
+          players={(players ?? []) as Array<{ id: string; first_name: string; last_name: string; team_id: string | null }>}
+          teams={(teams ?? []) as Array<{ id: string; name: string }>}
         />
       </div>
     </div>

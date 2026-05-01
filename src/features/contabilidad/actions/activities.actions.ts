@@ -178,6 +178,76 @@ export async function addCharge(input: {
   }
 }
 
+/**
+ * Bulk insert: crea N cobros para una actividad de un solo viaje.
+ * Útil para añadir un equipo entero (todos los jugadores con el mismo importe).
+ * Cada cobro es individual — el equipo es solo un atajo de UX.
+ */
+export async function addChargesBulk(input: {
+  activityId: string
+  playerIds: string[]
+  amount: number
+  concept?: string
+  paid?: boolean
+  paymentMethod?: 'transfer' | 'cash' | 'card' | null
+  paymentDate?: string | null
+}): Promise<{ success: boolean; error?: string; inserted?: number }> {
+  try {
+    const { clubId, memberId, roles } = await getClubContext()
+    if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
+    if (!input.playerIds?.length) return { success: false, error: 'No hay jugadores seleccionados' }
+    if (input.amount < 0) return { success: false, error: 'Importe inválido' }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+
+    // Cargar nombres de los jugadores para incluir en el cash_movement description
+    const { data: players } = await sb
+      .from('players')
+      .select('id, first_name, last_name')
+      .eq('club_id', clubId)
+      .in('id', input.playerIds)
+    const nameMap = new Map<string, string>()
+    for (const p of (players ?? [])) nameMap.set(p.id, `${p.first_name} ${p.last_name}`.trim())
+
+    const paymentDate = input.paid ? (input.paymentDate ?? new Date().toISOString().slice(0, 10)) : null
+    const rows = input.playerIds.map(pid => ({
+      club_id: clubId,
+      activity_id: input.activityId,
+      player_id: pid,
+      participant_name: null,
+      concept: input.concept?.trim() || null,
+      amount: input.amount,
+      paid: !!input.paid,
+      payment_method: input.paid ? input.paymentMethod ?? null : null,
+      payment_date: paymentDate,
+      registered_by: memberId || null,
+    }))
+
+    const { error } = await sb.from('activity_charges').insert(rows)
+    if (error) return { success: false, error: error.message }
+
+    // Si vienen pagados con cash/card → registrar movimientos de caja por jugador
+    if (input.paid && (input.paymentMethod === 'cash' || input.paymentMethod === 'card')) {
+      const movements = input.playerIds.map(pid => ({
+        club_id: clubId,
+        type: 'income',
+        amount: input.amount,
+        payment_method: input.paymentMethod,
+        description: `Actividad · ${input.concept ?? ''} ${nameMap.get(pid) ?? ''}`.trim(),
+        movement_date: paymentDate,
+        registered_by: memberId || null,
+      }))
+      await sb.from('cash_movements').insert(movements)
+    }
+
+    revalidatePath(`/contabilidad/actividades/${input.activityId}`)
+    return { success: true, inserted: rows.length }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
 export async function markChargePaid(
   chargeId: string,
   paymentMethod: 'transfer' | 'cash' | 'card',
