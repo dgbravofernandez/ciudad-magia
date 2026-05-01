@@ -22,7 +22,7 @@ export default async function TorneoDetailPage({ params }: { params: Promise<{ i
   if (!torneo) notFound()
 
   if (torneo.kind === 'external') {
-    const [budgetRes, itemsRes, attendeesRes, playersRes] = await Promise.all([
+    const [budgetRes, itemsRes, attendeesRes, playersRes, teamsRes] = await Promise.all([
       sb.from('tournament_budget').select('*').eq('tournament_id', id).maybeSingle(),
       sb.from('tournament_budget_items').select('*').eq('tournament_id', id).order('created_at'),
       sb.from('tournament_attendees')
@@ -34,6 +34,11 @@ export default async function TorneoDetailPage({ params }: { params: Promise<{ i
         .eq('club_id', clubId)
         .eq('status', 'active')
         .order('last_name'),
+      sb.from('teams')
+        .select('id, name')
+        .eq('club_id', clubId)
+        .eq('active', true)
+        .order('name'),
     ])
 
     return (
@@ -43,6 +48,7 @@ export default async function TorneoDetailPage({ params }: { params: Promise<{ i
         items={itemsRes.data ?? []}
         attendees={attendeesRes.data ?? []}
         allPlayers={playersRes.data ?? []}
+        teams={teamsRes.data ?? []}
       />
     )
   }

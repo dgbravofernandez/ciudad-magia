@@ -1,5 +1,5 @@
 'use client'
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
@@ -23,6 +23,7 @@ import {
   bulkInsertTrackedFromPdf,
   resolveRowWithUrl,
 } from '@/features/rffm/actions/rffm.actions'
+import { getRffmConfig, saveRffmCodigoClub } from '@/features/integraciones/actions/rffm-config.actions'
 
 // ── Constants ──────────────────────────────────────────────────
 
@@ -422,6 +423,31 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
   const [pdfResult, setPdfResult] = useState<any>(null)
   const [pdfError, setPdfError] = useState<string | null>(null)
   const [pdfClubCode, setPdfClubCode] = useState('')
+  const [pdfClubCodeFromConfig, setPdfClubCodeFromConfig] = useState(false)
+
+  // Cargar el codigo_club guardado en config al abrir el modal del PDF
+  useEffect(() => {
+    if (!showImportPdf || pdfClubCode) return
+    let cancelled = false
+    ;(async () => {
+      const r = await getRffmConfig()
+      if (cancelled) return
+      if (r.success && r.codigoClub) {
+        setPdfClubCode(r.codigoClub)
+        setPdfClubCodeFromConfig(true)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [showImportPdf, pdfClubCode])
+
+  function handleSaveClubCode() {
+    if (!pdfClubCode.trim()) return
+    startTransition(async () => {
+      const r = await saveRffmCodigoClub(pdfClubCode.trim())
+      if (r.success) { toast.success('Código guardado en config'); setPdfClubCodeFromConfig(true) }
+      else toast.error(r.error ?? 'Error')
+    })
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [pdfMatchResult, setPdfMatchResult] = useState<any>(null)
   const [pdfSelected, setPdfSelected] = useState<Set<number>>(new Set())
@@ -497,9 +523,47 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
     })
   }
 
-  // Resolver fila individual desde URL pegada por el usuario
+  // Resolver fila individual desde URL pegada por el usuario.
+  // Para filas ya en pdfMatchResult.matched usamos índice (number).
+  // Para líneas unparsed (no parseadas del PDF) usamos su string raw.
   const [resolvingIdx, setResolvingIdx] = useState<number | null>(null)
+  const [resolvingUnparsed, setResolvingUnparsed] = useState<string | null>(null)
   const [urlInput, setUrlInput] = useState('')
+
+  // Resolver una línea unparsed pegando una URL de RFFM.
+  // Fabricamos un PdfRow con datos vacíos y la añadimos al matched[]
+  function handleResolveUnparsed(rawLine: string) {
+    if (!urlInput.trim()) { toast.error('Pega la URL primero'); return }
+    if (!pdfClubCode.trim()) { toast.error('Falta el código del club'); return }
+    const fabricated = {
+      equipo: rawLine.length > 60 ? rawLine.slice(0, 60) + '…' : rawLine,
+      categoria: '',
+      competicion: '',
+      grupo: '',
+      raw: rawLine,
+    }
+    startTransition(async () => {
+      const r = await resolveRowWithUrl(fabricated, urlInput.trim(), pdfClubCode.trim())
+      if (!r.success || !r.row) {
+        toast.error(r.error ?? 'No se pudo resolver desde la URL')
+        return
+      }
+      // Añadir al matched, quitar del unparsed
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const newMatched = [...(pdfMatchResult?.matched ?? []), r.row]
+      const newUnparsed = (pdfResult?.unparsed ?? []).filter((u: string) => u !== rawLine)
+      const newSelected = new Set(pdfSelected)
+      if (r.row.cod_competicion && r.row.cod_grupo) {
+        newSelected.add(newMatched.length - 1)
+      }
+      setPdfMatchResult({ ...(pdfMatchResult ?? { okCount: 0, partialCount: 0, failedCount: 0, total: 0 }), matched: newMatched })
+      setPdfResult({ ...pdfResult, unparsed: newUnparsed })
+      setPdfSelected(newSelected)
+      setResolvingUnparsed(null)
+      setUrlInput('')
+      toast.success('Línea resuelta y añadida')
+    })
+  }
 
   function handleResolveRow(idx: number, applyToSimilar: boolean) {
     if (!pdfMatchResult || !urlInput.trim()) { toast.error('Pega la URL primero'); return }
@@ -1210,11 +1274,54 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
                       </div>
 
                       {pdfResult.unparsed.length > 0 && (
-                        <details className="text-xs text-gray-500">
-                          <summary className="cursor-pointer">Líneas que no pudimos parsear ({pdfResult.unparsed.length})</summary>
-                          <ul className="mt-2 space-y-1 font-mono">
+                        <details className="text-xs text-gray-500" open>
+                          <summary className="cursor-pointer font-medium text-amber-700">
+                            ⚠ Líneas que no pudimos parsear ({pdfResult.unparsed.length}) — pega URL para resolver
+                          </summary>
+                          <ul className="mt-2 space-y-2">
                             {pdfResult.unparsed.map((u: string, i: number) => (
-                              <li key={i} className="bg-gray-50 px-2 py-1 rounded">{u}</li>
+                              <li key={i} className="bg-amber-50/60 border border-amber-200 px-2 py-1.5 rounded text-[11px]">
+                                <div className="flex items-start justify-between gap-2 font-mono">
+                                  <span className="flex-1 break-all">{u}</span>
+                                  {pdfClubCode.trim() ? (
+                                    <button
+                                      onClick={() => setResolvingUnparsed(resolvingUnparsed === u ? null : u)}
+                                      className="shrink-0 text-blue-600 hover:underline whitespace-nowrap font-sans"
+                                    >
+                                      🔗 URL
+                                    </button>
+                                  ) : (
+                                    <span className="shrink-0 text-gray-400 italic font-sans">pega código club ↑</span>
+                                  )}
+                                </div>
+                                {resolvingUnparsed === u && (
+                                  <div className="mt-1.5 space-y-1">
+                                    <input
+                                      type="text"
+                                      value={urlInput}
+                                      onChange={(e) => setUrlInput(e.target.value)}
+                                      placeholder="https://www.rffm.es/competicion/clasificaciones?temporada=21&..."
+                                      className="w-full text-[10px] px-2 py-1 border border-gray-300 rounded font-mono"
+                                      autoFocus
+                                    />
+                                    <div className="flex gap-1">
+                                      <button
+                                        onClick={() => handleResolveUnparsed(u)}
+                                        disabled={isPending}
+                                        className="text-[10px] px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50 font-sans"
+                                      >
+                                        Resolver y añadir
+                                      </button>
+                                      <button
+                                        onClick={() => { setResolvingUnparsed(null); setUrlInput('') }}
+                                        className="text-[10px] px-2 py-0.5 text-gray-500 font-sans"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </li>
                             ))}
                           </ul>
                         </details>
@@ -1223,16 +1330,32 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
                       {/* Step 2: Match con RFFM */}
                       <div className="border-t border-gray-200 pt-4 mt-4">
                         <h4 className="font-medium text-gray-900 text-sm mb-2">Paso 2 · Matchear con RFFM API</h4>
-                        <p className="text-xs text-gray-500 mb-2">
-                          Pega el <strong>código del club RFFM</strong> (ej. <code>3824</code>). Lo encuentras en la URL de cualquiera de tus equipos: <code>rffm.es/fichaequipo/<strong>466882</strong></code> abre el equipo y mira <code>codigo_club</code> en el HTML, o pásamelo si lo conoces.
-                        </p>
+                        {pdfClubCodeFromConfig ? (
+                          <p className="text-xs text-emerald-700 mb-2">
+                            ✓ Código del club <code className="font-mono">{pdfClubCode}</code> cargado de configuración. Lo puedes cambiar en <a href="/configuracion/integraciones" className="underline">Integraciones</a>.
+                          </p>
+                        ) : (
+                          <p className="text-xs text-gray-500 mb-2">
+                            Pega el <strong>código del club RFFM</strong> (ej. <code>3824</code>) o la URL completa <code>rffm.es/fichaclub/3824</code>.
+                          </p>
+                        )}
                         <div className="flex gap-2 mb-2">
                           <input
                             value={pdfClubCode}
-                            onChange={e => setPdfClubCode(e.target.value)}
+                            onChange={e => { setPdfClubCode(e.target.value); setPdfClubCodeFromConfig(false) }}
                             placeholder="3824"
                             className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                           />
+                          {!pdfClubCodeFromConfig && pdfClubCode.trim() && (
+                            <button
+                              onClick={handleSaveClubCode}
+                              disabled={isPending}
+                              className="px-3 py-2 text-sm rounded-md border border-slate-300 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
+                              title="Guardar en config para no tener que escribirlo cada vez"
+                            >
+                              💾 Guardar
+                            </button>
+                          )}
                           <button
                             onClick={handleMatchPdf}
                             disabled={isPending || !pdfClubCode.trim()}

@@ -10,6 +10,10 @@ import {
   getBackendSheetConfig,
   type BackendSheetConfig,
 } from '@/features/integraciones/actions/backend-sheet.actions'
+import {
+  getRffmConfig,
+  saveRffmCodigoClub,
+} from '@/features/integraciones/actions/rffm-config.actions'
 
 export function IntegracionesPage() {
   const [config, setConfig] = useState<BackendSheetConfig | null>(null)
@@ -20,11 +24,19 @@ export function IntegracionesPage() {
   const [meta, setMeta] = useState<{ title: string; url: string; tabs: string[] } | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Config RFFM
+  const [rffmCodigo, setRffmCodigo] = useState<string>('')
+  const [rffmDraft, setRffmDraft] = useState<string>('')
+  const [rffmSaving, setRffmSaving] = useState(false)
+
   // Cargar config inicial
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const r = await getBackendSheetConfig()
+      const [r, rffm] = await Promise.all([
+        getBackendSheetConfig(),
+        getRffmConfig(),
+      ])
       if (cancelled) return
       if (r.success && r.config) {
         setConfig(r.config)
@@ -32,10 +44,35 @@ export function IntegracionesPage() {
       } else if (r.error) {
         toast.error(r.error)
       }
+      if (rffm.success) {
+        const c = rffm.codigoClub ?? ''
+        setRffmCodigo(c)
+        setRffmDraft(c)
+      }
       setLoading(false)
     })()
     return () => { cancelled = true }
   }, [])
+
+  function handleSaveRffmCodigo() {
+    if (!rffmDraft.trim()) { toast.error('Pega el código o la URL'); return }
+    setRffmSaving(true)
+    ;(async () => {
+      const r = await saveRffmCodigoClub(rffmDraft.trim())
+      setRffmSaving(false)
+      if (r.success) {
+        // Re-leer del backend para que se aplique extracción de URL
+        const fresh = await getRffmConfig()
+        if (fresh.success) {
+          setRffmCodigo(fresh.codigoClub ?? '')
+          setRffmDraft(fresh.codigoClub ?? '')
+        }
+        toast.success('Código RFFM guardado')
+      } else {
+        toast.error(r.error ?? 'Error guardando')
+      }
+    })()
+  }
 
   function handleSave() {
     if (!draftId.trim()) { toast.error('Pega el ID o la URL primero'); return }
@@ -98,6 +135,53 @@ export function IntegracionesPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
+      {/* Sección: Código del club RFFM */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="flex items-start gap-3 mb-4">
+          <ExternalLink className="w-6 h-6 text-blue-600 mt-0.5" />
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Código del club en RFFM</h2>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Identificador del club en la web de RFFM. Lo usamos para auto-detectar
+              <strong> código de equipo nuestro</strong> en cada competición que sigues, y para
+              el bulk-import desde el PDF de competiciones.
+              Lo encuentras en la URL: <code className="bg-slate-100 px-1 rounded">rffm.es/fichaclub/<strong>3824</strong></code>
+            </p>
+          </div>
+        </div>
+
+        <label className="block text-xs font-medium text-slate-600 mb-1">Código (o URL completa)</label>
+        <div className="flex gap-2">
+          <input
+            value={rffmDraft}
+            onChange={(e) => setRffmDraft(e.target.value)}
+            placeholder="3824 o https://www.rffm.es/fichaclub/3824"
+            className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+          />
+          <button
+            onClick={handleSaveRffmCodigo}
+            disabled={rffmSaving || !rffmDraft.trim() || rffmDraft.trim() === rffmCodigo}
+            className="px-3 py-2 text-sm rounded-md bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-40 flex items-center gap-1.5"
+          >
+            {rffmSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Guardar
+          </button>
+        </div>
+        {rffmCodigo && (
+          <p className="text-xs text-emerald-700 mt-2 flex items-center gap-1">
+            <CheckCircle className="w-3 h-3" /> Guardado: <code className="font-mono">{rffmCodigo}</code>
+            <a
+              href={`https://www.rffm.es/fichaclub/${rffmCodigo}`}
+              target="_blank"
+              rel="noreferrer"
+              className="ml-2 text-blue-600 hover:underline"
+            >
+              Verificar en RFFM ↗
+            </a>
+          </p>
+        )}
+      </div>
+
       {/* Sección: Backend Sheet */}
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <div className="flex items-start gap-3 mb-4">

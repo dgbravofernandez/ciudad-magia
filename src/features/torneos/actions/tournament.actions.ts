@@ -317,6 +317,57 @@ export async function addAttendee(input: {
   return { success: true }
 }
 
+/**
+ * Bulk insert: añade N jugadores a un torneo externo de un solo viaje.
+ * Mismo patrón que addChargesBulk de actividades — útil para añadir
+ * un equipo entero (ej. Alevín A) sin tener que añadir uno por uno.
+ *
+ * Si el jugador ya está apuntado, lo saltamos (unique constraint).
+ */
+export async function addAttendeesBulk(input: {
+  tournamentId: string
+  playerIds: string[]
+  amountDue: number
+  notes?: string | null
+}): Promise<{ success: boolean; error?: string; inserted?: number; skipped?: number }> {
+  const check = await verifyTournamentOwnership(input.tournamentId)
+  if (!check.ok) return { success: false, error: check.error }
+  if (!input.playerIds?.length) return { success: false, error: 'No hay jugadores seleccionados' }
+  if (input.amountDue < 0) return { success: false, error: 'Importe inválido' }
+
+  const supabase = createAdminClient()
+  const { memberId } = await getClubContext()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+
+  // Filtrar los que ya están apuntados (evita errores 23505 fila por fila)
+  const { data: existing } = await sb
+    .from('tournament_attendees')
+    .select('player_id')
+    .eq('tournament_id', input.tournamentId)
+    .in('player_id', input.playerIds)
+  const existingSet = new Set((existing ?? []).map((r: { player_id: string }) => r.player_id))
+  const newIds = input.playerIds.filter(id => !existingSet.has(id))
+
+  if (newIds.length === 0) {
+    return { success: true, inserted: 0, skipped: input.playerIds.length }
+  }
+
+  const rows = newIds.map(pid => ({
+    tournament_id: input.tournamentId,
+    player_id: pid,
+    amount_due: input.amountDue,
+    notes: input.notes?.trim() || null,
+    added_by: memberId ?? null,
+  }))
+
+  const { error } = await sb.from('tournament_attendees').insert(rows)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath(`/torneos/${input.tournamentId}`)
+  return { success: true, inserted: newIds.length, skipped: existingSet.size }
+}
+
 export async function removeAttendee(attendeeId: string, tournamentId: string): Promise<{ success: boolean; error?: string }> {
   const check = await verifyTournamentOwnership(tournamentId)
   if (!check.ok) return { success: false, error: check.error }

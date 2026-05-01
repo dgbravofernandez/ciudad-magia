@@ -267,18 +267,27 @@ import { importClubFromPdfRows, resolveRowFromUrl, type MatchedRow, type ImportR
  */
 export async function matchClubPdfRows(
   rows: PdfRow[],
-  codigoClub: string,
-): Promise<{ success: boolean; error?: string; result?: ImportResult }> {
+  codigoClub?: string,
+): Promise<{ success: boolean; error?: string; result?: ImportResult; usedCodigoClub?: string }> {
   try {
     const { roles } = await getClubContext()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    if (!codigoClub.trim()) return { success: false, error: 'Falta el código del club RFFM' }
     if (!rows?.length) return { success: false, error: 'No hay filas que importar' }
 
-    const result = await importClubFromPdfRows(rows, codigoClub.trim())
-    return { success: true, result }
+    // Fallback: si no nos pasan codigoClub, lo leemos de club_settings
+    let usedCodigoClub = codigoClub?.trim() ?? ''
+    if (!usedCodigoClub) {
+      const { getClubRffmCodigo } = await import('@/features/integraciones/actions/rffm-config.actions')
+      usedCodigoClub = (await getClubRffmCodigo()) ?? ''
+    }
+    if (!usedCodigoClub) {
+      return { success: false, error: 'Falta el código del club RFFM. Configúralo en /configuracion/integraciones.' }
+    }
+
+    const result = await importClubFromPdfRows(rows, usedCodigoClub)
+    return { success: true, result, usedCodigoClub }
   } catch (e) {
     return { success: false, error: (e as Error).message }
   }
@@ -292,7 +301,7 @@ export async function matchClubPdfRows(
 export async function resolveRowWithUrl(
   pdfRow: { equipo: string; categoria: string; competicion: string; grupo: string; raw: string },
   url: string,
-  codigoClub: string,
+  codigoClub?: string,
 ): Promise<{ success: boolean; error?: string; row?: MatchedRow }> {
   try {
     const { roles } = await getClubContext()
@@ -300,8 +309,15 @@ export async function resolveRowWithUrl(
       return { success: false, error: 'Sin permisos' }
     }
     if (!url.trim()) return { success: false, error: 'Pega la URL de la competición primero' }
-    if (!codigoClub.trim()) return { success: false, error: 'Falta el código del club' }
-    const row = await resolveRowFromUrl(pdfRow, url.trim(), codigoClub.trim())
+    let usedCodigoClub = codigoClub?.trim() ?? ''
+    if (!usedCodigoClub) {
+      const { getClubRffmCodigo } = await import('@/features/integraciones/actions/rffm-config.actions')
+      usedCodigoClub = (await getClubRffmCodigo()) ?? ''
+    }
+    if (!usedCodigoClub) {
+      return { success: false, error: 'Falta el código del club. Configúralo en /configuracion/integraciones.' }
+    }
+    const row = await resolveRowFromUrl(pdfRow, url.trim(), usedCodigoClub)
     return { success: true, row }
   } catch (e) {
     return { success: false, error: (e as Error).message }
