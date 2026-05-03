@@ -24,6 +24,9 @@ import {
   resolveRowWithUrl,
 } from '@/features/rffm/actions/rffm.actions'
 import { getRffmConfig, saveRffmCodigoClub } from '@/features/integraciones/actions/rffm-config.actions'
+import type { RffmHealth } from '@/features/rffm/actions/health.actions'
+import { WizardModal } from './WizardModal'
+import { SyncHealthBanner } from './SyncHealthBanner'
 
 // ── Constants ──────────────────────────────────────────────────
 
@@ -146,6 +149,7 @@ interface Props {
   enrichPending: number
   enrichExhausted: number
   signalsTotal: number
+  health: RffmHealth
 }
 
 const TABS = ['Mis equipos', 'Señales', 'Alertas amarillas', 'Competiciones', 'Sync'] as const
@@ -184,7 +188,7 @@ const defaultForm = {
 
 // ── Main component ─────────────────────────────────────────────
 
-export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, matches, standings, matchEvents, enrichPending, enrichExhausted, signalsTotal }: Props) {
+export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, matches, standings, matchEvents, enrichPending, enrichExhausted, signalsTotal, health }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [activeTab, setActiveTab] = useState<Tab>('Mis equipos')
@@ -679,63 +683,20 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => handleSync('scorers_f7')}
-            disabled={isPending}
-            title="Barrido solo Fútbol 7 (más rápido)"
-            className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
-          >
-            <Search className="w-4 h-4" />
-            Goleadores F7
-          </button>
-          <button
-            onClick={() => handleSync('scorers_f11')}
-            disabled={isPending}
-            title="Barrido solo Fútbol 11"
-            className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
-          >
-            <Search className="w-4 h-4" />
-            Goleadores F11
-          </button>
-          <button
             onClick={() => handleSync('full')}
             disabled={isPending}
             className="flex items-center gap-2 px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50"
             style={{ backgroundColor: 'var(--color-primary)' }}
+            title="Calendario + actas pendientes + tarjetas amarillas (≈50s). El resto de syncs (rivales, clasificaciones, perfiles) se ejecutan automáticamente — ver tab Sync."
           >
             <RefreshCw className={`w-4 h-4 ${isPending ? 'animate-spin' : ''}`} />
-            Sync nuestros equipos
+            Actualizar partidos
           </button>
         </div>
       </div>
 
-      {/* Banner enrich pendiente */}
-      {(enrichPending > 0 || enrichExhausted > 0) && (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 flex flex-wrap items-center gap-3 text-sm">
-          <div className="flex-1 min-w-[260px]">
-            <p className="font-medium text-amber-900">
-              {enrichPending > 0
-                ? <>Año de nacimiento pendiente: <strong>{enrichPending}</strong> de {signalsTotal} goleadores relevantes (≥10 goles)</>
-                : <>Sin pendientes de enrich</>
-              }
-              {enrichExhausted > 0 && (
-                <span className="ml-2 text-amber-700">· {enrichExhausted} fallaron tras 3 intentos</span>
-              )}
-            </p>
-            <p className="text-xs text-amber-700 mt-0.5">
-              Cron 3 veces/día (07:00, 15:00, 23:00) · ~250 perfiles paralelos cada vez. Primer barrido: ~2-3 días.
-            </p>
-          </div>
-          {enrichPending > 0 && (
-            <button
-              onClick={handleEnrichNow}
-              disabled={isPending}
-              className="px-3 py-1.5 text-sm font-medium rounded-md bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 whitespace-nowrap"
-            >
-              Enriquecer 50 ahora
-            </button>
-          )}
-        </div>
-      )}
+      {/* Health banner unificado: estado del módulo + acciones contextuales */}
+      <SyncHealthBanner health={health} onOpenWizard={() => setShowImportPdf(true)} />
 
       {/* Tabs */}
       <div className="flex gap-0 mb-6 border-b border-gray-200">
@@ -1036,10 +997,10 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
             <div className="flex items-center gap-2 flex-shrink-0 ml-4">
               <button
                 onClick={() => setShowImportPdf(true)}
-                className="flex items-center gap-2 px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50"
-                title="Sube el PDF NFG_VisCompeticiones_Club que descargas de RFFM"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                title="Auto-detecta TODAS las competiciones de tu club RFFM en un click. También permite subir el PDF como fallback."
               >
-                📄 Importar PDF
+                ⚡ Configurar desde RFFM
               </button>
               <button
                 onClick={() => setShowAddComp(true)}
@@ -1201,334 +1162,8 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
             </div>
           )}
 
-          {/* Importar PDF modal */}
-          {showImportPdf && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowImportPdf(false)}>
-              <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">Importar competiciones desde PDF</h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Sube el PDF <code className="bg-gray-100 px-1 rounded">NFG_VisCompeticiones_Club</code> que descargas desde la zona privada de tu club en RFFM.
-                      Detectaremos los equipos, categorías, competiciones y grupos. <strong>No crea nada todavía</strong> — primero verás la lista.
-                    </p>
-                  </div>
-                  <button onClick={() => setShowImportPdf(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
-                </div>
-                <div className="p-5 space-y-4">
-                  <form onSubmit={handleParsePdf} className="flex items-center gap-2 flex-wrap">
-                    <input
-                      type="file"
-                      name="file"
-                      accept="application/pdf"
-                      required
-                      className="text-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-1.5 file:text-white file:cursor-pointer"
-                    />
-                    <button
-                      type="submit"
-                      disabled={isPending}
-                      className="rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 text-sm font-medium disabled:opacity-50"
-                    >
-                      {isPending ? 'Parseando…' : 'Parsear PDF'}
-                    </button>
-                  </form>
-
-                  {pdfError && (
-                    <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-                      {pdfError}
-                    </div>
-                  )}
-
-                  {pdfResult && (
-                    <div className="space-y-3">
-                      <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-                        <p>
-                          <strong>{pdfResult.clubName ?? 'Club'}</strong>
-                          {pdfResult.season && <span> · Temporada {pdfResult.season}</span>}
-                          {' · '}<strong>{pdfResult.rows.length}</strong> competiciones detectadas
-                          {pdfResult.unparsed.length > 0 && <span> · {pdfResult.unparsed.length} sin parsear</span>}
-                        </p>
-                      </div>
-
-                      <div className="overflow-x-auto border border-gray-200 rounded-md">
-                        <table className="w-full text-xs">
-                          <thead className="bg-gray-50 text-gray-600">
-                            <tr>
-                              <th className="text-left px-2 py-1.5">Equipo</th>
-                              <th className="text-left px-2 py-1.5">Categoría</th>
-                              <th className="text-left px-2 py-1.5">Competición</th>
-                              <th className="text-left px-2 py-1.5">Grupo</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {pdfResult.rows.map((r: { equipo: string; categoria: string; competicion: string; grupo: string }, i: number) => (
-                              <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
-                                <td className="px-2 py-1.5 font-medium">{r.equipo}</td>
-                                <td className="px-2 py-1.5">{r.categoria}</td>
-                                <td className="px-2 py-1.5 text-gray-600">{r.competicion}</td>
-                                <td className="px-2 py-1.5 text-gray-700 whitespace-nowrap">{r.grupo}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {pdfResult.unparsed.length > 0 && (
-                        <details className="text-xs text-gray-500" open>
-                          <summary className="cursor-pointer font-medium text-amber-700">
-                            ⚠ Líneas que no pudimos parsear ({pdfResult.unparsed.length}) — pega URL para resolver
-                          </summary>
-                          <ul className="mt-2 space-y-2">
-                            {pdfResult.unparsed.map((u: string, i: number) => (
-                              <li key={i} className="bg-amber-50/60 border border-amber-200 px-2 py-1.5 rounded text-[11px]">
-                                <div className="flex items-start justify-between gap-2 font-mono">
-                                  <span className="flex-1 break-all">{u}</span>
-                                  {pdfClubCode.trim() ? (
-                                    <button
-                                      onClick={() => setResolvingUnparsed(resolvingUnparsed === u ? null : u)}
-                                      className="shrink-0 text-blue-600 hover:underline whitespace-nowrap font-sans"
-                                    >
-                                      🔗 URL
-                                    </button>
-                                  ) : (
-                                    <span className="shrink-0 text-gray-400 italic font-sans">pega código club ↑</span>
-                                  )}
-                                </div>
-                                {resolvingUnparsed === u && (
-                                  <div className="mt-1.5 space-y-1">
-                                    <input
-                                      type="text"
-                                      value={urlInput}
-                                      onChange={(e) => setUrlInput(e.target.value)}
-                                      placeholder="https://www.rffm.es/competicion/clasificaciones?temporada=21&..."
-                                      className="w-full text-[10px] px-2 py-1 border border-gray-300 rounded font-mono"
-                                      autoFocus
-                                    />
-                                    <div className="flex gap-1">
-                                      <button
-                                        onClick={() => handleResolveUnparsed(u)}
-                                        disabled={isPending}
-                                        className="text-[10px] px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50 font-sans"
-                                      >
-                                        Resolver y añadir
-                                      </button>
-                                      <button
-                                        onClick={() => { setResolvingUnparsed(null); setUrlInput('') }}
-                                        className="text-[10px] px-2 py-0.5 text-gray-500 font-sans"
-                                      >
-                                        ×
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      )}
-
-                      {/* Step 2: Match con RFFM */}
-                      <div className="border-t border-gray-200 pt-4 mt-4">
-                        <h4 className="font-medium text-gray-900 text-sm mb-2">Paso 2 · Matchear con RFFM API</h4>
-                        {pdfClubCodeFromConfig ? (
-                          <p className="text-xs text-emerald-700 mb-2">
-                            ✓ Código del club <code className="font-mono">{pdfClubCode}</code> cargado de configuración. Lo puedes cambiar en <a href="/configuracion/integraciones" className="underline">Integraciones</a>.
-                          </p>
-                        ) : (
-                          <p className="text-xs text-gray-500 mb-2">
-                            Pega el <strong>código del club RFFM</strong> (ej. <code>3824</code>) o la URL completa <code>rffm.es/fichaclub/3824</code>.
-                          </p>
-                        )}
-                        <div className="flex gap-2 mb-2">
-                          <input
-                            value={pdfClubCode}
-                            onChange={e => { setPdfClubCode(e.target.value); setPdfClubCodeFromConfig(false) }}
-                            placeholder="3824"
-                            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                          {!pdfClubCodeFromConfig && pdfClubCode.trim() && (
-                            <button
-                              onClick={handleSaveClubCode}
-                              disabled={isPending}
-                              className="px-3 py-2 text-sm rounded-md border border-slate-300 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap"
-                              title="Guardar en config para no tener que escribirlo cada vez"
-                            >
-                              💾 Guardar
-                            </button>
-                          )}
-                          <button
-                            onClick={handleMatchPdf}
-                            disabled={isPending || !pdfClubCode.trim()}
-                            className="px-4 py-2 text-sm rounded-md bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 whitespace-nowrap"
-                          >
-                            {isPending ? 'Matcheando…' : 'Matchear con RFFM'}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Step 3: Resultado matching + selección */}
-                      {pdfMatchResult && (
-                        <div className="border-t border-gray-200 pt-4 mt-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-medium text-gray-900 text-sm">
-                              Paso 3 · Selecciona y crea ({pdfSelected.size} de {pdfMatchResult.matched.length})
-                            </h4>
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => {
-                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                  const all = new Set<number>(pdfMatchResult.matched.map((_: any, i: number) => i))
-                                  setPdfSelected(all)
-                                }}
-                                className="text-xs text-blue-600 hover:underline"
-                              >
-                                Todas
-                              </button>
-                              <span className="text-xs text-gray-400">·</span>
-                              <button
-                                onClick={() => setPdfSelected(new Set())}
-                                className="text-xs text-blue-600 hover:underline"
-                              >
-                                Ninguna
-                              </button>
-                              <span className="text-xs text-gray-400">·</span>
-                              <button
-                                onClick={() => {
-                                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                  const ok = new Set<number>(pdfMatchResult.matched.map((m: any, i: number) => (m.cod_competicion && m.cod_grupo) ? i : -1).filter((i: number) => i >= 0))
-                                  setPdfSelected(ok)
-                                }}
-                                className="text-xs text-emerald-700 hover:underline"
-                              >
-                                Solo OK
-                              </button>
-                            </div>
-                          </div>
-                          <p className="text-xs text-gray-500 mb-2">
-                            <span className="text-emerald-700">✓ {pdfMatchResult.okCount} OK</span> ·
-                            <span className="text-amber-700"> ⚠ {pdfMatchResult.partialCount} parciales</span> ·
-                            <span className="text-red-700"> ✗ {pdfMatchResult.failedCount} sin match</span>
-                          </p>
-                          <div className="overflow-x-auto border border-gray-200 rounded-md max-h-96 overflow-y-auto">
-                            <table className="w-full text-xs">
-                              <thead className="bg-gray-50 text-gray-600 sticky top-0">
-                                <tr>
-                                  <th className="text-center px-1 py-1.5 w-8"></th>
-                                  <th className="text-left px-2 py-1.5">Equipo</th>
-                                  <th className="text-left px-2 py-1.5">Comp · Grupo</th>
-                                  <th className="text-left px-2 py-1.5 w-32">Estado</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                {pdfMatchResult.matched.map((m: any, i: number) => {
-                                  const ok = m.cod_competicion && m.cod_grupo
-                                  const eqOk = !!m.codigo_equipo_nuestro
-                                  const checked = pdfSelected.has(i)
-                                  return (
-                                    <tr key={i} className={`border-t border-gray-100 ${checked ? 'bg-blue-50/50' : ''}`}>
-                                      <td className="text-center px-1 py-1.5">
-                                        <input
-                                          type="checkbox"
-                                          checked={checked}
-                                          disabled={!ok}
-                                          onChange={(e) => {
-                                            const next = new Set(pdfSelected)
-                                            if (e.target.checked) next.add(i)
-                                            else next.delete(i)
-                                            setPdfSelected(next)
-                                          }}
-                                        />
-                                      </td>
-                                      <td className="px-2 py-1.5">
-                                        <div className="font-medium truncate max-w-[200px]">{m.pdf.equipo}</div>
-                                        {m.nombre_equipo_nuestro && m.nombre_equipo_nuestro !== m.pdf.equipo && (
-                                          <div className="text-[10px] text-gray-500 truncate max-w-[200px]">→ {m.nombre_equipo_nuestro}</div>
-                                        )}
-                                      </td>
-                                      <td className="px-2 py-1.5">
-                                        <div className="truncate max-w-[280px]" title={m.nombre_competicion ?? m.pdf.competicion}>
-                                          {m.nombre_competicion ?? m.pdf.competicion}
-                                        </div>
-                                        <div className="text-[10px] text-gray-500">{m.nombre_grupo ?? m.pdf.grupo}</div>
-                                      </td>
-                                      <td className="px-2 py-1.5">
-                                        <div className="flex items-center justify-between gap-1">
-                                          <div>
-                                            {ok && eqOk && <span className="text-emerald-700">✓ Listo</span>}
-                                            {ok && !eqOk && <span className="text-amber-700" title="Sin código de equipo">⚠ Sin equipo</span>}
-                                            {!ok && m.cod_competicion && <span className="text-amber-700" title="Sin grupo">⚠ Sin grupo</span>}
-                                            {!m.cod_competicion && <span className="text-red-700" title={m.reason}>✗ Sin comp</span>}
-                                          </div>
-                                          {!ok && (
-                                            <button
-                                              onClick={() => setResolvingIdx(resolvingIdx === i ? null : i)}
-                                              className="text-[10px] text-blue-600 hover:underline whitespace-nowrap"
-                                              title="Pegar URL de RFFM para resolver manualmente"
-                                            >
-                                              🔗 URL
-                                            </button>
-                                          )}
-                                        </div>
-                                        {resolvingIdx === i && (
-                                          <div className="mt-1 space-y-1">
-                                            <input
-                                              type="text"
-                                              value={urlInput}
-                                              onChange={(e) => setUrlInput(e.target.value)}
-                                              placeholder="https://www.rffm.es/competicion/clasificaciones?temporada=21&..."
-                                              className="w-full text-[10px] px-2 py-1 border border-gray-300 rounded font-mono"
-                                              autoFocus
-                                            />
-                                            <div className="flex gap-1">
-                                              <button
-                                                onClick={() => handleResolveRow(i, false)}
-                                                disabled={isPending}
-                                                className="text-[10px] px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
-                                              >
-                                                Resolver
-                                              </button>
-                                              <button
-                                                onClick={() => handleResolveRow(i, true)}
-                                                disabled={isPending}
-                                                className="text-[10px] px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded disabled:opacity-50"
-                                                title="Aplica esta misma URL a otras filas con la misma competición + grupo del PDF"
-                                              >
-                                                + similares
-                                              </button>
-                                              <button
-                                                onClick={() => { setResolvingIdx(null); setUrlInput('') }}
-                                                className="text-[10px] px-2 py-0.5 text-gray-500"
-                                              >
-                                                ×
-                                              </button>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  )
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                          <div className="flex justify-end gap-2 mt-3">
-                            <button
-                              onClick={handleBulkInsert}
-                              disabled={isPending || pdfSelected.size === 0}
-                              className="px-4 py-2 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50"
-                            >
-                              {isPending ? 'Insertando…' : `Crear ${pdfSelected.size} competiciones`}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Wizard modal — reemplaza al modal de PDF antiguo */}
+          <WizardModal open={showImportPdf} onClose={() => setShowImportPdf(false)} trackedCompsCount={trackedComps.length} />
 
           {/* Add comp modal */}
           {showAddComp && (
@@ -1624,10 +1259,10 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {([
-              ['Sync nuestros equipos', 'full', 'Calendario + 15 actas pendientes + Tarjetas (cabe en 60s)', 'text-purple-600'],
-              ['Barrido goleadores', 'scorers', 'Recorre TODOS los grupos F7+F11 de la RFFM', 'text-blue-600'],
-              ['Calendario + actas', 'calendar', 'Actualiza partidos y procesa actas cerradas', 'text-green-600'],
-              ['Solo actas pendientes', 'actas', 'Procesa únicamente actas sin sincronizar', 'text-gray-600'],
+              ['Actualizar partidos y clasificaciones', 'full', 'Calendario + actas pendientes + tarjetas amarillas (≈50s)', 'text-purple-600'],
+              ['Buscar rivales (semanal)', 'scorers', 'Goleadores F7 + F11 de toda la RFFM. Cron auto los domingos 23:00.', 'text-blue-600'],
+              ['Refrescar clasificaciones', 'standings', 'Tablas oficiales RFFM. Cron auto cada noche 02:00.', 'text-emerald-600'],
+              ['Enriquecer perfiles', 'enrich', 'Año de nacimiento de los goleadores. Cron auto 3×día.', 'text-amber-600'],
             ] as const).map(([label, type, desc, color]) => (
               <button
                 key={type}
@@ -2040,7 +1675,7 @@ function MisEquiposTab({
               {/* Diagnóstico: matches no sincronizados */}
               {ourCode && ourMatches.length === 0 && (
                 <div className="mb-3 p-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600">
-                  Sin partidos sincronizados todavía. Ve a la tab &quot;Sync&quot; y pulsa &quot;Sync nuestros equipos&quot; o espera al cron diario (01:00).
+                  Sin partidos sincronizados todavía. Ve a la tab &quot;Sync&quot; → &quot;Actualizar partidos y clasificaciones&quot;. O espera al cron diario (01:00).
                 </div>
               )}
 

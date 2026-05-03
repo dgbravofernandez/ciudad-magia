@@ -13,23 +13,23 @@ import { fetchRffmAPI, fetchRffmSSR } from './client'
 import type { PdfRow } from './parse-club-pdf'
 import { CURRENT_SEASON } from './constants'
 
-interface RffmCompetition {
+export interface RffmCompetition {
   codigo: string
   nombre: string
   codigo_tipo_juego?: string
 }
-interface RffmGroup {
+export interface RffmGroup {
   codigo: string
   nombre: string
   total_jornadas?: string
 }
-interface RffmEquipoClub {
+export interface RffmEquipoClub {
   codigo_equipo: string
   categoria: string
   nombre_equipo: string
   en_competicion?: string
 }
-interface FichaClubResponse {
+export interface FichaClubResponse {
   club?: {
     codigo?: string
     nombre_club?: string
@@ -70,7 +70,7 @@ const STOPWORDS = new Set([
   'GRUPO','SUBGRUPO',
 ])
 
-function tokenize(s: string): string[] {
+export function tokenize(s: string): string[] {
   return (s ?? '')
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toUpperCase()
@@ -102,7 +102,7 @@ function detectTipoJuego(row: PdfRow): string {
 
 // ── Cache de fetches RFFM ─────────────────────────────────────────
 
-class RffmCache {
+export class RffmCache {
   private competitions = new Map<string, RffmCompetition[]>()
   private groups = new Map<string, RffmGroup[]>()
 
@@ -184,7 +184,7 @@ function matchGroup(pdfGrupo: string, groups: RffmGroup[]): RffmGroup | null {
 
 // ── Match equipo del club ─────────────────────────────────────────
 
-function matchEquipoClub(rowEquipo: string, rowCategoria: string, equipos: RffmEquipoClub[]): RffmEquipoClub | null {
+export function matchEquipoClub(rowEquipo: string, rowCategoria: string, equipos: RffmEquipoClub[]): RffmEquipoClub | null {
   // El PDF da equipo como "E.F. CIUDAD DE GETAFE 'A'" — extraemos el sufijo (A, B, C...)
   const equipoTokens = tokenize(rowEquipo)
   const sufijoMatch = rowEquipo.match(/['""]\s*([A-Z])\s*['""]/)

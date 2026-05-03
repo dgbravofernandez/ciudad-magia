@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { Topbar } from '@/components/layout/Topbar'
 import { RffmDashboard } from '@/features/rffm/components/RffmDashboard'
+import { getRffmHealth } from '@/features/rffm/actions/health.actions'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Scouting RFFM' }
@@ -115,6 +116,9 @@ export default async function RffmPage() {
       .gte('goles', 10),
   ])
 
+  // Snapshot agregado de salud del módulo
+  const health = await getRffmHealth()
+
   return (
     <div className="flex flex-col h-full">
       <Topbar title="Scouting RFFM" />
@@ -130,6 +134,7 @@ export default async function RffmPage() {
           enrichPending={enrichPendingCount ?? 0}
           enrichExhausted={enrichExhaustedCount ?? 0}
           signalsTotal={signalsTotalCount ?? 0}
+          health={health}
         />
       </div>
     </div>
