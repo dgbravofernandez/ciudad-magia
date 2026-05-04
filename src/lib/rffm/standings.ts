@@ -48,6 +48,7 @@ export async function getStandings(
   codCompeticion: string,
   codGrupo: string,
   jornada?: string,
+  options: { skipRateLimit?: boolean } = {},
 ): Promise<StandingRow[]> {
   const params: Record<string, string> = {
     temporada: codTemporada,
@@ -58,7 +59,7 @@ export async function getStandings(
   if (jornada) params.jornada = jornada
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data = await fetchRffmSSR<any>('competicion/clasificaciones', params)
+  const data = await fetchRffmSSR<any>('competicion/clasificaciones', params, options)
 
   // RFFM real shape: pageProps.standings.clasificacion[]
   // Buscamos defensivamente en varias rutas posibles.

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
-  detectClubFromCodigoAction,
+  detectClubBasicsAction,
+  detectClubChunkAction,
   bulkInsertWizardResults,
   resetClubRffmConfig,
 } from '@/features/rffm/actions/club-wizard.actions'
@@ -37,6 +38,16 @@ export function WizardModal({ open, onClose, trackedCompsCount }: Props) {
   const [wizardSelected, setWizardSelected] = useState<Set<number>>(new Set())
   const [showWizardDetail, setShowWizardDetail] = useState(false)
 
+  // Progreso del detect en chunks
+  const [detectProgress, setDetectProgress] = useState<{
+    phase: 'idle' | 'basics' | 'chunks' | 'done' | 'error'
+    totalEquipos: number
+    processedEquipos: number
+    chunksDone: number
+    chunksTotal: number
+    currentMessage: string
+  } | null>(null)
+
   // Reset state
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [wipeAll, setWipeAll] = useState(false)
@@ -49,38 +60,126 @@ export function WizardModal({ open, onClose, trackedCompsCount }: Props) {
   const [resolvingUnparsed, setResolvingUnparsed] = useState<string | null>(null)
   const [urlInput, setUrlInput] = useState('')
 
-  // Cuando se abre, intentar precargar codigoClub del config
+  // Cuando se abre, intentar precargar codigoClub del config (sin lanzar detect)
   useEffect(() => {
     if (!open) return
     let cancelled = false
     ;(async () => {
-      const r = await detectClubFromCodigoAction('').catch(() => null)
+      const r = await detectClubBasicsAction('').catch(() => null)
       if (cancelled || !r) return
-      // Si la action detecta automáticamente que hay un código guardado,
-      // pre-rellenar el input (no detectamos, solo mostramos)
-      if (r.usedCodigoClub) setCodigoClub(prev => prev || (r.usedCodigoClub ?? ''))
+      // Si hay código guardado en config, lo precargamos en el input
+      if (r.usedCodigoClub && !codigoClub) setCodigoClub(r.usedCodigoClub)
     })()
     return () => { cancelled = true }
-  }, [open])
+  }, [open, codigoClub])
 
-  function handleDetect() {
+  // Detect en 2 fases: basics + N chunks. Cliente orquesta el progreso.
+  async function handleDetect() {
     if (!codigoClub.trim()) { toast.error('Pega el código del club RFFM (ej. 3824)'); return }
+
     setWizardResult(null)
     setWizardSelected(new Set())
-    startTransition(async () => {
-      const toastId = toast.loading('Detectando equipos y competiciones (puede tardar 20-40s)…')
-      const r = await detectClubFromCodigoAction(codigoClub.trim())
-      toast.dismiss(toastId)
-      if (!r.success || !r.result) {
-        toast.error(r.error ?? 'Error detectando el club')
-        return
-      }
-      setWizardResult(r.result)
-      // Pre-seleccionar TODAS las competiciones detectadas
-      const all = new Set<number>(r.result.matched.map((_: AnyMatched, i: number) => i))
-      setWizardSelected(all)
-      toast.success(`${r.result.competitionCount} competiciones detectadas (${r.result.okCount}/${r.result.total} equipos OK) en ${(r.result.durationMs / 1000).toFixed(1)}s`)
+    setDetectProgress({
+      phase: 'basics',
+      totalEquipos: 0,
+      processedEquipos: 0,
+      chunksDone: 0,
+      chunksTotal: 0,
+      currentMessage: 'Cargando lista de equipos del club…',
     })
+
+    // ── Fase 1: basics ───────────────────────────────────────────
+    const basicsRes = await detectClubBasicsAction(codigoClub.trim()).catch(e => ({
+      success: false as const,
+      error: (e as Error).message,
+    }))
+
+    if (!basicsRes.success || !('result' in basicsRes) || !basicsRes.result) {
+      setDetectProgress({
+        phase: 'error',
+        totalEquipos: 0,
+        processedEquipos: 0,
+        chunksDone: 0,
+        chunksTotal: 0,
+        currentMessage: basicsRes.error ?? 'Error',
+      })
+      toast.error(basicsRes.error ?? 'Error cargando equipos del club')
+      return
+    }
+
+    const basics = basicsRes.result
+    const equipos = basics.equipos
+    const CHUNK_SIZE = 12
+    const chunks: string[][] = []
+    for (let i = 0; i < equipos.length; i += CHUNK_SIZE) {
+      chunks.push(equipos.slice(i, i + CHUNK_SIZE).map((e) => e.codigo_equipo))
+    }
+
+    setDetectProgress({
+      phase: 'chunks',
+      totalEquipos: equipos.length,
+      processedEquipos: 0,
+      chunksDone: 0,
+      chunksTotal: chunks.length,
+      currentMessage: `${equipos.length} equipos detectados. Resolviendo competiciones en ${chunks.length} pasadas…`,
+    })
+
+    // ── Fase 2: N chunks secuenciales ────────────────────────────
+    const allMatched: AnyMatched[] = []
+    const allWarnings: string[] = []
+    const resolvedSet = new Set<string>()
+
+    for (let i = 0; i < chunks.length; i++) {
+      setDetectProgress({
+        phase: 'chunks',
+        totalEquipos: equipos.length,
+        processedEquipos: i * CHUNK_SIZE,
+        chunksDone: i,
+        chunksTotal: chunks.length,
+        currentMessage: `Resolviendo grupo ${i + 1} de ${chunks.length} (${chunks[i].length} equipos)…`,
+      })
+
+      const r = await detectClubChunkAction(codigoClub.trim(), chunks[i]).catch(e => ({
+        success: false as const,
+        error: (e as Error).message,
+      }))
+
+      if (!r.success || !('result' in r) || !r.result) {
+        // Si falla un chunk concreto, seguimos con el resto pero anotamos
+        allWarnings.push(`Chunk ${i + 1} falló: ${r.error ?? 'error'}`)
+        continue
+      }
+      allMatched.push(...r.result.matched)
+      for (const c of r.result.resolvedEquipoCodigos) resolvedSet.add(c)
+      allWarnings.push(...r.result.warnings)
+    }
+
+    const okCount = resolvedSet.size
+    const failedCount = equipos.length - okCount
+
+    const totalResult = {
+      matched: allMatched,
+      total: equipos.length,
+      okCount,
+      failedCount,
+      competitionCount: allMatched.length,
+      durationMs: Date.now() - 0, // referencial, no exacto
+      warnings: allWarnings,
+      nombreClub: basics.nombreClub,
+    }
+
+    setWizardResult(totalResult)
+    const all = new Set<number>(allMatched.map((_: AnyMatched, idx: number) => idx))
+    setWizardSelected(all)
+    setDetectProgress({
+      phase: 'done',
+      totalEquipos: equipos.length,
+      processedEquipos: equipos.length,
+      chunksDone: chunks.length,
+      chunksTotal: chunks.length,
+      currentMessage: `${allMatched.length} competiciones detectadas (${okCount}/${equipos.length} equipos OK)`,
+    })
+    toast.success(`✓ ${allMatched.length} competiciones detectadas`)
   }
 
   function handleCreateWizard() {
@@ -315,10 +414,15 @@ export function WizardModal({ open, onClose, trackedCompsCount }: Props) {
               {mode === 'wizard' && (
                 <button
                   onClick={handleDetect}
-                  disabled={isPending || !codigoClub.trim()}
+                  disabled={
+                    !codigoClub.trim() ||
+                    (detectProgress != null && detectProgress.phase !== 'idle' && detectProgress.phase !== 'done' && detectProgress.phase !== 'error')
+                  }
                   className="px-4 py-2 text-sm rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium disabled:opacity-50 whitespace-nowrap"
                 >
-                  {isPending ? 'Detectando…' : '🔍 Detectar'}
+                  {detectProgress && (detectProgress.phase === 'basics' || detectProgress.phase === 'chunks')
+                    ? 'Detectando…'
+                    : '🔍 Detectar'}
                 </button>
               )}
             </div>
@@ -427,18 +531,51 @@ export function WizardModal({ open, onClose, trackedCompsCount }: Props) {
             </div>
           )}
 
-          {/* MODO WIZARD: estado vacío */}
-          {mode === 'wizard' && !wizardResult && (
+          {/* MODO WIZARD: progreso del detect en chunks */}
+          {mode === 'wizard' && detectProgress && detectProgress.phase !== 'idle' && detectProgress.phase !== 'done' && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                {detectProgress.phase === 'error' ? (
+                  <span className="text-red-600 text-lg">✕</span>
+                ) : (
+                  <span className="inline-block w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                )}
+                <p className="text-sm font-medium text-blue-900">
+                  {detectProgress.phase === 'error' ? 'Error' : 'Detectando…'}
+                </p>
+              </div>
+              <p className="text-xs text-blue-800">{detectProgress.currentMessage}</p>
+              {detectProgress.phase === 'chunks' && detectProgress.chunksTotal > 0 && (
+                <>
+                  <div className="mt-2 h-2 bg-blue-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-600 transition-all duration-300"
+                      style={{ width: `${(detectProgress.chunksDone / detectProgress.chunksTotal) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-blue-700 mt-1">
+                    {detectProgress.chunksDone} / {detectProgress.chunksTotal} pasadas · {detectProgress.processedEquipos} / {detectProgress.totalEquipos} equipos
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* MODO WIZARD: estado vacío inicial */}
+          {mode === 'wizard' && !wizardResult && !detectProgress && (
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
               <p className="text-sm text-blue-900 font-medium">¿Qué hace este botón?</p>
               <ol className="text-xs text-blue-800 mt-2 space-y-1 list-decimal list-inside">
-                <li>Descarga la lista de equipos de tu club desde RFFM (1 fetch)</li>
+                <li>Descarga la lista de equipos de tu club desde RFFM</li>
                 <li>Por cada equipo, busca su competición y grupo activos</li>
                 <li>Verifica con la clasificación que tu equipo está en ese grupo</li>
                 <li>Te muestra TODAS las competiciones detectadas para que confirmes y crees</li>
               </ol>
               <p className="text-xs text-blue-700 mt-2">
                 Detecta competiciones múltiples por equipo (ej. Senior A en Liga + Copa) y subgrupos por fase (ej. Prebenjamines en Grupo 32 + Subgrupo 32A).
+              </p>
+              <p className="text-[11px] text-blue-700 mt-2 italic">
+                Para clubes grandes (60+ equipos) la detección se divide en pasadas para no exceder el timeout de Vercel. Verás una barra de progreso.
               </p>
             </div>
           )}

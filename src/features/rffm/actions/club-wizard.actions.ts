@@ -3,43 +3,76 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
-import { detectClubCompetitions, type WizardResult } from '@/lib/rffm/club-wizard'
+import {
+  detectClubBasics,
+  detectClubChunk,
+  type DetectBasicsResult,
+  type DetectChunkResult,
+} from '@/lib/rffm/club-wizard'
 import { getClubRffmCodigo, saveRffmCodigoClub } from '@/features/integraciones/actions/rffm-config.actions'
 
+// NOTA: el maxDuration se hereda de la page que invoca las actions
+// (/scouting/rffm tiene `export const maxDuration = 60`).
+
+function normalizeCodigoClub(input: string): string {
+  let v = input.trim()
+  const urlMatch = v.match(/\/fichaclub\/(\d+)/)
+  if (urlMatch) v = urlMatch[1]
+  return v
+}
+
 /**
- * Detecta automáticamente todas las competiciones del club partiendo de su
- * codigo_club RFFM. Devuelve preview, NO escribe BD.
- *
- * Si no se pasa codigoClub, lo lee de club_settings.rffm_codigo_club.
+ * STEP 1 del wizard: lista de equipos del club.
+ * Rápido (~10s). Llama una vez al abrir el modal.
  */
-export async function detectClubFromCodigoAction(
+export async function detectClubBasicsAction(
   codigoClub?: string,
-): Promise<{ success: boolean; error?: string; result?: WizardResult; usedCodigoClub?: string }> {
+): Promise<{ success: boolean; error?: string; result?: DetectBasicsResult; usedCodigoClub?: string }> {
   try {
     const { roles } = await getClubContext()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
 
-    let used = codigoClub?.trim() ?? ''
-    // Acepta URL completa: rffm.es/fichaclub/3824
-    const urlMatch = used.match(/\/fichaclub\/(\d+)/)
-    if (urlMatch) used = urlMatch[1]
-    if (!used) {
-      used = (await getClubRffmCodigo()) ?? ''
-    }
+    let used = normalizeCodigoClub(codigoClub ?? '')
+    if (!used) used = (await getClubRffmCodigo()) ?? ''
     if (!used || !/^\d{2,8}$/.test(used)) {
       return { success: false, error: 'Pega el código del club RFFM (ej. 3824) o configúralo en /configuracion/integraciones' }
     }
 
-    // Auto-guardar el código en config si no estaba
+    // Auto-guardar el código si no estaba
     const stored = await getClubRffmCodigo()
-    if (!stored) {
-      await saveRffmCodigoClub(used).catch(() => undefined)
-    }
+    if (!stored) await saveRffmCodigoClub(used).catch(() => undefined)
 
-    const result = await detectClubCompetitions(used)
+    const result = await detectClubBasics(used)
     return { success: true, result, usedCodigoClub: used }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+/**
+ * STEP 2 del wizard: resuelve grupos de un subset de equipos.
+ * Cliente lo llama N veces hasta cubrir todos los equipos.
+ */
+export async function detectClubChunkAction(
+  codigoClub: string,
+  equipoCodigos: string[],
+): Promise<{ success: boolean; error?: string; result?: DetectChunkResult }> {
+  try {
+    const { roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    const used = normalizeCodigoClub(codigoClub)
+    if (!used || !/^\d{2,8}$/.test(used)) {
+      return { success: false, error: 'Código de club inválido' }
+    }
+    if (!Array.isArray(equipoCodigos) || equipoCodigos.length === 0) {
+      return { success: false, error: 'Lista de equipos vacía' }
+    }
+    const result = await detectClubChunk(used, equipoCodigos)
+    return { success: true, result }
   } catch (e) {
     return { success: false, error: (e as Error).message }
   }
