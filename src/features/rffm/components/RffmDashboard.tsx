@@ -73,6 +73,7 @@ interface CardAlert {
   amarillas_ciclo_actual: number
   proximo_umbral: number
   alerta_activa: boolean
+  tracked_competition_id?: string
   rffm_tracked_competitions: { nombre_competicion: string; nombre_grupo: string }
 }
 
@@ -81,6 +82,7 @@ interface TrackedComp {
   nombre_competicion: string
   nombre_grupo: string
   nombre_equipo_nuestro: string
+  codigo_equipo_nuestro?: string
   cod_tipojuego: string
   umbral_amarillas: number
   last_calendar_sync: string | null
@@ -727,6 +729,7 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
         <MisEquiposTab
           comps={compsFiltradas}
           allComps={trackedComps}
+          cardAlerts={cardAlerts}
           matchesByComp={matchesByComp}
           standingsByComp={standingsByComp}
           eventsByActa={eventsByActa}
@@ -735,6 +738,7 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
           activeCat={misEquiposCat}
           setActiveCat={setMisEquiposCat}
           todayIso={todayIso}
+          onRepair={(id) => setRepairCompId(id)}
         />
       )}
 
@@ -1416,10 +1420,11 @@ function computeStandings(matches: RffmMatch[], nuestroCodigo: string | null): S
 }
 
 function MisEquiposTab({
-  comps, allComps, matchesByComp, standingsByComp, eventsByActa, allMatches, categoriasDisponibles, activeCat, setActiveCat, todayIso,
+  comps, allComps, cardAlerts, matchesByComp, standingsByComp, eventsByActa, allMatches, categoriasDisponibles, activeCat, setActiveCat, todayIso, onRepair,
 }: {
   comps: TrackedComp[]
   allComps: TrackedComp[]
+  cardAlerts: CardAlert[]
   matchesByComp: Map<string, RffmMatch[]>
   standingsByComp: Map<string, RffmStandingDb[]>
   eventsByActa: Map<string, RffmMatchEvent[]>
@@ -1428,10 +1433,22 @@ function MisEquiposTab({
   activeCat: Categoria | 'all'
   setActiveCat: (c: Categoria | 'all') => void
   todayIso: string
+  onRepair: (id: string) => void
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [expandedComp, setExpandedComp] = useState<string | null>(null)
+
+  // Card alerts indexed by tracked_competition_id for per-team view
+  const alertsByComp = useMemo(() => {
+    const m = new Map<string, CardAlert[]>()
+    for (const a of cardAlerts) {
+      if (!a.tracked_competition_id) continue
+      if (!m.has(a.tracked_competition_id)) m.set(a.tracked_competition_id, [])
+      m.get(a.tracked_competition_id)!.push(a)
+    }
+    return m
+  }, [cardAlerts])
 
   // ── Widget "Resultados última jornada de la escuela" ──────────
   // Todos los partidos nuestros con resultado en los últimos 14 días.
@@ -1637,8 +1654,10 @@ function MisEquiposTab({
           const ourPos = standings.findIndex(r => r.esNuestro)
           const expanded = expandedComp === c.id
 
+          const teamAlerts = alertsByComp.get(c.id) ?? []
+
           return (
-            <div key={c.id} className="bg-white rounded-xl border border-gray-200 p-4">
+            <div key={c.id} className={`bg-white rounded-xl border p-4 ${!ourCode ? 'border-amber-300' : 'border-gray-200'}`}>
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="min-w-0">
                   <p className="text-xs text-gray-500 mb-0.5">
@@ -1656,60 +1675,82 @@ function MisEquiposTab({
                 </div>
               </div>
 
-              {/* Diagnóstico: codigo_equipo_nuestro vacío */}
+              {/* Sin código — acción inline */}
               {!ourCode && (
-                <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
-                  ⚠️ Esta competición no tiene asignado el código del equipo nuestro.
-                  Edítala en la tab &quot;Competiciones&quot; añadiendo <code className="bg-white px-1 rounded">codigo_equipo_nuestro</code>
-                  para ver próximo/último/goleadores filtrados.
+                <div className="mb-3 p-2.5 bg-amber-50 border border-amber-300 rounded-lg flex items-center justify-between gap-3">
+                  <p className="text-xs text-amber-800 font-medium">
+                    ⚠️ Falta el código del equipo. Sin él no se pueden filtrar partidos ni goleadores.
+                  </p>
+                  <button
+                    onClick={() => onRepair(c.id)}
+                    className="shrink-0 px-2.5 py-1 text-xs font-semibold rounded-md bg-amber-500 hover:bg-amber-600 text-white transition-colors"
+                  >
+                    🔧 Reparar
+                  </button>
                 </div>
               )}
 
-              {/* Próximo + último */}
+              {/* Próximo rival + último resultado */}
               <div className="grid grid-cols-2 gap-2 mb-3">
-                <MatchPill label="Próximo" m={proximo ?? null} ourCode={ourCode} />
-                <MatchPill label="Último" m={ultimo ?? null} ourCode={ourCode} />
+                <MatchPill label="Próximo rival" m={proximo ?? null} ourCode={ourCode} />
+                <MatchPill label="Último resultado" m={ultimo ?? null} ourCode={ourCode} />
               </div>
 
-              {/* Diagnóstico: matches no sincronizados */}
+              {/* Sin partidos sincronizados */}
               {ourCode && ourMatches.length === 0 && (
                 <div className="mb-3 p-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600">
-                  Sin partidos sincronizados todavía. Ve a la tab &quot;Sync&quot; → &quot;Actualizar partidos y clasificaciones&quot;. O espera al cron diario (01:00).
+                  Sin partidos sincronizados todavía. Pulsa &quot;Actualizar partidos&quot; arriba o espera al cron diario.
                 </div>
               )}
 
-              {/* Goleadores propios + amarillas */}
+              {/* Goleadores + tarjetas (de actas) */}
               {(topGoleadores.length > 0 || topAmarillas.length > 0) && (
                 <div className="mb-3 grid grid-cols-1 md:grid-cols-2 gap-2">
                   {topGoleadores.length > 0 && (
-                    <div className="bg-emerald-50/60 rounded-md p-2">
-                      <p className="text-xs font-semibold text-emerald-900 mb-1">⚽ Goleadores propios</p>
-                      <ul className="space-y-0.5 text-xs">
-                        {topGoleadores.map(g => (
-                          <li key={g.nombre} className="flex justify-between gap-2">
-                            <span className="truncate text-slate-700" title={g.nombre}>{g.nombre}</span>
-                            <span className="font-bold text-emerald-700 tabular-nums">{g.goles}</span>
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-2.5">
+                      <p className="text-xs font-semibold text-emerald-900 mb-1.5">⚽ Goleadores</p>
+                      <ul className="space-y-1 text-xs">
+                        {topGoleadores.map((g, i) => (
+                          <li key={g.nombre} className="flex items-center gap-1.5">
+                            <span className="text-emerald-400 w-4 text-center font-mono">{i + 1}</span>
+                            <span className="flex-1 truncate text-slate-700" title={g.nombre}>{g.nombre}</span>
+                            <span className="font-bold text-emerald-700 tabular-nums">{g.goles} ⚽</span>
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
                   {topAmarillas.length > 0 && (
-                    <div className="bg-amber-50/60 rounded-md p-2">
-                      <p className="text-xs font-semibold text-amber-900 mb-1">🟨 Tarjetas</p>
-                      <ul className="space-y-0.5 text-xs">
+                    <div className="bg-amber-50 border border-amber-100 rounded-lg p-2.5">
+                      <p className="text-xs font-semibold text-amber-900 mb-1.5">🟨 Tarjetas</p>
+                      <ul className="space-y-1 text-xs">
                         {topAmarillas.map(a => (
-                          <li key={a.nombre} className="flex justify-between gap-2">
-                            <span className="truncate text-slate-700" title={a.nombre}>{a.nombre}</span>
-                            <span className="tabular-nums">
-                              {a.amarillas > 0 && <span className="text-amber-700 font-semibold">{a.amarillas}A</span>}
-                              {a.rojas > 0 && <span className="text-red-700 font-semibold ml-1">{a.rojas}R</span>}
+                          <li key={a.nombre} className="flex items-center gap-1.5">
+                            <span className="flex-1 truncate text-slate-700" title={a.nombre}>{a.nombre}</span>
+                            <span className="tabular-nums flex gap-1">
+                              {a.amarillas > 0 && <span className="bg-yellow-200 text-yellow-900 px-1.5 rounded font-semibold">{a.amarillas}🟡</span>}
+                              {a.rojas > 0 && <span className="bg-red-200 text-red-900 px-1.5 rounded font-semibold">{a.rojas}🔴</span>}
                             </span>
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Alertas de sanción (próxima amarilla = sanción) */}
+              {teamAlerts.length > 0 && (
+                <div className="mb-3 bg-red-50 border border-red-200 rounded-lg p-2.5">
+                  <p className="text-xs font-semibold text-red-800 mb-1.5">🚨 A 1 amarilla de sanción</p>
+                  <ul className="space-y-0.5 text-xs">
+                    {teamAlerts.map(a => (
+                      <li key={a.id} className="flex items-center justify-between gap-2">
+                        <span className="truncate text-slate-700" title={a.nombre_jugador}>{a.nombre_jugador}</span>
+                        <span className="text-red-700 font-bold tabular-nums shrink-0">{a.amarillas_ciclo_actual}/{a.proximo_umbral} 🟡</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
 

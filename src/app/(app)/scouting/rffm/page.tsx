@@ -34,14 +34,14 @@ export default async function RffmPage() {
       .limit(1000),
     sb
       .from('rffm_card_alerts')
-      .select('id,codjugador,nombre_jugador,amarillas_ciclo_actual,proximo_umbral,alerta_activa,rffm_tracked_competitions(nombre_competicion,nombre_grupo)')
+      .select('id,codjugador,nombre_jugador,amarillas_ciclo_actual,proximo_umbral,alerta_activa,tracked_competition_id,rffm_tracked_competitions(nombre_competicion,nombre_grupo)')
       .eq('club_id', clubId)
       .eq('alerta_activa', true)
       .order('amarillas_ciclo_actual', { ascending: false })
       .limit(100),
     sb
       .from('rffm_tracked_competitions')
-      .select('id,nombre_competicion,nombre_grupo,nombre_equipo_nuestro,cod_tipojuego,umbral_amarillas,last_calendar_sync,last_acta_sync,active')
+      .select('id,nombre_competicion,nombre_grupo,nombre_equipo_nuestro,codigo_equipo_nuestro,cod_tipojuego,umbral_amarillas,last_calendar_sync,last_acta_sync,active')
       .eq('club_id', clubId)
       .order('nombre_competicion'),
     sb
