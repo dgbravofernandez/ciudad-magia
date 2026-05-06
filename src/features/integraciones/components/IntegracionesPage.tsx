@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { ExternalLink, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, Copy, Save } from 'lucide-react'
+import { ExternalLink, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, Save, Sparkles } from 'lucide-react'
 import {
   exportToBackendSheet,
   checkBackendSheet,
   saveBackendSheetId,
   getBackendSheetConfig,
+  createBackendSheet,
   type BackendSheetConfig,
 } from '@/features/integraciones/actions/backend-sheet.actions'
 import {
@@ -72,6 +73,22 @@ export function IntegracionesPage() {
         toast.error(r.error ?? 'Error guardando')
       }
     })()
+  }
+
+  function handleCreate() {
+    startTransition(async () => {
+      const toastId = toast.loading('Creando hoja en Google Drive…')
+      const r = await createBackendSheet()
+      toast.dismiss(toastId)
+      if (r.success && r.sheetId && r.url) {
+        setConfig(c => c ? { ...c, sheetId: r.sheetId! } : c)
+        setDraftId(r.sheetId!)
+        toast.success('¡Hoja creada! Pulsa "Exportar ahora" para volcar los datos.')
+        window.open(r.url, '_blank')
+      } else {
+        toast.error(r.error ?? 'Error al crear la hoja')
+      }
+    })
   }
 
   function handleSave() {
@@ -196,79 +213,91 @@ export function IntegracionesPage() {
           </div>
         </div>
 
-        {/* PASO 1: Compartir hoja con service account */}
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
-          <p className="text-sm font-medium text-amber-900 mb-1.5">
-            Paso 1 · Comparte la hoja con esta cuenta como <strong>Editor</strong>:
-          </p>
-          {config?.serviceAccountEmail ? (
-            <div className="flex items-center gap-2">
-              <code className="flex-1 px-2 py-1.5 text-xs bg-white border border-amber-300 rounded font-mono text-slate-800 truncate" title={config.serviceAccountEmail}>
-                {config.serviceAccountEmail}
-              </code>
-              <button
-                onClick={copyEmail}
-                className="px-2.5 py-1.5 text-xs rounded-md bg-amber-600 hover:bg-amber-700 text-white flex items-center gap-1"
-              >
-                <Copy className="w-3 h-3" /> Copiar
-              </button>
-            </div>
-          ) : (
-            <p className="text-xs text-amber-800">
-              ⚠️ No encuentro el email de la service account en las variables de entorno.
-              Necesitas <code>GOOGLE_SERVICE_ACCOUNT_EMAIL</code> o <code>GOOGLE_SERVICE_ACCOUNT_KEY</code>.
-            </p>
-          )}
-          <p className="text-xs text-amber-800 mt-2">
-            En la hoja → <strong>Compartir</strong> (arriba derecha) → pega el email → cambia a <strong>Editor</strong> → Enviar.
-          </p>
-        </div>
-
-        {/* PASO 2: Pegar ID o URL */}
-        <label className="block text-xs font-medium text-slate-600 mb-1">
-          Paso 2 · ID o URL completa de la hoja
-        </label>
-        <div className="flex gap-2 mb-3">
-          <input
-            value={draftId}
-            onChange={e => setDraftId(e.target.value)}
-            placeholder="https://docs.google.com/spreadsheets/d/..."
-            className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
-          />
-          <button
-            onClick={handleSave}
-            disabled={isPending || !draftDiffersFromSaved}
-            className="px-3 py-2 text-sm rounded-md bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-40 flex items-center gap-1.5"
-          >
-            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Guardar
-          </button>
-          {sheetUrl && (
-            <a
-              href={sheetUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="px-3 py-2 text-sm border border-slate-300 rounded-md hover:bg-slate-50 flex items-center gap-1.5"
+        {/* Opción principal: crear hoja automáticamente */}
+        {!config?.sheetId && (
+          <div className="mb-5">
+            <button
+              onClick={handleCreate}
+              disabled={isPending}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm disabled:opacity-50 transition-colors"
             >
-              <ExternalLink className="w-4 h-4" /> Abrir
-            </a>
-          )}
-        </div>
-
-        {config?.sheetId && (
-          <p className="text-xs text-slate-500 mb-3 font-mono break-all">
-            Guardado: {config.sheetId}
-            {config.lastSync && (
-              <span className="text-slate-400 ml-2">
-                · último export: {new Date(config.lastSync).toLocaleString('es-ES')}
-              </span>
-            )}
-          </p>
+              {isPending
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Sparkles className="w-4 h-4" />}
+              Crear hoja automáticamente
+            </button>
+            <p className="text-xs text-slate-500 text-center mt-1.5">
+              La aplicación crea y gestiona la hoja. No necesitas compartir nada.
+            </p>
+          </div>
         )}
 
-        {/* PASO 3: Exportar */}
-        <div className="border-t border-slate-100 pt-4 mt-4">
-          <p className="text-xs font-medium text-slate-600 mb-2">Paso 3 · Comprobar y exportar</p>
+        {/* Si ya hay hoja configurada: mostrar estado + botón abrir */}
+        {config?.sheetId && (
+          <div className="mb-4 flex items-center justify-between gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-emerald-900 flex items-center gap-1.5">
+                <CheckCircle className="w-4 h-4 shrink-0" /> Hoja configurada
+              </p>
+              <p className="text-xs text-emerald-700 font-mono truncate mt-0.5">{config.sheetId}</p>
+              {config.lastSync && (
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Último export: {new Date(config.lastSync).toLocaleString('es-ES')}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 shrink-0">
+              {sheetUrl && (
+                <a
+                  href={sheetUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 text-xs border border-emerald-300 rounded-md bg-white hover:bg-emerald-50 text-emerald-800 flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3 h-3" /> Abrir
+                </a>
+              )}
+              <button
+                onClick={handleCreate}
+                disabled={isPending}
+                className="px-3 py-1.5 text-xs border border-slate-300 rounded-md bg-white hover:bg-slate-50 text-slate-600 flex items-center gap-1 disabled:opacity-50"
+                title="Crea una hoja nueva y reemplaza la configuración actual"
+              >
+                {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                Nueva hoja
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Opción secundaria: pegar URL de hoja existente */}
+        <details className="mb-4">
+          <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700 select-none">
+            ▸ Ya tengo una hoja — pegar URL manualmente
+          </summary>
+          <div className="mt-2 flex gap-2">
+            <input
+              value={draftId}
+              onChange={e => setDraftId(e.target.value)}
+              placeholder="https://docs.google.com/spreadsheets/d/..."
+              className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+            />
+            <button
+              onClick={handleSave}
+              disabled={isPending || !draftDiffersFromSaved}
+              className="px-3 py-2 text-sm rounded-md bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-40 flex items-center gap-1.5"
+            >
+              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Guardar
+            </button>
+          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            La hoja debe estar compartida con la service account como Editor.
+          </p>
+        </details>
+
+        {/* Exportar */}
+        <div className="border-t border-slate-100 pt-4">
           <div className="flex gap-2">
             <button
               onClick={handleCheck}

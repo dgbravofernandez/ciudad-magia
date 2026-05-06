@@ -2,47 +2,92 @@ import { google } from 'googleapis'
 import type { sheets_v4 } from 'googleapis'
 
 // ──────────────────────────────────────────────────────────────
-// Google Sheets writer (service account)
+// Google Sheets + Drive writer (service account)
 //
 // Requiere en .env:
-//   GOOGLE_SERVICE_ACCOUNT_EMAIL       — email de la service account
-//   GOOGLE_SERVICE_ACCOUNT_KEY         — clave privada en Base64 del JSON
+//   GOOGLE_SERVICE_ACCOUNT_EMAIL  — email de la service account
+//   GOOGLE_SERVICE_ACCOUNT_KEY    — JSON de la SA (raw o base64)
 //
-// La hoja destino debe estar COMPARTIDA con el email de la service
-// account con permiso "Editor" para que pueda escribir.
+// Scopes:
+//   spreadsheets — leer/escribir hojas existentes
+//   drive.file   — crear hojas nuevas propias (NO acceso a todo Drive)
 // ──────────────────────────────────────────────────────────────
 
-let cachedClient: sheets_v4.Sheets | null = null
+const SCOPES = [
+  'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/drive.file', // para createSpreadsheet()
+]
 
-function getSheetsClient(): sheets_v4.Sheets {
-  if (cachedClient) return cachedClient
-
+// Extrae credenciales del entorno (JSON raw, base64 o solo email + clave separada)
+function getServiceAccountCreds(): { clientEmail: string; privateKey: string } {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
   const keyB64 = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
-  if (!email || !keyB64) {
-    throw new Error('Faltan GOOGLE_SERVICE_ACCOUNT_EMAIL o GOOGLE_SERVICE_ACCOUNT_KEY')
+  if (!keyB64 && !email) throw new Error('Faltan GOOGLE_SERVICE_ACCOUNT_EMAIL o GOOGLE_SERVICE_ACCOUNT_KEY')
+
+  if (keyB64) {
+    try {
+      const raw = keyB64.startsWith('{') ? keyB64 : Buffer.from(keyB64, 'base64').toString('utf8')
+      const json = JSON.parse(raw) as { client_email: string; private_key: string }
+      return {
+        clientEmail: json.client_email,
+        privateKey: json.private_key.replace(/\\n/g, '\n'),
+      }
+    } catch (e) {
+      throw new Error(`GOOGLE_SERVICE_ACCOUNT_KEY no es JSON válido (raw o base64): ${(e as Error).message}`)
+    }
   }
 
-  // Acepta JSON crudo o JSON base64
-  let serviceAccountJson: { client_email: string; private_key: string }
-  try {
-    const raw = keyB64.startsWith('{')
-      ? keyB64
-      : Buffer.from(keyB64, 'base64').toString('utf8')
-    serviceAccountJson = JSON.parse(raw)
-  } catch (e) {
-    throw new Error(`GOOGLE_SERVICE_ACCOUNT_KEY no es JSON válido (raw o base64): ${(e as Error).message}`)
-  }
-
-  const auth = new google.auth.JWT({
-    email: serviceAccountJson.client_email ?? email,
-    key: serviceAccountJson.private_key.replace(/\\n/g, '\n'),
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  })
-
-  cachedClient = google.sheets({ version: 'v4', auth })
-  return cachedClient
+  throw new Error('Falta GOOGLE_SERVICE_ACCOUNT_KEY con la clave privada')
 }
+
+/** Email visible de la service account (para mostrarlo en UI si hace falta) */
+export function getServiceAccountEmail(): string | null {
+  try {
+    return getServiceAccountCreds().clientEmail
+  } catch {
+    return null
+  }
+}
+
+function makeAuth() {
+  const { clientEmail, privateKey } = getServiceAccountCreds()
+  return new google.auth.JWT({ email: clientEmail, key: privateKey, scopes: SCOPES })
+}
+
+// Cache del cliente de Sheets (no cambia entre peticiones)
+let cachedSheets: sheets_v4.Sheets | null = null
+function getSheetsClient(): sheets_v4.Sheets {
+  if (!cachedSheets) cachedSheets = google.sheets({ version: 'v4', auth: makeAuth() })
+  return cachedSheets
+}
+
+// Drive no se cachea (raro uso, evita estado stale)
+function getDriveClient() {
+  return google.drive({ version: 'v3', auth: makeAuth() })
+}
+
+// ─────────────────────────────────────────────────────────────
+// Operaciones de Drive
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Crea una nueva hoja de cálculo en el Drive de la service account.
+ * No requiere que el usuario comparta nada — la SA es dueña de la hoja.
+ */
+export async function createSpreadsheet(name: string): Promise<{ id: string; url: string }> {
+  const drive = getDriveClient()
+  const res = await drive.files.create({
+    requestBody: { name, mimeType: 'application/vnd.google-apps.spreadsheet' },
+    fields: 'id',
+  })
+  const id = res.data.id
+  if (!id) throw new Error('Drive no devolvió ID al crear la hoja')
+  return { id, url: `https://docs.google.com/spreadsheets/d/${id}` }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Operaciones de Sheets
+// ─────────────────────────────────────────────────────────────
 
 /**
  * Reemplaza el contenido de una pestaña entera con `rows`.
@@ -63,9 +108,7 @@ export async function writeTab(
   if (!exists) {
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
-      requestBody: {
-        requests: [{ addSheet: { properties: { title: tabName } } }],
-      },
+      requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
     })
   }
 
