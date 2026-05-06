@@ -25,7 +25,7 @@ import {
 } from '@/features/rffm/actions/rffm.actions'
 import { getRffmConfig, saveRffmCodigoClub } from '@/features/integraciones/actions/rffm-config.actions'
 import type { RffmHealth } from '@/features/rffm/actions/health.actions'
-import { WizardModal } from './WizardModal'
+import { AddCompetitionModal } from './AddCompetitionModal'
 import { SyncHealthBanner } from './SyncHealthBanner'
 
 // ── Constants ──────────────────────────────────────────────────
@@ -997,17 +997,10 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
             <div className="flex items-center gap-2 flex-shrink-0 ml-4">
               <button
                 onClick={() => setShowImportPdf(true)}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-                title="Auto-detecta TODAS las competiciones de tu club RFFM en un click. También permite subir el PDF como fallback."
-              >
-                ⚡ Configurar desde RFFM
-              </button>
-              <button
-                onClick={() => setShowAddComp(true)}
                 className="flex items-center gap-2 px-4 py-2 text-white rounded-lg text-sm font-medium"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
-                <Plus className="w-4 h-4" /> Añadir
+                <Plus className="w-4 h-4" /> Añadir competición
               </button>
             </div>
           </div>
@@ -1163,9 +1156,9 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
           )}
 
           {/* Wizard modal — reemplaza al modal de PDF antiguo */}
-          <WizardModal open={showImportPdf} onClose={() => setShowImportPdf(false)} trackedCompsCount={trackedComps.length} />
+          <AddCompetitionModal open={showImportPdf} onClose={() => setShowImportPdf(false)} />
 
-          {/* Add comp modal */}
+          {/* Old inline form (never shown; kept for state references) */}
           {showAddComp && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowAddComp(false)}>
               <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
