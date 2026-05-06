@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
 import { exportClubToBackendSheet, type BackendExportResult } from '@/lib/google/backend-export'
-import { checkSheetAccess } from '@/lib/google/sheets-writer'
+import { checkSheetAccess, createSpreadsheet } from '@/lib/google/sheets-writer'
 
 export interface BackendSheetConfig {
   sheetId: string | null
@@ -127,6 +127,36 @@ export async function exportToBackendSheet(): Promise<{
 
     revalidatePath('/configuracion/integraciones')
     return { success: true, result }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+/**
+ * Crea una nueva hoja de Google Sheets gestionada por la service account
+ * y guarda su ID en club_settings. El usuario no necesita configurar nada.
+ */
+export async function createBackendSheet(): Promise<{
+  success: boolean
+  error?: string
+  sheetId?: string
+  url?: string
+}> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
+      return { success: false, error: 'Solo admin / dirección' }
+    }
+    const { id, url } = await createSpreadsheet('Ciudad Magia — Datos del Club')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+    const { error } = await sb
+      .from('club_settings')
+      .update({ backend_sheet_id: id })
+      .eq('club_id', clubId)
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/configuracion/integraciones')
+    return { success: true, sheetId: id, url }
   } catch (e) {
     return { success: false, error: (e as Error).message }
   }
