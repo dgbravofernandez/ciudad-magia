@@ -1,5 +1,6 @@
 import { google } from 'googleapis'
-import type { sheets_v4 } from 'googleapis'
+import type { sheets_v4, drive_v3 } from 'googleapis'
+import { makeOAuthClients } from './oauth'
 
 // ──────────────────────────────────────────────────────────────
 // Google Sheets + Drive writer (service account)
@@ -62,8 +63,19 @@ function getSheetsClient(): sheets_v4.Sheets {
 }
 
 // Drive no se cachea (raro uso, evita estado stale)
-function getDriveClient() {
+function getDriveClient(): drive_v3.Drive {
   return google.drive({ version: 'v3', auth: makeAuth() })
+}
+
+/**
+ * Devuelve clientes de Sheets + Drive usando:
+ * 1. OAuth refresh token del usuario (si se pasa)
+ * 2. Service account (si está configurada en env)
+ * Lanza error si ninguno está disponible.
+ */
+function getClients(refreshToken?: string | null): { sheets: sheets_v4.Sheets; drive: drive_v3.Drive } {
+  if (refreshToken) return makeOAuthClients(refreshToken)
+  return { sheets: getSheetsClient(), drive: getDriveClient() }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -71,11 +83,12 @@ function getDriveClient() {
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Crea una nueva hoja de cálculo en el Drive de la service account.
- * No requiere que el usuario comparta nada — la SA es dueña de la hoja.
+ * Crea una nueva hoja de cálculo.
+ * - Con refreshToken: en el Drive del usuario (cuenta Google propia)
+ * - Sin refreshToken: en el Drive de la service account
  */
-export async function createSpreadsheet(name: string): Promise<{ id: string; url: string }> {
-  const drive = getDriveClient()
+export async function createSpreadsheet(name: string, refreshToken?: string | null): Promise<{ id: string; url: string }> {
+  const { drive } = getClients(refreshToken)
   const res = await drive.files.create({
     requestBody: { name, mimeType: 'application/vnd.google-apps.spreadsheet' },
     fields: 'id',
@@ -99,8 +112,9 @@ export async function writeTab(
   spreadsheetId: string,
   tabName: string,
   rows: (string | number | null)[][],
+  refreshToken?: string | null,
 ): Promise<void> {
-  const sheets = getSheetsClient()
+  const { sheets } = getClients(refreshToken)
 
   // 1. Asegurar que la pestaña existe
   const meta = await sheets.spreadsheets.get({ spreadsheetId })
@@ -133,12 +147,12 @@ export async function writeTab(
  * Verifica que tenemos acceso de escritura a la hoja.
  * Devuelve metadatos básicos. Lanza error si no hay acceso.
  */
-export async function checkSheetAccess(spreadsheetId: string): Promise<{
+export async function checkSheetAccess(spreadsheetId: string, refreshToken?: string | null): Promise<{
   title: string
   url: string
   tabs: string[]
 }> {
-  const sheets = getSheetsClient()
+  const { sheets } = getClients(refreshToken)
   const meta = await sheets.spreadsheets.get({ spreadsheetId })
   return {
     title: meta.data.properties?.title ?? '?',
