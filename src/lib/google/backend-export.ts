@@ -39,6 +39,7 @@ function s(v: unknown): string {
 export async function exportClubToBackendSheet(
   clubId: string,
   spreadsheetId: string,
+  refreshToken?: string | null,
 ): Promise<BackendExportResult> {
   const t0 = Date.now()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,7 +52,7 @@ export async function exportClubToBackendSheet(
   async function exportTab(tab: string, headers: string[], dataRows: Row[]) {
     try {
       const rows: Row[] = [headers, ...dataRows]
-      await writeTab(spreadsheetId, tab, rows)
+      await writeTab(spreadsheetId, tab, rows, refreshToken)
       tabs.push({ tab, rows: dataRows.length })
       totalRows += dataRows.length
     } catch (e) {

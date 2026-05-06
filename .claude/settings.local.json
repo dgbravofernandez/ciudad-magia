@@ -42,7 +42,11 @@
       "Bash(cmd /c \"netstat -ano | findstr 3002\")",
       "Bash(\"C:/Program Files/nodejs/node.exe\" node_modules/next/dist/bin/next dev --port 3003)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3004/)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3002/)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3002/)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "mcp__a5ed1f53-e6b2-4ca6-874e-fb8c4875a28d__deploy_to_vercel",
+      "Bash(vercel deploy *)"
     ]
   }
 }

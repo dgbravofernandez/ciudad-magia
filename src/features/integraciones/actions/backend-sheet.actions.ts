@@ -5,11 +5,15 @@ import { getClubContext } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
 import { exportClubToBackendSheet, type BackendExportResult } from '@/lib/google/backend-export'
 import { checkSheetAccess, createSpreadsheet } from '@/lib/google/sheets-writer'
+import { getOAuthClient, GOOGLE_SCOPES } from '@/lib/google/oauth'
 
 export interface BackendSheetConfig {
   sheetId: string | null
   lastSync: string | null
   serviceAccountEmail: string | null
+  googleEmail: string | null          // cuenta OAuth conectada
+  hasOAuthToken: boolean              // ¿hay refresh_token guardado?
+  hasServiceAccount: boolean          // ¿hay SA en env vars?
 }
 
 /**
@@ -30,11 +34,11 @@ export async function getBackendSheetConfig(): Promise<{
     const sb = createAdminClient() as any
     const { data } = await sb
       .from('club_settings')
-      .select('backend_sheet_id, backend_sheet_last_sync')
+      .select('backend_sheet_id, backend_sheet_last_sync, google_refresh_token, google_service_email')
       .eq('club_id', clubId)
       .single()
 
-    // Email del service account: lo extraemos del JSON privado o de la env
+    // Email del service account (solo para info, ya no es necesario compartir manualmente)
     let serviceAccountEmail: string | null = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? null
     const keyB64 = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
     if (!serviceAccountEmail && keyB64) {
@@ -42,9 +46,7 @@ export async function getBackendSheetConfig(): Promise<{
         const raw = keyB64.startsWith('{') ? keyB64 : Buffer.from(keyB64, 'base64').toString('utf8')
         const json = JSON.parse(raw) as { client_email?: string }
         serviceAccountEmail = json.client_email ?? null
-      } catch {
-        // ignoramos
-      }
+      } catch { /* ignoramos */ }
     }
 
     return {
@@ -53,6 +55,9 @@ export async function getBackendSheetConfig(): Promise<{
         sheetId: (data?.backend_sheet_id as string) ?? null,
         lastSync: (data?.backend_sheet_last_sync as string) ?? null,
         serviceAccountEmail,
+        googleEmail: (data?.google_service_email as string) ?? null,
+        hasOAuthToken: !!(data?.google_refresh_token),
+        hasServiceAccount: !!(serviceAccountEmail || process.env.GOOGLE_SERVICE_ACCOUNT_KEY),
       },
     }
   } catch (e) {
@@ -109,15 +114,16 @@ export async function exportToBackendSheet(): Promise<{
     const sb = createAdminClient() as any
     const { data: settings } = await sb
       .from('club_settings')
-      .select('backend_sheet_id')
+      .select('backend_sheet_id, google_refresh_token')
       .eq('club_id', clubId)
       .single()
     const sheetId = settings?.backend_sheet_id as string | undefined
     if (!sheetId) {
       return { success: false, error: 'Configura primero el ID de la hoja' }
     }
+    const refreshToken = settings?.google_refresh_token as string | null
 
-    const result = await exportClubToBackendSheet(clubId, sheetId)
+    const result = await exportClubToBackendSheet(clubId, sheetId, refreshToken)
 
     // Guardar timestamp del último export
     await sb
@@ -127,6 +133,50 @@ export async function exportToBackendSheet(): Promise<{
 
     revalidatePath('/configuracion/integraciones')
     return { success: true, result }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+/**
+ * Genera la URL de autorización OAuth para conectar la cuenta Google del usuario.
+ * Devuelve la URL — el cliente hace window.location.href con ella.
+ */
+export async function getGoogleAuthUrl(): Promise<{ success: boolean; url?: string; error?: string }> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
+      return { success: false, error: 'Solo admin / dirección' }
+    }
+    const oauth = getOAuthClient()
+    const state = Buffer.from(JSON.stringify({ clubId })).toString('base64url')
+    const url = oauth.generateAuthUrl({
+      access_type: 'offline',
+      scope: GOOGLE_SCOPES,
+      prompt: 'consent',   // fuerza que Google envíe siempre el refresh_token
+      state,
+    })
+    return { success: true, url }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+/** Desconecta la cuenta Google eliminando el refresh_token guardado */
+export async function disconnectGoogle(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
+      return { success: false, error: 'Solo admin / dirección' }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+    await sb
+      .from('club_settings')
+      .update({ google_refresh_token: null, google_service_email: null })
+      .eq('club_id', clubId)
+    revalidatePath('/configuracion/integraciones')
+    return { success: true }
   } catch (e) {
     return { success: false, error: (e as Error).message }
   }
@@ -147,9 +197,15 @@ export async function createBackendSheet(): Promise<{
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Solo admin / dirección' }
     }
-    const { id, url } = await createSpreadsheet('Ciudad Magia — Datos del Club')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
+    const { data: settings } = await sb
+      .from('club_settings')
+      .select('google_refresh_token')
+      .eq('club_id', clubId)
+      .single()
+    const refreshToken = settings?.google_refresh_token as string | null
+    const { id, url } = await createSpreadsheet('Ciudad Magia — Datos del Club', refreshToken)
     const { error } = await sb
       .from('club_settings')
       .update({ backend_sheet_id: id })
@@ -176,14 +232,15 @@ export async function checkBackendSheet(): Promise<{
     const sb = createAdminClient() as any
     const { data: settings } = await sb
       .from('club_settings')
-      .select('backend_sheet_id')
+      .select('backend_sheet_id, google_refresh_token')
       .eq('club_id', clubId)
       .single()
     const sheetId = settings?.backend_sheet_id as string | undefined
     if (!sheetId) {
       return { success: false, error: 'Configura primero el ID de la hoja' }
     }
-    const data = await checkSheetAccess(sheetId)
+    const refreshToken = settings?.google_refresh_token as string | null
+    const data = await checkSheetAccess(sheetId, refreshToken)
     return { success: true, data }
   } catch (e) {
     return { success: false, error: (e as Error).message }
