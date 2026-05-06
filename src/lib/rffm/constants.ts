@@ -3,8 +3,8 @@
 // ──────────────────────────────────────────────────────────────
 
 export const TIPOJUEGO_LABELS: Record<string, string> = {
-  '1': 'Fútbol 7',
-  '2': 'Fútbol 11',
+  '1': 'Fútbol 11',
+  '2': 'Fútbol 7',
   '3': 'Fútbol 8',
   '4': 'Fútbol 5 / Sala',
   '5': 'Fútbol Playa',

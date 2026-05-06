@@ -31,8 +31,8 @@ import { SyncHealthBanner } from './SyncHealthBanner'
 // ── Constants ──────────────────────────────────────────────────
 
 const TIPOJUEGO_LABELS: Record<string, string> = {
-  '1': 'F-7',
-  '2': 'F-11',
+  '1': 'F-11',
+  '2': 'F-7',
   '4': 'F-5 / Sala',
 }
 

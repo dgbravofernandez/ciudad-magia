@@ -6,8 +6,8 @@ import { fetchRffmAPI } from '@/lib/rffm/client'
 import { getStandings } from '@/lib/rffm/standings'
 
 const TIPOJUEGO_LABELS: Record<string, string> = {
-  '1': 'F-7',
-  '2': 'F-11',
+  '1': 'F-11',
+  '2': 'F-7',
   '4': 'F-5 / Sala',
 }
 
@@ -62,19 +62,21 @@ export async function resolveCompetitionUrlAction(url: string): Promise<{
     // Fetch competition name
     let nombreCompeticion = codCompeticion
     try {
-      const comps = await fetchRffmAPI<RffmCompetition[]>('competiciones', {
-        codTemporada,
-        codTipoJuego: codTipojuego,
+      const comps = await fetchRffmAPI<RffmCompetition[]>('competitions', {
+        temporada: codTemporada,
+        tipojuego: codTipojuego,
       })
-      const found = comps.find(c => c.codigo === codCompeticion)
+      const arr = Array.isArray(comps) ? comps : []
+      const found = arr.find(c => String(c.codigo) === codCompeticion)
       if (found) nombreCompeticion = found.nombre
     } catch { /* leave as code */ }
 
     // Fetch group name
     let nombreGrupo = codGrupo
     try {
-      const groups = await fetchRffmAPI<RffmGroup[]>('grupos', { codCompeticion })
-      const found = groups.find(g => g.codigo === codGrupo)
+      const groups = await fetchRffmAPI<RffmGroup[]>('groups', { competicion: codCompeticion })
+      const arr = Array.isArray(groups) ? groups : []
+      const found = arr.find(g => String(g.codigo) === codGrupo)
       if (found) nombreGrupo = found.nombre
     } catch { /* leave as code */ }
 
