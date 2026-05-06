@@ -70,6 +70,10 @@ export async function addTrackedCompetition(input: {
 export async function updateTrackedCompetition(
   id: string,
   fields: Partial<{
+    cod_temporada: string
+    cod_tipojuego: string
+    cod_competicion: string
+    cod_grupo: string
     nombre_competicion: string
     nombre_grupo: string
     codigo_equipo_nuestro: string

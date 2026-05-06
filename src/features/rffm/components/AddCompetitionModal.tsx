@@ -9,11 +9,12 @@ import {
   type ResolvedCompetition,
   type ResolvedTeam,
 } from '@/features/rffm/actions/browse.actions'
-import { addTrackedCompetition, triggerRffmSync } from '@/features/rffm/actions/rffm.actions'
+import { addTrackedCompetition, updateTrackedCompetition, triggerRffmSync } from '@/features/rffm/actions/rffm.actions'
 
 interface Props {
   open: boolean
   onClose: () => void
+  editId?: string  // when set: repair mode (update existing row)
 }
 
 const TEMPORADA_LABELS: Record<string, string> = {
@@ -22,7 +23,8 @@ const TEMPORADA_LABELS: Record<string, string> = {
   '19': '2023-2024',
 }
 
-export function AddCompetitionModal({ open, onClose }: Props) {
+export function AddCompetitionModal({ open, onClose, editId }: Props) {
+  const isRepair = !!editId
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -67,7 +69,7 @@ export function AddCompetitionModal({ open, onClose }: Props) {
     if (!parsed || !selectedTeam) return
     setIsAdding(true)
     startTransition(async () => {
-      const res = await addTrackedCompetition({
+      const fields = {
         cod_temporada: parsed.cod_temporada,
         cod_tipojuego: parsed.cod_tipojuego,
         cod_competicion: parsed.cod_competicion,
@@ -76,13 +78,18 @@ export function AddCompetitionModal({ open, onClose }: Props) {
         nombre_grupo: parsed.nombre_grupo,
         codigo_equipo_nuestro: selectedTeam.codigo_equipo,
         nombre_equipo_nuestro: selectedTeam.nombre_equipo,
-      })
+      }
+
+      const res = isRepair
+        ? await updateTrackedCompetition(editId!, fields)
+        : await addTrackedCompetition(fields)
+
       if (!res.success) {
-        toast.error(res.error ?? 'Error al añadir competición')
+        toast.error(res.error ?? (isRepair ? 'Error al actualizar' : 'Error al añadir competición'))
         setIsAdding(false)
         return
       }
-      // Initial sync — fire and forget toasts
+
       toast.promise(
         Promise.all([
           triggerRffmSync('calendar'),
@@ -90,8 +97,8 @@ export function AddCompetitionModal({ open, onClose }: Props) {
         ]),
         {
           loading: 'Sincronizando calendario y clasificación…',
-          success: 'Competición añadida y sincronizada',
-          error: 'Competición añadida. Sincronización parcial — lanza sync manual si faltan datos.',
+          success: isRepair ? 'Competición reparada y sincronizada' : 'Competición añadida y sincronizada',
+          error: 'Guardado. Sincronización parcial — lanza sync manual si faltan datos.',
         }
       )
       router.refresh()
@@ -105,7 +112,7 @@ export function AddCompetitionModal({ open, onClose }: Props) {
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-900">Añadir competición</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{isRepair ? 'Reparar competición' : 'Añadir competición'}</h2>
           <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <X className="w-5 h-5" />
           </button>
@@ -234,7 +241,7 @@ export function AddCompetitionModal({ open, onClose }: Props) {
                 className="flex items-center gap-2 bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {(isPending || isAdding) ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                Añadir competición
+                {isRepair ? 'Guardar cambios' : 'Añadir competición'}
               </button>
             </div>
           </div>

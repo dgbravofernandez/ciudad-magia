@@ -290,6 +290,7 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
   // New comp form
   const [showAddComp, setShowAddComp] = useState(false)
   const [compForm, setCompForm] = useState(defaultForm)
+  const [repairCompId, setRepairCompId] = useState<string | null>(null)
 
   // ── Signal filtering ─────────────────────────────────────────
   // Default: no mostrar nada hasta que haya filtro real (búsqueda
@@ -1051,14 +1052,14 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {!c.codigo_equipo_nuestro && (
+                          {(/^\d+$/.test(c.nombre_competicion) || !c.codigo_equipo_nuestro) && (
                             <button
-                              onClick={() => handleAutoDetect(c.id, c.nombre_competicion)}
+                              onClick={() => setRepairCompId(c.id)}
                               disabled={isPending}
-                              className="px-2 py-1 text-[10px] font-semibold rounded bg-amber-500 hover:bg-amber-600 text-white"
-                              title="Buscar el código del equipo en el calendario de la competición"
+                              className="px-2 py-1 text-[10px] font-semibold rounded bg-orange-500 hover:bg-orange-600 text-white"
+                              title="Pega una URL de RFFM para corregir nombre, modalidad y equipo"
                             >
-                              Auto
+                              🔧 Reparar
                             </button>
                           )}
                           <button
@@ -1157,6 +1158,11 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
 
           {/* Wizard modal — reemplaza al modal de PDF antiguo */}
           <AddCompetitionModal open={showImportPdf} onClose={() => setShowImportPdf(false)} />
+          <AddCompetitionModal
+            open={!!repairCompId}
+            onClose={() => setRepairCompId(null)}
+            editId={repairCompId ?? undefined}
+          />
 
           {/* Old inline form (never shown; kept for state references) */}
           {showAddComp && (
