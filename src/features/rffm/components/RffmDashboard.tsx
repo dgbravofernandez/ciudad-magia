@@ -1451,11 +1451,20 @@ function MisEquiposTab({
   }, [cardAlerts])
 
   // ── Widget "Resultados última jornada de la escuela" ──────────
-  // Todos los partidos nuestros con resultado en los últimos 14 días.
+  // Solo partidos de competiciones activas en los últimos 14 días.
   const ultimaJornada = useMemo(() => {
     const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    // Solo competiciones activas
+    const activeIds = new Set(allComps.filter(c => c.active !== false).map(c => c.id))
     const items = allMatches
-      .filter(m => m.is_our_match && m.acta_cerrada && (m.fecha ?? '') >= cutoff && (m.fecha ?? '') <= todayIso)
+      .filter(m =>
+        m.is_our_match &&
+        m.acta_cerrada &&
+        (m.fecha ?? '') >= cutoff &&
+        (m.fecha ?? '') <= todayIso &&
+        !!m.tracked_competition_id &&
+        activeIds.has(m.tracked_competition_id),
+      )
       .sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? ''))
     // Agrupar por categoría (vía tracked_competition_id → comp.nombre_competicion)
     const compById = new Map<string, TrackedComp>()
@@ -1703,12 +1712,12 @@ function MisEquiposTab({
                 </div>
               )}
 
-              {/* Goleadores + tarjetas (de actas) */}
-              {(topGoleadores.length > 0 || topAmarillas.length > 0) && (
+              {/* Goleadores + tarjetas (de actas sincronizadas) — siempre visible */}
+              {ourCode && (
                 <div className="mb-3 grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {topGoleadores.length > 0 && (
-                    <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-2.5">
-                      <p className="text-xs font-semibold text-emerald-900 mb-1.5">⚽ Goleadores</p>
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-2.5">
+                    <p className="text-xs font-semibold text-emerald-900 mb-1.5">⚽ Goleadores</p>
+                    {topGoleadores.length > 0 ? (
                       <ul className="space-y-1 text-xs">
                         {topGoleadores.map((g, i) => (
                           <li key={g.nombre} className="flex items-center gap-1.5">
@@ -1718,11 +1727,15 @@ function MisEquiposTab({
                           </li>
                         ))}
                       </ul>
-                    </div>
-                  )}
-                  {topAmarillas.length > 0 && (
-                    <div className="bg-amber-50 border border-amber-100 rounded-lg p-2.5">
-                      <p className="text-xs font-semibold text-amber-900 mb-1.5">🟨 Tarjetas</p>
+                    ) : (
+                      <p className="text-xs text-emerald-700/60 italic">
+                        {ourMatches.length === 0 ? 'Sin partidos — sincroniza primero' : 'Sin datos de goles en actas'}
+                      </p>
+                    )}
+                  </div>
+                  <div className="bg-amber-50 border border-amber-100 rounded-lg p-2.5">
+                    <p className="text-xs font-semibold text-amber-900 mb-1.5">🟨 Tarjetas</p>
+                    {topAmarillas.length > 0 ? (
                       <ul className="space-y-1 text-xs">
                         {topAmarillas.map(a => (
                           <li key={a.nombre} className="flex items-center gap-1.5">
@@ -1734,8 +1747,12 @@ function MisEquiposTab({
                           </li>
                         ))}
                       </ul>
-                    </div>
-                  )}
+                    ) : (
+                      <p className="text-xs text-amber-700/60 italic">
+                        {ourMatches.length === 0 ? 'Sin partidos — sincroniza primero' : 'Sin tarjetas registradas'}
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 
