@@ -66,12 +66,13 @@ export async function registerPayment(data: {
   month?: number
   season?: string
 }) {
-  const { sb, memberId } = await resolveClubAndMember()
+  // SEC: usar siempre clubId del contexto de servidor — nunca confiar en data.clubId del cliente
+  const { sb, clubId, memberId } = await resolveClubAndMember()
   const dbMethod = toDbMethod(data.method)
 
   // Insert quota_payment record
   const { data: payment, error: paymentError } = await sb.from('quota_payments').insert({
-    club_id: data.clubId,
+    club_id: clubId,
     player_id: data.playerId,
     season: data.season ?? getCurrentSeason(),
     month: data.month ?? new Date(data.date).getMonth() + 1,
@@ -90,7 +91,7 @@ export async function registerPayment(data: {
 
   // Create cash_movement record
   const { error: movementError } = await sb.from('cash_movements').insert({
-    club_id: data.clubId,
+    club_id: clubId,
     type: 'income',
     amount: data.amount,
     payment_method: dbMethod,
@@ -116,7 +117,7 @@ export async function registerPayment(data: {
         method: dbMethod,
         date: data.date,
         concept: data.concept ?? 'Cuota mensual',
-        clubId: data.clubId,
+        clubId: clubId,
       })
       // 15s timeout — enough for PDF + email, won't hang forever
       const timeout = new Promise<void>((_, reject) =>

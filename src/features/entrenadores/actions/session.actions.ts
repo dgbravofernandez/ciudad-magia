@@ -266,31 +266,35 @@ export async function completeSession(sessionId: string) {
         .eq('club_id', clubId)
         .single()
 
+      // session_attendance.status es 'present'|'absent'|'justified' — no existen record.present ni record.justified
+      const isPresent  = record.status === 'present'
+      const isAbsent   = record.status === 'absent'
+
       if (existing) {
         await supabase
           .from('player_season_stats')
           .update({
-            sessions_attended: existing.sessions_attended + (record.present ? 1 : 0),
-            sessions_absent: existing.sessions_absent + (!record.present && !record.justified ? 1 : 0),
-            goals: existing.goals + (record.goals ?? 0),
-            assists: existing.assists + (record.assists ?? 0),
+            sessions_attended: existing.sessions_attended + (isPresent ? 1 : 0),
+            sessions_absent:   existing.sessions_absent   + (isAbsent  ? 1 : 0),
+            goals:        existing.goals        + (record.goals        ?? 0),
+            assists:      existing.assists      + (record.assists      ?? 0),
             yellow_cards: existing.yellow_cards + (record.yellow_cards ?? 0),
-            red_cards: existing.red_cards + (record.red_cards ?? 0),
+            red_cards:    existing.red_cards    + (record.red_cards    ?? 0),
           })
           .eq('id', existing.id)
       } else {
         await supabase
           .from('player_season_stats')
           .insert({
-            club_id: clubId,
-            player_id: record.player_id,
-            season: new Date().getFullYear().toString(),
-            sessions_attended: record.present ? 1 : 0,
-            sessions_absent: !record.present && !record.justified ? 1 : 0,
-            goals: record.goals ?? 0,
-            assists: record.assists ?? 0,
+            club_id:           clubId,
+            player_id:         record.player_id,
+            season:            new Date().getFullYear().toString(),
+            sessions_attended: isPresent ? 1 : 0,
+            sessions_absent:   isAbsent  ? 1 : 0,
+            goals:        record.goals        ?? 0,
+            assists:      record.assists      ?? 0,
             yellow_cards: record.yellow_cards ?? 0,
-            red_cards: record.red_cards ?? 0,
+            red_cards:    record.red_cards    ?? 0,
           })
       }
     }

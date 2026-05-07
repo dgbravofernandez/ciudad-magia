@@ -32,7 +32,7 @@ export async function updateSanction(
 
     const supabase = createAdminClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).from('player_sanctions').update(patch).eq('id', sanctionId)
+    const { error } = await (supabase as any).from('player_sanctions').update(patch).eq('id', sanctionId).eq('club_id', clubId)
     if (error) return { success: false, error: error.message }
 
     revalidatePath('/jugadores/sanciones')
@@ -53,7 +53,7 @@ export async function deleteSanction(sanctionId: string) {
 
     const supabase = createAdminClient()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).from('player_sanctions').delete().eq('id', sanctionId)
+    const { error } = await (supabase as any).from('player_sanctions').delete().eq('id', sanctionId).eq('club_id', clubId)
     if (error) return { success: false, error: error.message }
 
     revalidatePath('/jugadores/sanciones')

@@ -47,6 +47,9 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
   const [method, setMethod] = useState<'cash' | 'card' | 'transfer'>('cash')
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10))
 
+  // Modal para marcar cobro como pagado
+  const [payMethodModal, setPayMethodModal] = useState<{ charge: ActivityCharge; method: 'cash' | 'card' | 'transfer' } | null>(null)
+
   // Bulk add desde equipos
   const [showBulk, setShowBulk] = useState(false)
   const [bulkAmount, setBulkAmount] = useState('')
@@ -167,10 +170,15 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
   }
 
   function handleMarkPaid(c: ActivityCharge) {
-    const m = prompt('Método de pago: cash, card, transfer', 'cash')
-    if (!m || !['cash', 'card', 'transfer'].includes(m)) return
+    setPayMethodModal({ charge: c, method: 'cash' })
+  }
+
+  function confirmMarkPaid() {
+    if (!payMethodModal) return
+    const { charge, method: m } = payMethodModal
+    setPayMethodModal(null)
     startTransition(async () => {
-      const res = await markChargePaid(c.id, m as 'cash' | 'card' | 'transfer')
+      const res = await markChargePaid(charge.id, m)
       if (res.success) {
         toast.success('Marcado como pagado')
         router.refresh()
@@ -477,6 +485,32 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
             )}
           </div>
         </>
+      )}
+
+      {/* Modal: Confirmar método de pago (reemplaza prompt()) */}
+      {payMethodModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setPayMethodModal(null)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-gray-900 mb-1">Marcar como pagado</h3>
+            <p className="text-sm text-gray-500 mb-4">{payMethodModal.charge.participant_name ?? payMethodModal.charge.player_id}</p>
+            <p className="text-xs font-medium text-gray-600 mb-2">Método de pago</p>
+            <div className="flex gap-2 mb-5">
+              {(['cash', 'card', 'transfer'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setPayMethodModal({ ...payMethodModal, method: m })}
+                  className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${payMethodModal.method === m ? 'bg-primary text-white border-primary' : 'border-gray-200 text-gray-600 hover:border-primary/50'}`}
+                >
+                  {m === 'cash' ? 'Efectivo' : m === 'card' ? 'Tarjeta' : 'Transferencia'}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setPayMethodModal(null)} className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600">Cancelar</button>
+              <button onClick={confirmMarkPaid} disabled={isPending} className="flex-1 py-2 rounded-lg bg-primary text-white text-sm font-medium disabled:opacity-50">Confirmar</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal: Añadir desde equipos */}

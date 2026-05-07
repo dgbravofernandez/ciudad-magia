@@ -157,7 +157,8 @@ export async function sendEmail(playerId: string, emailType: string) {
 
   const flag = flagMap[emailType]
   if (flag) {
-    await sb.from('players').update({ [flag]: true }).eq('id', playerId)
+    // SEC: filtrar por club_id para no modificar jugadores de otros clubs
+    await sb.from('players').update({ [flag]: true }).eq('id', playerId).eq('club_id', clubId)
   }
 
   revalidatePath('/jugadores/inscripciones')
@@ -667,10 +668,9 @@ export async function sendTrialLetter(
   const { getClubId } = await import('@/lib/supabase/get-club-id')
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
-  let clubId = await getClubId()
+  const clubId = await getClubId()
   if (!clubId) {
-    const { data: anyClub } = await sb.from('clubs').select('id').limit(1).single()
-    clubId = anyClub?.id ?? ''
+    return { success: false, error: 'No autenticado — no se pudo determinar el club' }
   }
 
   const { data: player } = await sb
@@ -936,14 +936,19 @@ export async function deletePlayerObservation(
 export async function getPlayerObservations(
   playerId: string
 ): Promise<{ id: string; category: string; comment: string; author_name: string | null; created_at: string }[]> {
-  const supabase = await createClient()
+  // SEC: usar admin client + filtro club_id para no exponer observaciones de otros clubs
+  const { getClubId } = await import('@/lib/supabase/get-club-id')
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const clubId = await getClubId()
+  if (!clubId) return []
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const sb = createAdminClient() as any
 
   const { data } = await sb
     .from('player_observations')
     .select('id, category, comment, author_name, created_at')
     .eq('player_id', playerId)
+    .eq('club_id', clubId)
     .order('created_at', { ascending: false })
 
   return data ?? []

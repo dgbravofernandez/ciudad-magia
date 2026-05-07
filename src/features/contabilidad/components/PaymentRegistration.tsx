@@ -105,6 +105,9 @@ export function PaymentRegistration({
   const [editMethod, setEditMethod] = useState('cash')
   const [editNotes, setEditNotes] = useState('')
 
+  // Modal de reembolso — reemplaza prompt() (no funciona en iOS Safari)
+  const [refundModal, setRefundModal] = useState<{ payment: Payment; method: string } | null>(null)
+
   const today = new Date().toISOString().slice(0, 10)
 
   // Get annual quota amount for a player based on team.
@@ -310,15 +313,15 @@ export function PaymentRegistration({
   }
 
   function handleRefundPayment(p: Payment) {
-    const player = playerMap[p.player_id]
-    const name = player ? `${player.first_name} ${player.last_name}` : 'este jugador'
-    const method = prompt(
-      `Reembolsar ${formatCurrency(p.amount_paid)} a ${name}.\nMétodo del reembolso: transfer, cash o card`,
-      p.payment_method ?? 'transfer'
-    )
-    if (!method) return
+    setRefundModal({ payment: p, method: p.payment_method ?? 'transfer' })
+  }
+
+  function confirmRefund() {
+    if (!refundModal) return
+    const { payment, method } = refundModal
+    setRefundModal(null)
     startTransition(async () => {
-      const result = await refundPayment(p.id, method)
+      const result = await refundPayment(payment.id, method)
       if (result.success) toast.success('Reembolso registrado')
       else toast.error(result.error ?? 'Error al reembolsar')
     })
@@ -837,6 +840,39 @@ export function PaymentRegistration({
               >
                 {isPending ? 'Guardando...' : 'Guardar cambios'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal: Reembolso — reemplaza prompt() */}
+      {refundModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setRefundModal(null)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-gray-900 mb-1">Registrar reembolso</h3>
+            {(() => {
+              const p = refundModal.payment
+              const pl = playerMap[p.player_id]
+              return (
+                <p className="text-sm text-gray-500 mb-4">
+                  {formatCurrency(p.amount_paid)} → {pl ? `${pl.first_name} ${pl.last_name}` : 'jugador'}
+                </p>
+              )
+            })()}
+            <p className="text-xs font-medium text-gray-600 mb-2">Método del reembolso</p>
+            <div className="flex gap-2 mb-5">
+              {PAYMENT_METHODS.map((m) => (
+                <button
+                  key={m.value}
+                  onClick={() => setRefundModal({ ...refundModal, method: m.value })}
+                  className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${refundModal.method === m.value ? 'bg-primary text-white border-primary' : 'border-gray-200 text-gray-600 hover:border-primary/50'}`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setRefundModal(null)} className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600">Cancelar</button>
+              <button onClick={confirmRefund} disabled={isPending} className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-medium disabled:opacity-50">Reembolsar</button>
             </div>
           </div>
         </div>
