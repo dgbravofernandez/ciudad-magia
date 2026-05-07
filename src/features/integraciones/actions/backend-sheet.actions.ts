@@ -6,6 +6,8 @@ import { revalidatePath } from 'next/cache'
 import { exportClubToBackendSheet, type BackendExportResult } from '@/lib/google/backend-export'
 import { checkSheetAccess, createSpreadsheet } from '@/lib/google/sheets-writer'
 import { getOAuthClient, GOOGLE_SCOPES } from '@/lib/google/oauth'
+import { cookies } from 'next/headers'
+import { randomBytes } from 'crypto'
 
 export interface BackendSheetConfig {
   sheetId: string | null
@@ -148,8 +150,21 @@ export async function getGoogleAuthUrl(): Promise<{ success: boolean; url?: stri
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Solo admin / dirección' }
     }
+
+    // SEC-1: Generar nonce aleatorio y guardarlo en cookie httpOnly
+    // para prevenir ataques CSRF en el callback OAuth.
+    const nonce = randomBytes(32).toString('hex')
+    const cookieStore = await cookies()
+    cookieStore.set('oauth_nonce', nonce, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 600, // 10 minutos para completar el flujo OAuth
+      path: '/',
+    })
+
     const oauth = getOAuthClient()
-    const state = Buffer.from(JSON.stringify({ clubId })).toString('base64url')
+    const state = Buffer.from(JSON.stringify({ clubId, nonce })).toString('base64url')
     const url = oauth.generateAuthUrl({
       access_type: 'offline',
       scope: GOOGLE_SCOPES,

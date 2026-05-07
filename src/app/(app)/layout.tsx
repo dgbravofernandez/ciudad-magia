@@ -6,6 +6,7 @@ import { ClubProvider } from '@/context/ClubContext'
 import { UserProvider } from '@/context/UserContext'
 import { ClubThemeProvider } from '@/components/layout/ClubThemeProvider'
 import { Sidebar } from '@/components/layout/Sidebar'
+import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner'
 import type { Role } from '@/types/roles'
 
 export default async function AppLayout({
@@ -46,6 +47,7 @@ export default async function AppLayout({
   }
 
   const roles: Role[] = rolesHeader ? JSON.parse(rolesHeader) : []
+  const isImpersonating = headersList.get('x-impersonating') === 'true'
   const supabase = adminClient
 
   // Fetch club data
@@ -64,7 +66,10 @@ export default async function AppLayout({
     <ClubProvider value={{ club, settings }}>
       <UserProvider member={member} roles={roles}>
         <ClubThemeProvider club={club} />
-        <div className="flex h-screen overflow-hidden bg-background">
+        {isImpersonating && (
+          <ImpersonationBanner clubName={club.name} />
+        )}
+        <div className={`flex h-screen overflow-hidden bg-background ${isImpersonating ? 'pt-10' : ''}`}>
           <Sidebar />
           <div className="flex-1 flex flex-col lg:ml-64 overflow-hidden">
             <main className="flex-1 overflow-y-auto">{children}</main>

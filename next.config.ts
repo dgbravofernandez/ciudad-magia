@@ -39,4 +39,17 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry: activar wrapping solo si NEXT_PUBLIC_SENTRY_DSN está configurado.
+// Para activar: añadir NEXT_PUBLIC_SENTRY_DSN, SENTRY_ORG, SENTRY_PROJECT,
+// SENTRY_AUTH_TOKEN en las variables de entorno de Vercel.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const finalConfig = process.env.NEXT_PUBLIC_SENTRY_DSN
+  ? require('@sentry/nextjs').withSentryConfig(nextConfig, {
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      silent: !process.env.CI,
+      hideSourceMaps: true,
+    })
+  : nextConfig
+
+export default finalConfig

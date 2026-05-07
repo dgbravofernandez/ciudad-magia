@@ -5,7 +5,6 @@ import { toast } from 'sonner'
 import { ExternalLink, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, Save, Sparkles, LogOut, Mail } from 'lucide-react'
 import {
   exportToBackendSheet,
-  checkBackendSheet,
   saveBackendSheetId,
   getBackendSheetConfig,
   createBackendSheet,
@@ -24,8 +23,7 @@ export function IntegracionesPage() {
   const [isPending, startTransition] = useTransition()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [lastExport, setLastExport] = useState<any>(null)
-  const [meta, setMeta] = useState<{ title: string; url: string; tabs: string[] } | null>(null)
-  const [loading, setLoading] = useState(true)
+const [loading, setLoading] = useState(true)
 
   // Config RFFM
   const [rffmCodigo, setRffmCodigo] = useState<string>('')
@@ -158,19 +156,6 @@ export function IntegracionesPage() {
     })
   }
 
-  function handleCheck() {
-    if (!config?.sheetId) { toast.error('Guarda el ID primero'); return }
-    startTransition(async () => {
-      const r = await checkBackendSheet()
-      if (r.success && r.data) {
-        setMeta(r.data)
-        toast.success(`Acceso OK a "${r.data.title}"`)
-      } else {
-        setMeta(null)
-        toast.error(r.error ?? 'Sin acceso. ¿Has compartido la hoja con el email de la service account?')
-      }
-    })
-  }
 
   function handleExport() {
     if (!config?.sheetId) { toast.error('Guarda el ID primero'); return }
@@ -409,22 +394,11 @@ export function IntegracionesPage() {
               Guardar
             </button>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            La hoja debe estar compartida con la service account como Editor.
-          </p>
         </details>
 
         {/* Exportar */}
         <div className="border-t border-slate-100 pt-4">
           <div className="flex gap-2">
-            <button
-              onClick={handleCheck}
-              disabled={isPending || !config?.sheetId}
-              className="px-4 py-2 text-sm rounded-md border border-slate-300 hover:bg-slate-50 disabled:opacity-50 flex items-center gap-2"
-            >
-              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-              Comprobar acceso
-            </button>
             <button
               onClick={handleExport}
               disabled={isPending || !config?.sheetId}
@@ -435,20 +409,6 @@ export function IntegracionesPage() {
             </button>
           </div>
         </div>
-
-        {/* Resultado check */}
-        {meta && (
-          <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm">
-            <div className="flex items-center gap-2 font-medium text-emerald-900">
-              <CheckCircle className="w-4 h-4" /> Acceso confirmado a &quot;{meta.title}&quot;
-            </div>
-            {meta.tabs.length > 0 && (
-              <p className="text-xs text-emerald-800 mt-1">
-                Pestañas existentes: {meta.tabs.join(', ')}
-              </p>
-            )}
-          </div>
-        )}
 
         {/* Resultado export */}
         {lastExport && (

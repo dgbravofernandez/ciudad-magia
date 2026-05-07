@@ -28,8 +28,19 @@ export function getOAuthClient() {
       'Crea una app OAuth en Google Cloud Console y añade las variables a Vercel.',
     )
   }
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const redirectUri = `${appUrl}/api/google/callback`
+  // SEC-3: Preferir GOOGLE_REDIRECT_URI fijo. Si no está, construir dinámicamente
+  // (inseguro en prod: un proxy malicioso podría manipular el Host header).
+  let redirectUri = process.env.GOOGLE_REDIRECT_URI
+  if (!redirectUri) {
+    if (process.env.NODE_ENV === 'production') {
+      console.warn(
+        '[OAuth] GOOGLE_REDIRECT_URI no configurado — usando NEXT_PUBLIC_APP_URL. ' +
+        'Configura GOOGLE_REDIRECT_URI en Vercel para mayor seguridad.'
+      )
+    }
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+    redirectUri = `${appUrl}/api/google/callback`
+  }
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri)
 }
 

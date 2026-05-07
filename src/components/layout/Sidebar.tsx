@@ -127,12 +127,10 @@ const NAV_ITEMS: NavItem[] = [
     href: '/scouting',
     icon: Eye,
     requiredRole: ENTRENADORES_ROLES,
-  },
-  {
-    label: 'Scouting RFFM',
-    href: '/scouting/rffm',
-    icon: Eye,
-    requiredRole: ENTRENADORES_ROLES,
+    children: [
+      { label: 'Jugadores rivales', href: '/scouting' },
+      { label: 'RFFM', href: '/scouting/rffm' },
+    ],
   },
   {
     label: 'Ropa',
@@ -155,6 +153,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Club', href: '/configuracion/club' },
       { label: 'Roles y accesos', href: '/configuracion/roles' },
       { label: 'Cuotas', href: '/configuracion/cuotas' },
+      { label: 'Planificación temporada', href: '/configuracion/planificacion' },
       { label: 'Plantillas email', href: '/configuracion/plantillas-email' },
       { label: 'Integraciones', href: '/configuracion/integraciones' },
     ],
@@ -197,8 +196,8 @@ function NavItemComponent({ item }: { item: NavItem }) {
         )}
       >
         {loading
-          ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
-          : <Icon className="w-4 h-4 shrink-0" />
+          ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" aria-hidden="true" />
+          : <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
         }
         {item.label}
       </button>
@@ -216,9 +215,9 @@ function NavItemComponent({ item }: { item: NavItem }) {
             : 'text-sidebar-foreground hover:bg-sidebar-active/50 hover:text-white'
         )}
       >
-        <Icon className="w-4 h-4 shrink-0" />
+        <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
         <span className="flex-1 text-left">{item.label}</span>
-        <ChevronDown className={cn('w-3 h-3 transition-transform', open && 'rotate-180')} />
+        <ChevronDown className={cn('w-3 h-3 transition-transform', open && 'rotate-180')} aria-hidden="true" />
       </button>
 
       {(open || isActive) && (
@@ -272,9 +271,10 @@ export function Sidebar() {
       {/* Mobile hamburger button */}
       <button
         onClick={() => setMobileOpen(true)}
+        aria-label="Abrir menú de navegación"
         className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-sidebar rounded-lg text-white shadow-lg"
       >
-        <Menu className="w-5 h-5" />
+        <Menu className="w-5 h-5" aria-hidden="true" />
       </button>
 
       {/* Mobile overlay */}
@@ -308,8 +308,8 @@ export function Sidebar() {
               <p className="text-slate-400 text-xs">CRM Club</p>
             </div>
             {/* Close button mobile */}
-            <button onClick={() => setMobileOpen(false)} className="lg:hidden text-slate-400 hover:text-white">
-              <X className="w-4 h-4" />
+            <button onClick={() => setMobileOpen(false)} aria-label="Cerrar menú de navegación" className="lg:hidden text-slate-400 hover:text-white">
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -333,10 +333,10 @@ export function Sidebar() {
             </div>
             <button
               onClick={handleLogout}
-              className="text-slate-400 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-              title="Cerrar sesión"
+              aria-label="Cerrar sesión"
+              className="text-slate-400 hover:text-white lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>

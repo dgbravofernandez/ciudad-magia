@@ -41,11 +41,172 @@ export async function getSeasonPreview() {
 }
 
 /**
- * Start a new season:
- * 1. Duplicate active teams with new season string
- * 2. Move players: team_id ← next_team_id, next_team_id ← null (for wants_to_continue)
- * 3. Mark old teams as inactive
- * 4. Update club_settings.current_season
+ * Inicia la planificación de la próxima temporada:
+ * - Crea equipos borrador (active=false) copiando los actuales
+ * - Idempotente: si ya existen equipos para la próxima temporada, los devuelve
+ * - NO toca la temporada activa ni los jugadores
+ */
+export async function initNextSeasonPlanning(): Promise<{
+  success: boolean
+  error?: string
+  nextSeason?: string
+  teams?: { id: string; name: string; season: string }[]
+  alreadyExisted?: boolean
+}> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
+  const { clubId, roles } = await getClubContext()
+  if (!roles.some((r: string) => ['admin', 'direccion'].includes(r))) {
+    return { success: false, error: 'Sin permisos' }
+  }
+
+  const { data: settings } = await supabase
+    .from('club_settings').select('current_season').eq('club_id', clubId).single()
+  const currentSeason: string = (settings as { current_season?: string } | null)?.current_season ?? '2025/26'
+  const nextSeason = bumpSeason(currentSeason)
+
+  // ¿Ya existen equipos para la próxima temporada?
+  const { data: existing } = await supabase
+    .from('teams').select('id, name, season').eq('club_id', clubId).eq('season', nextSeason)
+  if (existing && existing.length > 0) {
+    return { success: true, nextSeason, teams: existing, alreadyExisted: true }
+  }
+
+  // Copiar equipos activos como borradores para la próxima temporada
+  const { data: activeTeams, error: teamsError } = await supabase
+    .from('teams').select('*').eq('club_id', clubId).eq('active', true)
+  if (teamsError) return { success: false, error: teamsError.message }
+  if (!activeTeams || activeTeams.length === 0) {
+    return { success: false, error: 'No hay equipos activos para copiar' }
+  }
+
+  const created: { id: string; name: string; season: string }[] = []
+  for (const team of activeTeams) {
+    const { data: newTeam, error } = await supabase
+      .from('teams')
+      .insert({ club_id: team.club_id, name: team.name, season: nextSeason, category_id: team.category_id ?? null, active: false })
+      .select().single()
+    if (error) return { success: false, error: `Error creando equipo ${team.name}: ${error.message}` }
+    created.push({ id: newTeam.id, name: newTeam.name, season: newTeam.season })
+  }
+
+  revalidatePath('/configuracion/planificacion')
+  return { success: true, nextSeason, teams: created, alreadyExisted: false }
+}
+
+/** Añade un equipo borrador para la próxima temporada */
+export async function addDraftTeam(name: string): Promise<{ success: boolean; error?: string; team?: { id: string; name: string; season: string } }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
+  const { clubId, roles } = await getClubContext()
+  if (!roles.some((r: string) => ['admin', 'direccion'].includes(r))) {
+    return { success: false, error: 'Sin permisos' }
+  }
+  const { data: settings } = await supabase.from('club_settings').select('current_season').eq('club_id', clubId).single()
+  const currentSeason: string = (settings as { current_season?: string } | null)?.current_season ?? '2025/26'
+  const nextSeason = bumpSeason(currentSeason)
+
+  const { data, error } = await supabase.from('teams')
+    .insert({ club_id: clubId, name: name.trim(), season: nextSeason, active: false })
+    .select().single()
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/configuracion/planificacion')
+  return { success: true, team: { id: data.id, name: data.name, season: data.season } }
+}
+
+/**
+ * Activa la próxima temporada (el switch definitivo):
+ * 1. Migra jugadores: team_id ← next_team_id
+ * 2. Jugadores con wants_to_continue=false → status='low'
+ * 3. Resetea campos de renovación de jugadores activos
+ * 4. Equipos nextSeason → active=true; currentSeason → active=false
+ * 5. club_member_roles con equipos currentSeason → eliminados
+ * 6. current_season = nextSeason
+ */
+export async function activateNextSeason(): Promise<{
+  success: boolean
+  error?: string
+  nextSeason?: string
+  playersUpdated?: number
+  lowPlayers?: number
+  teamsActivated?: number
+}> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
+  const { clubId, roles } = await getClubContext()
+  if (!roles.some((r: string) => ['admin', 'direccion'].includes(r))) {
+    return { success: false, error: 'Sin permisos' }
+  }
+
+  const { data: settings } = await supabase
+    .from('club_settings').select('current_season').eq('club_id', clubId).single()
+  const currentSeason: string = (settings as { current_season?: string } | null)?.current_season ?? '2025/26'
+  const nextSeason = bumpSeason(currentSeason)
+
+  // Verificar que existen equipos borradores para la próxima temporada
+  const { data: nextTeams } = await supabase
+    .from('teams').select('id').eq('club_id', clubId).eq('season', nextSeason)
+  if (!nextTeams || nextTeams.length === 0) {
+    return { success: false, error: `No hay equipos configurados para ${nextSeason}. Inicia la planificación primero.` }
+  }
+
+  const { data: currentTeams } = await supabase
+    .from('teams').select('id').eq('club_id', clubId).eq('season', currentSeason).eq('active', true)
+
+  // 1. Migrar jugadores que continúan: team_id ← next_team_id
+  const { data: allPlayers } = await supabase
+    .from('players').select('id, next_team_id, wants_to_continue, status').eq('club_id', clubId)
+  let playersUpdated = 0
+
+  for (const player of (allPlayers ?? [])) {
+    const p = player as { id: string; next_team_id: string | null; wants_to_continue: boolean | null; status: string | null }
+    if (p.status === 'low') continue
+    await supabase.from('players')
+      .update({ team_id: p.next_team_id ?? null, next_team_id: null })
+      .eq('id', p.id)
+    playersUpdated++
+  }
+
+  // 2. Jugadores con wants_to_continue=false → status='low'
+  const { count: lowCount } = await supabase.from('players')
+    .update({ status: 'low', team_id: null, next_team_id: null })
+    .eq('club_id', clubId).eq('wants_to_continue', false).neq('status', 'low')
+    .select('id', { count: 'exact', head: true })
+
+  // 3. Resetear campos de renovación de jugadores activos
+  await supabase.from('players')
+    .update({ wants_to_continue: null, meets_requirements: null, made_reservation: null })
+    .eq('club_id', clubId).neq('status', 'low')
+
+  // 4. Equipos nextSeason → active=true; currentSeason → active=false
+  await supabase.from('teams').update({ active: true })
+    .eq('club_id', clubId).eq('season', nextSeason)
+  const currentTeamIds = (currentTeams ?? []).map((t: { id: string }) => t.id)
+  if (currentTeamIds.length > 0) {
+    await supabase.from('teams').update({ active: false }).in('id', currentTeamIds)
+    // 5. Eliminar club_member_roles de equipos de la temporada actual
+    await supabase.from('club_member_roles').delete().in('team_id', currentTeamIds)
+  }
+
+  // 6. Actualizar temporada
+  await supabase.from('club_settings').update({ current_season: nextSeason }).eq('club_id', clubId)
+
+  revalidatePath('/configuracion')
+  revalidatePath('/jugadores')
+  revalidatePath('/entrenadores')
+  revalidatePath('/configuracion/planificacion')
+
+  return {
+    success: true,
+    nextSeason,
+    playersUpdated,
+    lowPlayers: lowCount ?? 0,
+    teamsActivated: nextTeams.length,
+  }
+}
+
+/**
+ * Start a new season (legacy — mantenido por compatibilidad con SeasonManagement)
  */
 export async function startNewSeason() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -221,7 +382,7 @@ function bumpSeason(season: string): string {
       const y2 = parseInt(fullMatch[2]) + 1
       return `${y1}/${y2}`
     }
-    return season
+    throw new Error(`Formato de temporada no reconocido: "${season}". Se esperaba "YYYY/YY" o "YYYY/YYYY".`)
   }
   const y1 = parseInt(match[1]) + 1
   const y2 = parseInt(match[2])

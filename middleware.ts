@@ -9,6 +9,9 @@ const PUBLIC_PATHS = [
   '/api/webhooks',
 ]
 
+// Rutas exclusivas del panel superadmin — no necesitan club membership
+const SUPERADMIN_PATHS = ['/superadmin']
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -34,7 +37,83 @@ export async function middleware(request: NextRequest) {
     { cookies: { getAll: () => [], setAll: () => {} } }
   )
 
-  // Fetch member data (club_id + roles)
+  // ─────────────────────────────────────────────
+  // SUPERADMIN: verificar si el usuario es admin de plataforma
+  // ─────────────────────────────────────────────
+  const { data: platformAdmin } = await adminSupabase
+    .from('platform_admins')
+    .select('user_id')
+    .eq('user_id', user.id)
+    .single()
+
+  const isSuperAdmin = !!platformAdmin
+
+  // Si accede a rutas /superadmin → solo permitir si es superadmin
+  if (SUPERADMIN_PATHS.some((p) => pathname.startsWith(p))) {
+    if (!isSuperAdmin) {
+      // No revelar que /superadmin existe — redirigir a 404
+      const url = request.nextUrl.clone()
+      url.pathname = '/not-found'
+      return NextResponse.redirect(url)
+    }
+
+    // Superadmin accediendo a /superadmin — inyectar header y pasar
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-platform-role', 'superadmin')
+    requestHeaders.set('x-user-email', user.email ?? '')
+    const response = NextResponse.next({ request: { headers: requestHeaders } })
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      response.cookies.set(cookie.name, cookie.value, cookie)
+    })
+    return response
+  }
+
+  // ─────────────────────────────────────────────
+  // IMPERSONACIÓN: superadmin actuando como admin de un club
+  // ─────────────────────────────────────────────
+  const impersonateClubId = request.cookies.get('superadmin_impersonate')?.value
+
+  if (isSuperAdmin && impersonateClubId) {
+    // Verificar que el club existe
+    const { data: club } = await adminSupabase
+      .from('clubs')
+      .select('id')
+      .eq('id', impersonateClubId)
+      .single()
+
+    if (club) {
+      // Obtener o crear el registro de club_member para el superadmin en ese club
+      // Si no tiene membership, simular como admin inyectando datos sintéticos
+      const { data: member } = await adminSupabase
+        .from('club_members')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('club_id', impersonateClubId)
+        .eq('active', true)
+        .maybeSingle()
+
+      const memberId = member?.id ?? 'superadmin-impersonating'
+
+      const requestHeaders = new Headers(request.headers)
+      requestHeaders.set('x-club-id', impersonateClubId)
+      requestHeaders.set('x-member-id', memberId)
+      // Superadmin impersonando tiene todos los roles
+      requestHeaders.set('x-user-roles', JSON.stringify(['admin', 'direccion', 'director_deportivo']))
+      requestHeaders.set('x-platform-role', 'superadmin')
+      requestHeaders.set('x-user-email', user.email ?? '')
+      requestHeaders.set('x-impersonating', 'true')
+
+      const response = NextResponse.next({ request: { headers: requestHeaders } })
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        response.cookies.set(cookie.name, cookie.value, cookie)
+      })
+      return response
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // FLUJO NORMAL: buscar club membership del usuario
+  // ─────────────────────────────────────────────
   const { data: member } = await adminSupabase
     .from('club_members')
     .select('id, club_id')
@@ -43,13 +122,18 @@ export async function middleware(request: NextRequest) {
     .single()
 
   if (!member) {
+    // Si es superadmin sin membership en ningún club, redirigir a su panel
+    if (isSuperAdmin) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/superadmin'
+      return NextResponse.redirect(url)
+    }
     console.error('[middleware] No member found for user:', user.id, '— redirecting to login')
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('error', 'unauthorized')
     return NextResponse.redirect(url)
   }
-  console.log('[middleware] member ok, club_id:', member.club_id, 'path:', pathname)
 
   const { data: roles } = await adminSupabase
     .from('club_member_roles')
@@ -64,7 +148,9 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set('x-member-id', member.id)
   requestHeaders.set('x-user-roles', JSON.stringify(roleNames))
   requestHeaders.set('x-user-email', user.email ?? '')
-  requestHeaders.set('x-member-name', member.full_name ?? '')
+  if (isSuperAdmin) {
+    requestHeaders.set('x-platform-role', 'superadmin')
+  }
 
   const response = NextResponse.next({
     request: { headers: requestHeaders },
