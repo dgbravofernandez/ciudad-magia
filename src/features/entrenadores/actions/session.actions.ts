@@ -210,18 +210,20 @@ export async function addMatchEvent(sessionId: string, event: MatchEvent) {
 
   if (error) return { success: false, error: error.message }
 
-  // Update score if goal
+  // Incrementar marcador de forma atómica (RPC evita race condition por doble tap)
   if (event.event_type === 'goal') {
-    const { data: current } = await supabase
-      .from('sessions')
-      .select('score_home')
-      .eq('id', sessionId)
-      .single()
-
-    await supabase
-      .from('sessions')
-      .update({ score_home: (current?.score_home ?? 0) + 1 })
-      .eq('id', sessionId)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).rpc('increment_session_score', {
+      p_session_id: sessionId,
+      p_team: 'home',
+    })
+  }
+  if (event.event_type === 'goal_away') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).rpc('increment_session_score', {
+      p_session_id: sessionId,
+      p_team: 'away',
+    })
   }
 
   revalidatePath(`/entrenadores/partidos/${sessionId}`)

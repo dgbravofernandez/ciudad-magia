@@ -115,13 +115,15 @@ export async function addDraftTeam(name: string): Promise<{ success: boolean; er
 }
 
 /**
- * Activa la próxima temporada (el switch definitivo):
- * 1. Migra jugadores: team_id ← next_team_id
- * 2. Jugadores con wants_to_continue=false → status='low'
- * 3. Resetea campos de renovación de jugadores activos
- * 4. Equipos nextSeason → active=true; currentSeason → active=false
- * 5. club_member_roles con equipos currentSeason → eliminados
- * 6. current_season = nextSeason
+ * Activa la próxima temporada (el switch definitivo).
+ *
+ * Delega en la función SQL `activate_next_season()` (migración 030) que ejecuta
+ * todas las operaciones en una única transacción con ROLLBACK automático si algo falla:
+ *   1. Jugadores con wants_to_continue=false → status='low'
+ *   2. Migra team_id ← next_team_id en jugadores activos
+ *   3. Equipos nextSeason → active=true; currentSeason → active=false
+ *   4. Elimina club_member_roles de equipos de la temporada anterior
+ *   5. current_season = nextSeason
  */
 export async function activateNextSeason(): Promise<{
   success: boolean
@@ -143,53 +145,22 @@ export async function activateNextSeason(): Promise<{
   const currentSeason: string = (settings as { current_season?: string } | null)?.current_season ?? '2025/26'
   const nextSeason = bumpSeason(currentSeason)
 
-  // Verificar que existen equipos borradores para la próxima temporada
-  const { data: nextTeams } = await supabase
-    .from('teams').select('id').eq('club_id', clubId).eq('season', nextSeason)
-  if (!nextTeams || nextTeams.length === 0) {
-    return { success: false, error: `No hay equipos configurados para ${nextSeason}. Inicia la planificación primero.` }
+  // Llamar a la función SQL transaccional (migración 030_transactional_fixes.sql)
+  const { data, error } = await supabase.rpc('activate_next_season', {
+    p_club_id: clubId,
+    p_next_season: nextSeason,
+  })
+
+  if (error) return { success: false, error: error.message }
+
+  // La función devuelve JSONB: { success, nextSeason, playersUpdated, lowPlayers, teamsActivated }
+  const result = data as {
+    success: boolean
+    nextSeason: string
+    playersUpdated: number
+    lowPlayers: number
+    teamsActivated: number
   }
-
-  const { data: currentTeams } = await supabase
-    .from('teams').select('id').eq('club_id', clubId).eq('season', currentSeason).eq('active', true)
-
-  // 1. Migrar jugadores que continúan: team_id ← next_team_id
-  const { data: allPlayers } = await supabase
-    .from('players').select('id, next_team_id, wants_to_continue, status').eq('club_id', clubId)
-  let playersUpdated = 0
-
-  for (const player of (allPlayers ?? [])) {
-    const p = player as { id: string; next_team_id: string | null; wants_to_continue: boolean | null; status: string | null }
-    if (p.status === 'low') continue
-    await supabase.from('players')
-      .update({ team_id: p.next_team_id ?? null, next_team_id: null })
-      .eq('id', p.id)
-    playersUpdated++
-  }
-
-  // 2. Jugadores con wants_to_continue=false → status='low'
-  const { count: lowCount } = await supabase.from('players')
-    .update({ status: 'low', team_id: null, next_team_id: null })
-    .eq('club_id', clubId).eq('wants_to_continue', false).neq('status', 'low')
-    .select('id', { count: 'exact', head: true })
-
-  // 3. Resetear campos de renovación de jugadores activos
-  await supabase.from('players')
-    .update({ wants_to_continue: null, meets_requirements: null, made_reservation: null })
-    .eq('club_id', clubId).neq('status', 'low')
-
-  // 4. Equipos nextSeason → active=true; currentSeason → active=false
-  await supabase.from('teams').update({ active: true })
-    .eq('club_id', clubId).eq('season', nextSeason)
-  const currentTeamIds = (currentTeams ?? []).map((t: { id: string }) => t.id)
-  if (currentTeamIds.length > 0) {
-    await supabase.from('teams').update({ active: false }).in('id', currentTeamIds)
-    // 5. Eliminar club_member_roles de equipos de la temporada actual
-    await supabase.from('club_member_roles').delete().in('team_id', currentTeamIds)
-  }
-
-  // 6. Actualizar temporada
-  await supabase.from('club_settings').update({ current_season: nextSeason }).eq('club_id', clubId)
 
   revalidatePath('/configuracion')
   revalidatePath('/jugadores')
@@ -198,10 +169,10 @@ export async function activateNextSeason(): Promise<{
 
   return {
     success: true,
-    nextSeason,
-    playersUpdated,
-    lowPlayers: lowCount ?? 0,
-    teamsActivated: nextTeams.length,
+    nextSeason: result.nextSeason,
+    playersUpdated: result.playersUpdated,
+    lowPlayers: result.lowPlayers,
+    teamsActivated: result.teamsActivated,
   }
 }
 

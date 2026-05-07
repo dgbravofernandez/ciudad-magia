@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { updateSession } from '@/lib/supabase/middleware'
+import { verifyValue } from '@/lib/utils/hmac'
 
 const PUBLIC_PATHS = [
   '/login',
@@ -71,7 +72,25 @@ export async function middleware(request: NextRequest) {
   // ─────────────────────────────────────────────
   // IMPERSONACIÓN: superadmin actuando como admin de un club
   // ─────────────────────────────────────────────
-  const impersonateClubId = request.cookies.get('superadmin_impersonate')?.value
+  const rawImpersonate = request.cookies.get('superadmin_impersonate')?.value
+
+  // SEC: verificar firma HMAC antes de confiar en el clubId — previene XSS cookie injection
+  let impersonateClubId: string | null = null
+  if (isSuperAdmin && rawImpersonate) {
+    const secret = process.env.APP_SECRET ?? 'dev-secret-replace-in-prod'
+    const verified = await verifyValue(rawImpersonate, secret)
+    if (verified) {
+      // Payload firmado: "clubId:userId" — extraer clubId y verificar que userId coincide
+      const [cookieClubId, cookieUserId] = verified.split(':')
+      if (cookieUserId === user.id && cookieClubId) {
+        impersonateClubId = cookieClubId
+      } else {
+        console.warn('[middleware] impersonation HMAC válido pero userId no coincide')
+      }
+    } else {
+      console.warn('[middleware] impersonation cookie con firma inválida — posible ataque XSS')
+    }
+  }
 
   if (isSuperAdmin && impersonateClubId) {
     // Verificar que el club existe

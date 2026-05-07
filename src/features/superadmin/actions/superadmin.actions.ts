@@ -1,8 +1,10 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { headers, cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { signValue } from '@/lib/utils/hmac'
 
 /** Verifica que el usuario actual es superadmin. Lanza si no. */
 async function assertSuperAdmin() {
@@ -135,11 +137,22 @@ export async function getPlatformMetrics(): Promise<{
   }
 }
 
-/** Inicia impersonación de un club: guarda cookie y redirige al dashboard de ese club */
+/** Inicia impersonación de un club: guarda cookie firmada con HMAC y redirige al dashboard */
 export async function impersonateClub(clubId: string): Promise<void> {
   await assertSuperAdmin()
+
+  // Obtener userId para incluirlo en la firma — impide reutilizar la cookie entre usuarios
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  // Firma HMAC: payload = "clubId:userId", clave = APP_SECRET
+  const secret = process.env.APP_SECRET ?? 'dev-secret-replace-in-prod'
+  const payload = `${clubId}:${user.id}`
+  const signed = await signValue(payload, secret)
+
   const cookieStore = await cookies()
-  cookieStore.set('superadmin_impersonate', clubId, {
+  cookieStore.set('superadmin_impersonate', signed, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
