@@ -508,6 +508,7 @@ export function PaymentRegistration({
                                 name="amount"
                                 type="number"
                                 step="0.01"
+                                inputMode="decimal"
                                 min="0"
                                 className="input w-full"
                                 defaultValue={pending > 0 ? pending.toFixed(2) : ''}
@@ -743,13 +744,13 @@ export function PaymentRegistration({
 
       {/* Edit payment modal */}
       {editingPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeEditModal}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeEditModal} role="dialog" aria-modal="true" aria-labelledby="edit-payment-modal-title">
           <div
             className="bg-background rounded-xl shadow-xl w-full max-w-md p-6 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Modificar pago</h3>
+              <h3 id="edit-payment-modal-title" className="text-lg font-semibold">Modificar pago</h3>
               <button
                 type="button"
                 onClick={closeEditModal}
@@ -774,6 +775,7 @@ export function PaymentRegistration({
                 <input
                   type="number"
                   step="0.01"
+                  inputMode="decimal"
                   min="0"
                   className="input w-full"
                   value={editAmount}
@@ -846,9 +848,9 @@ export function PaymentRegistration({
       )}
       {/* Modal: Reembolso — reemplaza prompt() */}
       {refundModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setRefundModal(null)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setRefundModal(null)} role="dialog" aria-modal="true" aria-labelledby="refund-modal-title">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-semibold text-gray-900 mb-1">Registrar reembolso</h3>
+            <h3 id="refund-modal-title" className="font-semibold text-gray-900 mb-1">Registrar reembolso</h3>
             {(() => {
               const p = refundModal.payment
               const pl = playerMap[p.player_id]

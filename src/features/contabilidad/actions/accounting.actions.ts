@@ -8,6 +8,7 @@ import { headers } from 'next/headers'
 import { generateReceiptPDF } from '@/lib/pdf/generate-receipt'
 import { sendHtmlEmail } from '@/lib/email/send'
 import { assertNotLocked } from '@/lib/accounting/lock'
+import { logger } from '@/lib/logger'
 
 // Map Spanish UI labels to DB enum values
 const METHOD_MAP: Record<string, string> = {
@@ -127,10 +128,12 @@ export async function registerPayment(data: {
       emailSent = true
     } catch (err) {
       console.error('[accounting] PDF/email error:', err)
+      logger.error({ action: 'registerPayment', clubId, memberId, error: (err as Error).message, phase: 'email' })
       // Payment already registered — email failure is not fatal
     }
   }
 
+  logger.info({ action: 'registerPayment', clubId, memberId, amount: data.amount, emailSent })
   revalidatePath('/contabilidad/pagos')
   return { success: true, paymentId: payment?.id, emailSent }
 }

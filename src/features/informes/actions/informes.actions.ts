@@ -13,11 +13,19 @@ async function getCtx() {
   return ctx
 }
 
+/** Mapeo de número de mes (1–12) a abreviatura en español */
+const MONTH_LABEL: Record<number, string> = {
+  1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr',
+  5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Ago',
+  9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic',
+}
+const MONTH_ORDER = ['Sep', 'Oct', 'Nov', 'Dic', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago']
+
 // ─────────────────────────────────────────────
 // FILTROS COMUNES
 // ─────────────────────────────────────────────
 
-export type TeamOption = { id: string; name: string; category: string }
+export type TeamOption = { id: string; name: string; season: string }
 
 export async function getTeamsForFilter(): Promise<TeamOption[]> {
   const { clubId } = await getCtx()
@@ -25,10 +33,10 @@ export async function getTeamsForFilter(): Promise<TeamOption[]> {
   const sb = createAdminClient() as any
   const { data } = await sb
     .from('teams')
-    .select('id, name, category')
+    .select('id, name, season')   // teams no tiene columna 'category' — es category_id (FK)
     .eq('club_id', clubId)
     .eq('active', true)
-    .order('category')
+    .order('name')
   return data ?? []
 }
 
@@ -55,20 +63,25 @@ export async function getPlayerMinutes(filters: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
 
+    // Filtramos directamente por club_id en sessions y players
+    // (session_attendance no tiene club_id propio)
     let query = sb
       .from('session_attendance')
       .select(`
         minutes_played,
-        players!inner(id, full_name, club_id, team_id, teams(name)),
+        players!inner(id, first_name, last_name, club_id, team_id, teams(name)),
         sessions!inner(session_type, session_date, club_id, season)
       `)
       .eq('sessions.club_id', clubId)
       .eq('sessions.session_type', 'match')
-      .eq('sessions.season', filters.season)
       .eq('players.club_id', clubId)
       .not('minutes_played', 'is', null)
       .gt('minutes_played', 0)
 
+    // Filtramos por temporada solo si la columna ya existe (migration 031)
+    if (filters.season) {
+      query = query.eq('sessions.season', filters.season)
+    }
     if (filters.teamId) {
       query = query.eq('players.team_id', filters.teamId)
     }
@@ -84,6 +97,7 @@ export async function getPlayerMinutes(filters: {
       const key = player.id
       const existing = byPlayer.get(key)
       const minutes = row.minutes_played ?? 0
+      const playerName = `${player.first_name} ${player.last_name}`
       if (existing) {
         existing.matches_played++
         existing.total_minutes += minutes
@@ -91,7 +105,7 @@ export async function getPlayerMinutes(filters: {
       } else {
         byPlayer.set(key, {
           player_id: player.id,
-          player_name: player.full_name,
+          player_name: playerName,
           team_name: player.teams?.name ?? '—',
           matches_played: 1,
           total_minutes: minutes,
@@ -140,14 +154,16 @@ export async function getPlayerGoals(filters: {
       .from('session_attendance')
       .select(`
         goals, assists, yellow_cards, red_cards, rating,
-        players!inner(id, full_name, club_id, team_id, teams(name)),
+        players!inner(id, first_name, last_name, club_id, team_id, teams(name)),
         sessions!inner(session_type, club_id, season)
       `)
       .eq('sessions.club_id', clubId)
       .eq('sessions.session_type', 'match')
-      .eq('sessions.season', filters.season)
       .eq('players.club_id', clubId)
 
+    if (filters.season) {
+      query = query.eq('sessions.season', filters.season)
+    }
     if (filters.teamId) {
       query = query.eq('players.team_id', filters.teamId)
     }
@@ -161,6 +177,7 @@ export async function getPlayerGoals(filters: {
       if (!player) continue
       const key = player.id
       const existing = byPlayer.get(key)
+      const playerName = `${player.first_name} ${player.last_name}`
       if (existing) {
         existing.matches_played++
         existing.goals += row.goals ?? 0
@@ -171,7 +188,7 @@ export async function getPlayerGoals(filters: {
       } else {
         byPlayer.set(key, {
           player_id: player.id,
-          player_name: player.full_name,
+          player_name: playerName,
           team_name: player.teams?.name ?? '—',
           goals: row.goals ?? 0,
           assists: row.assists ?? 0,
@@ -226,14 +243,16 @@ export async function getPlayerAttendance(filters: {
       .from('session_attendance')
       .select(`
         status,
-        players!inner(id, full_name, club_id, team_id, teams(name)),
+        players!inner(id, first_name, last_name, club_id, team_id, teams(name)),
         sessions!inner(session_type, club_id, season)
       `)
       .eq('sessions.club_id', clubId)
       .eq('sessions.session_type', 'training')
-      .eq('sessions.season', filters.season)
       .eq('players.club_id', clubId)
 
+    if (filters.season) {
+      query = query.eq('sessions.season', filters.season)
+    }
     if (filters.teamId) {
       query = query.eq('players.team_id', filters.teamId)
     }
@@ -247,6 +266,7 @@ export async function getPlayerAttendance(filters: {
       if (!player) continue
       const key = player.id
       const existing = byPlayer.get(key)
+      const playerName = `${player.first_name} ${player.last_name}`
       if (existing) {
         existing.total_sessions++
         if (row.status === 'present') existing.attended++
@@ -255,7 +275,7 @@ export async function getPlayerAttendance(filters: {
       } else {
         byPlayer.set(key, {
           player_id: player.id,
-          player_name: player.full_name,
+          player_name: playerName,
           team_name: player.teams?.name ?? '—',
           total_sessions: 1,
           attended: row.status === 'present' ? 1 : 0,
@@ -308,7 +328,7 @@ export async function getInjuredPlayers(filters: {
       .from('injuries')
       .select(`
         injury_type, status, injured_at, recovered_at,
-        players!inner(id, full_name, club_id, team_id, teams(name))
+        players!inner(id, first_name, last_name, club_id, team_id, teams(name))
       `)
       .eq('players.club_id', clubId)
       .eq('club_id', clubId)
@@ -323,13 +343,14 @@ export async function getInjuredPlayers(filters: {
     if (error) return { success: false, error: error.message }
 
     const now = new Date()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result: InjuredPlayerRow[] = (data ?? []).map((row: any) => {
       const player = row.players
       const injuredAt = new Date(row.injured_at)
       const daysInjured = Math.floor((now.getTime() - injuredAt.getTime()) / (1000 * 60 * 60 * 24))
       return {
         player_id: player.id,
-        player_name: player.full_name,
+        player_name: `${player.first_name} ${player.last_name}`,
         team_name: player.teams?.name ?? '—',
         injury_type: row.injury_type,
         status: row.status,
@@ -370,18 +391,21 @@ export async function getSessions(filters: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
 
+    // 'title' es nueva (migration 031). 'opponent' ya existía y sirve como alternativa.
     let query = sb
       .from('sessions')
       .select(`
-        id, session_date, session_type, location, title,
+        id, session_date, session_type, location, title, opponent,
         teams!inner(id, name, club_id),
         session_attendance(id, status)
       `)
       .eq('club_id', clubId)
-      .eq('season', filters.season)
       .order('session_date', { ascending: false })
       .limit(100)
 
+    if (filters.season) {
+      query = query.eq('season', filters.season)
+    }
     if (filters.teamId) {
       query = query.eq('team_id', filters.teamId)
     }
@@ -392,6 +416,7 @@ export async function getSessions(filters: {
     const { data, error } = await query
     if (error) return { success: false, error: error.message }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result: SessionRow[] = (data ?? []).map((row: any) => {
       const attendance = row.session_attendance ?? []
       const attended = attendance.filter((a: any) => a.status === 'present' || a.status === 'justified').length
@@ -401,7 +426,8 @@ export async function getSessions(filters: {
         session_type: row.session_type,
         team_name: row.teams?.name ?? '—',
         location: row.location,
-        title: row.title,
+        // title (nuevo) o fallback a opponent (campo ya existente)
+        title: row.title ?? row.opponent ?? null,
         attendees_count: attended,
         total_players: attendance.length,
       }
@@ -436,16 +462,19 @@ export async function getMatchResults(filters: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
 
+    // Seleccionamos result (nueva columna) + score_home/score_away como fallback
+    // + opponent como fallback para title
     let query = sb
       .from('sessions')
-      .select('id, session_date, title, result, location, teams!inner(id, name, club_id)')
+      .select('id, session_date, title, result, opponent, location, score_home, score_away, teams!inner(id, name, club_id)')
       .eq('club_id', clubId)
       .eq('session_type', 'match')
-      .eq('season', filters.season)
-      .not('result', 'is', null)
       .order('session_date', { ascending: false })
       .limit(filters.limit ?? 30)
 
+    if (filters.season) {
+      query = query.eq('season', filters.season)
+    }
     if (filters.teamId) {
       query = query.eq('team_id', filters.teamId)
     }
@@ -455,14 +484,23 @@ export async function getMatchResults(filters: {
 
     return {
       success: true,
-      data: (data ?? []).map((row: any) => ({
-        id: row.id,
-        session_date: row.session_date,
-        team_name: row.teams?.name ?? '—',
-        title: row.title,
-        result: row.result,
-        location: row.location,
-      })),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data: (data ?? []).map((row: any) => {
+        // Derivar resultado desde score_home/score_away si la columna result aún no existe
+        let result = row.result ?? null
+        if (!result && row.score_home !== null && row.score_away !== null) {
+          const opponentSuffix = row.opponent ? ` vs ${row.opponent}` : ''
+          result = `${row.score_home} - ${row.score_away}${opponentSuffix}`
+        }
+        return {
+          id: row.id,
+          session_date: row.session_date,
+          team_name: row.teams?.name ?? '—',
+          title: row.title ?? row.opponent ?? null,
+          result,
+          location: row.location,
+        }
+      }),
     }
   } catch (e) {
     return { success: false, error: (e as Error).message }
@@ -493,8 +531,8 @@ export async function getPendingPayments(filters: {
     let query = sb
       .from('quota_payments')
       .select(`
-        amount, month, status,
-        players!inner(id, full_name, club_id, team_id, teams(name))
+        amount_due, month, status,
+        players!inner(id, first_name, last_name, club_id, team_id, teams(name))
       `)
       .eq('players.club_id', clubId)
       .eq('season', filters.season)
@@ -513,16 +551,19 @@ export async function getPendingPayments(filters: {
       if (!player) continue
       const key = player.id
       const existing = byPlayer.get(key)
+      // month es INTEGER (1-12) — convertir a etiqueta legible
+      const monthLabel = typeof row.month === 'number' ? (MONTH_LABEL[row.month] ?? String(row.month)) : (row.month ?? '—')
+      const amount = row.amount_due ?? 0
       if (existing) {
-        existing.pending_months.push(row.month)
-        existing.total_pending += row.amount ?? 0
+        existing.pending_months.push(monthLabel)
+        existing.total_pending += amount
       } else {
         byPlayer.set(key, {
           player_id: player.id,
-          player_name: player.full_name,
+          player_name: `${player.first_name} ${player.last_name}`,
           team_name: player.teams?.name ?? '—',
-          pending_months: [row.month],
-          total_pending: row.amount ?? 0,
+          pending_months: [monthLabel],
+          total_pending: amount,
         })
       }
     }
@@ -560,7 +601,7 @@ export async function getIncomeByMonth(filters: {
 
     let query = sb
       .from('quota_payments')
-      .select('amount, method, month, players!inner(club_id, team_id)')
+      .select('amount_paid, payment_method, month, players!inner(club_id, team_id)')
       .eq('players.club_id', clubId)
       .eq('season', filters.season)
       .eq('status', 'paid')
@@ -574,28 +615,29 @@ export async function getIncomeByMonth(filters: {
 
     const byMonth = new Map<string, IncomeRow>()
     for (const row of (data ?? [])) {
-      const month = row.month ?? 'Sin mes'
-      const existing = byMonth.get(month)
-      const amount = row.amount ?? 0
+      // month es INTEGER (1-12) — convertir a etiqueta
+      const monthLabel = typeof row.month === 'number' ? (MONTH_LABEL[row.month] ?? String(row.month)) : (row.month ?? 'Sin mes')
+      const existing = byMonth.get(monthLabel)
+      const amount = row.amount_paid ?? 0
+      const method = row.payment_method as string | null
       if (existing) {
         existing.total += amount
         existing.count++
-        if (row.method === 'cash') existing.cash += amount
-        else if (row.method === 'card') existing.card += amount
-        else if (row.method === 'transfer') existing.transfer += amount
+        if (method === 'cash') existing.cash += amount
+        else if (method === 'card') existing.card += amount
+        else if (method === 'transfer') existing.transfer += amount
       } else {
-        byMonth.set(month, {
-          month,
+        byMonth.set(monthLabel, {
+          month: monthLabel,
           total: amount,
-          cash: row.method === 'cash' ? amount : 0,
-          card: row.method === 'card' ? amount : 0,
-          transfer: row.method === 'transfer' ? amount : 0,
+          cash: method === 'cash' ? amount : 0,
+          card: method === 'card' ? amount : 0,
+          transfer: method === 'transfer' ? amount : 0,
           count: 1,
         })
       }
     }
 
-    const MONTH_ORDER = ['Sep', 'Oct', 'Nov', 'Dic', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago']
     const result = Array.from(byMonth.values())
       .sort((a, b) => {
         const ai = MONTH_ORDER.indexOf(a.month)
@@ -637,7 +679,7 @@ export async function getCoachObservations(filters: {
       .from('player_observations')
       .select(`
         id, category, comment, created_at,
-        players!inner(id, full_name, club_id, team_id, teams(name)),
+        players!inner(id, first_name, last_name, club_id, team_id, teams(name)),
         club_members(full_name)
       `)
       .eq('players.club_id', clubId)
@@ -653,9 +695,10 @@ export async function getCoachObservations(filters: {
 
     return {
       success: true,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: (data ?? []).map((row: any) => ({
         id: row.id,
-        player_name: row.players?.full_name ?? '—',
+        player_name: row.players ? `${row.players.first_name} ${row.players.last_name}` : '—',
         team_name: row.players?.teams?.name ?? '—',
         category: row.category,
         comment: row.comment,

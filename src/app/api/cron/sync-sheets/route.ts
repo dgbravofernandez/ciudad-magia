@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { previewInscriptionSync, applyInscriptionSync } from '@/features/jugadores/actions/sync-inscriptions.actions'
 import { INSCRIPTIONS_SHEET_ID } from '@/features/jugadores/constants'
+import { logger } from '@/lib/logger'
 
 // This endpoint is called by Vercel Cron at 00:00 and 12:00 UTC daily
 export async function GET(req: NextRequest) {
@@ -19,6 +20,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    logger.info({ action: 'syncSheets', phase: 'start' })
+
     function parseCSV(text: string): string[][] {
       return text.split('\n').map(line => {
         const result: string[] = []
@@ -65,6 +68,7 @@ export async function GET(req: NextRequest) {
     const withForm = preview.matches.filter(m => m.forms_link).length
     const withResp = preview.matches.filter(m => m.wants_to_continue !== null).length
 
+    logger.info({ action: 'syncSheets', phase: 'done', updated, withForm, withResp, unmatched: preview.unmatched })
     return NextResponse.json({
       success: true,
       updated,
@@ -74,6 +78,7 @@ export async function GET(req: NextRequest) {
       timestamp: new Date().toISOString(),
     })
   } catch (err) {
+    logger.error({ action: 'syncSheets', error: err instanceof Error ? err.message : String(err) })
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 500 })
   }
 }

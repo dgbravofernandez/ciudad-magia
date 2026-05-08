@@ -64,9 +64,10 @@ function sleep(ms: number): Promise<void> {
 export async function fetchRffmSSR<T>(
   path: string,
   params?: Record<string, string>,
-  options: { skipRateLimit?: boolean } = {}
+  options: { skipRateLimit?: boolean; timeoutMs?: number } = {}
 ): Promise<T> {
   const qs = params ? '?' + new URLSearchParams(params).toString() : ''
+  const timeoutMs = options.timeoutMs ?? 15_000
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     if (!options.skipRateLimit) await waitRateLimit()
@@ -81,8 +82,7 @@ export async function fetchRffmSSR<T>(
           'User-Agent': 'Mozilla/5.0 (compatible; CiudadMagia/1.0)',
           'Accept': 'application/json',
         },
-        // 15s timeout
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(timeoutMs),
       })
     } catch (err) {
       if (attempt === MAX_RETRIES) throw new Error(`RFFM fetch error (${path}): ${err}`)

@@ -14,7 +14,7 @@ interface FichaPageProps {
  */
 export async function getPlayerProfile(
   codjugador: string,
-  options: { skipRateLimit?: boolean } = {},
+  options: { skipRateLimit?: boolean; timeoutMs?: number } = {},
 ): Promise<RffmPlayer> {
   const data = await fetchRffmSSR<FichaPageProps>(
     `fichajugador/${codjugador}`,

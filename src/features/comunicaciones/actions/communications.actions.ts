@@ -6,6 +6,7 @@ import { getClubContext } from '@/lib/supabase/get-club-id'
 import { sendHtmlEmail } from '@/lib/email/send'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
+import { logger } from '@/lib/logger'
 
 const CLUB_NAME = 'Escuela de Fútbol Ciudad de Getafe'
 
@@ -147,6 +148,7 @@ export async function sendBulkEmail(input: {
     sent_at: new Date().toISOString(),
   })
 
+  logger.info({ action: 'sendBulkEmail', clubId, memberId, recipientCount: recipients.length, sent, failed, noEmail })
   revalidatePath('/comunicaciones/historial')
   return { success: true, sent, failed, noEmail }
 }

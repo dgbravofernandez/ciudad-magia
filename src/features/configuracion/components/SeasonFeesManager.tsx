@@ -187,6 +187,7 @@ export function SeasonFeesManager({ seasons, teams }: Props) {
           <input
             type="number"
             step="0.01"
+            inputMode="decimal"
             min="0"
             value={newAmount}
             onChange={(e) => setNewAmount(parseFloat(e.target.value) || 0)}
@@ -232,6 +233,7 @@ function FeeRow({
           <input
             type="number"
             step="0.01"
+            inputMode="decimal"
             min="0"
             value={amount}
             onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}

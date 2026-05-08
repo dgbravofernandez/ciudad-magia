@@ -325,6 +325,7 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
               <input
                 type="number"
                 step="0.01"
+                inputMode="decimal"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="Importe"
@@ -440,6 +441,7 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
               <input
                 type="number"
                 step="0.01"
+                inputMode="decimal"
                 value={expAmount}
                 onChange={(e) => setExpAmount(e.target.value)}
                 placeholder="Importe"
@@ -536,6 +538,7 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
                   <input
                     type="number"
                     step="0.01"
+                    inputMode="decimal"
                     value={bulkAmount}
                     onChange={(e) => setBulkAmount(e.target.value)}
                     placeholder="25.00"

@@ -369,10 +369,10 @@ function AssignModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="bank-transfer-modal-title">
       <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="p-5 border-b border-slate-200">
-          <h3 className="text-lg font-semibold">Asignar transferencia</h3>
+          <h3 id="bank-transfer-modal-title" className="text-lg font-semibold">Asignar transferencia</h3>
           <p className="text-sm text-slate-500 mt-1">
             {formatDate(transfer.transfer_date)} · <span className="font-semibold text-emerald-700">{formatCurrency(transfer.amount)}</span>
           </p>

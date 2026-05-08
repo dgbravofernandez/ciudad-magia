@@ -108,11 +108,11 @@ export function AddCompetitionModal({ open, onClose, editId }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="add-competition-modal-title">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-900">{isRepair ? 'Reparar competición' : 'Añadir competición'}</h2>
+          <h2 id="add-competition-modal-title" className="text-lg font-semibold text-gray-900">{isRepair ? 'Reparar competición' : 'Añadir competición'}</h2>
           <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <X className="w-5 h-5" />
           </button>

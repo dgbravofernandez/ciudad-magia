@@ -170,6 +170,7 @@ export function ExpensesPage({ expenses, totalExpensesThisMonth }: Props) {
                   name="amount"
                   type="number"
                   step="0.01"
+                  inputMode="decimal"
                   min="0"
                   required
                   className="input w-full"
@@ -308,10 +309,10 @@ export function ExpensesPage({ expenses, totalExpensesThisMonth }: Props) {
 
       {/* Edit modal */}
       {editTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditTarget(null)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditTarget(null)} role="dialog" aria-modal="true" aria-labelledby="edit-expense-modal-title">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full" onClick={e => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-100">
-              <h3 className="font-semibold text-gray-900">Editar gasto</h3>
+              <h3 id="edit-expense-modal-title" className="font-semibold text-gray-900">Editar gasto</h3>
             </div>
             <div className="p-6 space-y-4">
               <div>
@@ -327,7 +328,7 @@ export function ExpensesPage({ expenses, totalExpensesThisMonth }: Props) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">Importe (€)</label>
-                  <input type="number" min={0} step={0.01} value={editForm.amount} onChange={e => setEditForm(f => ({ ...f, amount: Number(e.target.value) }))} className="input w-full" />
+                  <input type="number" min={0} step={0.01} inputMode="decimal" value={editForm.amount} onChange={e => setEditForm(f => ({ ...f, amount: Number(e.target.value) }))} className="input w-full" />
                 </div>
                 <div>
                   <label className="label">Fecha</label>

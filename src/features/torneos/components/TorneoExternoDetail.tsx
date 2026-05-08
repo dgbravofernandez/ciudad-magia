@@ -343,7 +343,7 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
         <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Euro className="w-4 h-4" /> Presupuesto</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           <Field label="Coste organizador (€)">
-            <input type="number" min={0} step={0.01} value={bForm.organizerCost} onChange={e => setBForm(f => ({ ...f, organizerCost: Number(e.target.value) }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <input type="number" min={0} step={0.01} inputMode="decimal" value={bForm.organizerCost} onChange={e => setBForm(f => ({ ...f, organizerCost: Number(e.target.value) }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
           </Field>
           <Field label="Nº jugadores estimados">
             <input type="number" min={0} value={bForm.estimatedPlayers} onChange={e => setBForm(f => ({ ...f, estimatedPlayers: Number(e.target.value) }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
@@ -360,7 +360,7 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
         </div>
         {bForm.priceMode === 'manual' && (
           <Field label="Precio manual por jugador (€)">
-            <input type="number" min={0} step={0.01} value={bForm.priceManual} onChange={e => setBForm(f => ({ ...f, priceManual: Number(e.target.value) }))} className="w-full md:w-60 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <input type="number" min={0} step={0.01} inputMode="decimal" value={bForm.priceManual} onChange={e => setBForm(f => ({ ...f, priceManual: Number(e.target.value) }))} className="w-full md:w-60 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
           </Field>
         )}
         <div className="mt-3 bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
@@ -408,7 +408,7 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
             <input value={newItem.name} onChange={e => setNewItem(n => ({ ...n, name: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Ej: Autobús ida/vuelta" />
           </Field>
           <Field label="Importe (€)">
-            <input type="number" min={0} step={0.01} value={newItem.amount} onChange={e => setNewItem(n => ({ ...n, amount: Number(e.target.value) }))} className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <input type="number" min={0} step={0.01} inputMode="decimal" value={newItem.amount} onChange={e => setNewItem(n => ({ ...n, amount: Number(e.target.value) }))} className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
           </Field>
           <button onClick={handleAddItem} disabled={isPending} className="px-3 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 disabled:opacity-50">
             <Plus className="w-4 h-4 inline" /> Añadir
@@ -449,7 +449,7 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
               </select>
             </Field>
             <Field label="Importe (€)">
-              <input type="number" min={0} step={0.01} value={newAttendee.amountDue} onChange={e => setNewAttendee(n => ({ ...n, amountDue: Number(e.target.value) }))} className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+              <input type="number" min={0} step={0.01} inputMode="decimal" value={newAttendee.amountDue} onChange={e => setNewAttendee(n => ({ ...n, amountDue: Number(e.target.value) }))} className="w-32 border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             </Field>
             <button onClick={handleAddAttendee} disabled={isPending} className="px-3 py-2 bg-gray-900 text-white rounded-lg text-sm disabled:opacity-50">Añadir</button>
             <button onClick={() => setAddingAttendee(false)} disabled={isPending} className="px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm">Cancelar</button>
@@ -483,6 +483,7 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
                           type="number"
                           min={0}
                           step={0.01}
+                          inputMode="decimal"
                           defaultValue={a.amount_due}
                           onBlur={e => {
                             const v = Number(e.target.value || 0)
@@ -586,6 +587,7 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
               <input
                 type="number"
                 step="0.01"
+                inputMode="decimal"
                 value={bulkAmount}
                 onChange={(e) => setBulkAmount(e.target.value)}
                 placeholder={effectivePrice.toFixed(2)}

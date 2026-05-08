@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
+import { logger } from '@/lib/logger'
 
 /**
  * Returns a preview of what startNewSeason will do:
@@ -151,7 +152,10 @@ export async function activateNextSeason(): Promise<{
     p_next_season: nextSeason,
   })
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    logger.error({ action: 'activateNextSeason', clubId, nextSeason, error: error.message })
+    return { success: false, error: error.message }
+  }
 
   // La función devuelve JSONB: { success, nextSeason, playersUpdated, lowPlayers, teamsActivated }
   const result = data as {
@@ -161,6 +165,15 @@ export async function activateNextSeason(): Promise<{
     lowPlayers: number
     teamsActivated: number
   }
+
+  logger.info({
+    action: 'activateNextSeason',
+    clubId,
+    nextSeason: result.nextSeason,
+    playersUpdated: result.playersUpdated,
+    lowPlayers: result.lowPlayers,
+    teamsActivated: result.teamsActivated,
+  })
 
   revalidatePath('/configuracion')
   revalidatePath('/jugadores')

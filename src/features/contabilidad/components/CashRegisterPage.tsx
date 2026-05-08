@@ -263,6 +263,7 @@ export function CashRegisterPage({
             <input
               type="number"
               step="0.01"
+              inputMode="decimal"
               min="0"
               className="input w-full"
               placeholder={`Sistema: ${formatCurrency(systemCash)}`}
@@ -281,6 +282,7 @@ export function CashRegisterPage({
             <input
               type="number"
               step="0.01"
+              inputMode="decimal"
               min="0"
               className="input w-full"
               placeholder={`Sistema: ${formatCurrency(systemCard)}`}
