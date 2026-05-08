@@ -25,12 +25,14 @@ interface Props {
 
 export function CoachDraftAssignment({ draftTeams, initialAssignments, nextSeason }: Props) {
   const [coaches, setCoaches] = useState<CoachForPlanning[]>([])
+  const [coachesLoaded, setCoachesLoaded] = useState(false)
   const [assignments, setAssignments] = useState<Record<string, string | null>>({})
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
     getCoachesForPlanning().then(r => {
       if (r.success && r.coaches) setCoaches(r.coaches)
+      setCoachesLoaded(true)
     })
 
     // Inicializar mapa teamId → memberId
@@ -87,8 +89,10 @@ export function CoachDraftAssignment({ draftTeams, initialAssignments, nextSeaso
         </span>
       </div>
 
-      {coaches.length === 0 ? (
+      {!coachesLoaded ? (
         <p className="text-sm text-slate-400 italic">Cargando entrenadores...</p>
+      ) : coaches.length === 0 ? (
+        <p className="text-sm text-slate-400 italic">No hay entrenadores registrados en el club. Añádelos primero en Entrenadores → Staff.</p>
       ) : (
         <div className="border border-slate-200 rounded-lg overflow-hidden">
           <table className="w-full text-sm">

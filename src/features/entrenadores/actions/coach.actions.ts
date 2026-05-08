@@ -160,7 +160,8 @@ export interface CoachForPlanning {
 }
 
 /**
- * Lista los miembros del club con rol de entrenador o coordinador activos.
+ * Lista los miembros del club con rol de entrenador o coordinador.
+ * Usa club_member_roles como fuente de verdad (no club_members.role).
  * Se usa en la planificación de temporada para asignar cuerpo técnico a equipos borrador.
  */
 export async function getCoachesForPlanning(): Promise<{ success: boolean; coaches?: CoachForPlanning[]; error?: string }> {
@@ -168,12 +169,23 @@ export async function getCoachesForPlanning(): Promise<{ success: boolean; coach
   const sb = createAdminClient() as any
   const clubId = await getClubId()
 
+  // Obtener IDs de miembros con rol de cuerpo técnico desde club_member_roles
+  const { data: roleRows, error: rErr } = await sb
+    .from('club_member_roles')
+    .select('member_id, role')
+    .in('role', ['entrenador', 'coordinador', 'director_deportivo', 'admin'])
+
+  if (rErr) return { success: false, error: rErr.message }
+
+  const memberIds = [...new Set((roleRows ?? []).map((r: { member_id: string }) => r.member_id))]
+  if (memberIds.length === 0) return { success: true, coaches: [] }
+
+  // Obtener datos de esos miembros filtrando por club
   const { data, error } = await sb
     .from('club_members')
     .select('id, full_name, role, email')
     .eq('club_id', clubId)
-    .eq('active', true)
-    .in('role', ['entrenador', 'coordinador', 'director_deportivo', 'admin'])
+    .in('id', memberIds)
     .order('full_name')
 
   if (error) return { success: false, error: error.message }

@@ -360,12 +360,20 @@ export async function getSeasonRosters(): Promise<{ success: boolean; data?: Sea
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Mismo formato que season.actions.ts: '2025/26' → '2026/27' */
 function bumpSeason(season: string): string {
-  const m = season.match(/^(\d{2})\/(\d{2})$/)
-  if (!m) return season
-  const a = parseInt(m[1]) + 1
-  const b = parseInt(m[2]) + 1
-  return `${a.toString().padStart(2, '0')}/${b.toString().padStart(2, '0')}`
+  const match = season.match(/^(\d{4})\/(\d{2})$/)
+  if (match) {
+    const y1 = parseInt(match[1]) + 1
+    const y2 = parseInt(match[2])
+    const y2full = y2 >= 90 ? 1900 + y2 : 2000 + y2
+    return `${y1}/${String(y2full + 1).slice(-2)}`
+  }
+  const fullMatch = season.match(/^(\d{4})\/(\d{4})$/)
+  if (fullMatch) {
+    return `${parseInt(fullMatch[1]) + 1}/${parseInt(fullMatch[2]) + 1}`
+  }
+  return season
 }
 
 function formatDate(iso: string): string {
