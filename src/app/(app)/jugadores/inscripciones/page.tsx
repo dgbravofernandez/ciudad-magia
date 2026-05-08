@@ -41,7 +41,25 @@ export default async function InscripcionesPage() {
     }
   }
 
-  const [playersResult, teamsResult] = await Promise.all([
+  // Fetch current_season to calculate next season
+  const { data: settingsRow } = await sb
+    .from('club_settings')
+    .select('current_season')
+    .eq('club_id', clubId)
+    .single()
+  const currentSeason: string = settingsRow?.current_season ?? ''
+  // bumpSeason: "2025/26" → "2026/27"
+  const nextSeason = (() => {
+    const m = currentSeason.match(/^(\d{4})\/(\d{2})$/)
+    if (m) {
+      const y1 = parseInt(m[1]) + 1
+      const y2short = parseInt(m[2]) + 1
+      return `${y1}/${String(y2short).padStart(2, '0')}`
+    }
+    return ''
+  })()
+
+  const [playersResult, teamsResult, draftTeamsResult] = await Promise.all([
     sb
       .from('players')
       .select('*, teams:team_id(id, name), next_team:next_team_id(id, name)')
@@ -57,12 +75,25 @@ export default async function InscripcionesPage() {
       .eq('club_id', clubId)
       .eq('active', true)
       .order('name'),
+    nextSeason
+      ? sb
+          .from('teams')
+          .select('id, name, season')
+          .eq('club_id', clubId)
+          .eq('season', nextSeason)
+          .order('name')
+      : Promise.resolve({ data: [] }),
   ])
   const players = (playersResult.data ?? []) as any[]
   const teams = (teamsResult.data ?? []) as { id: string; name: string }[]
+  const draftTeams = (draftTeamsResult.data ?? []) as { id: string; name: string; season: string }[]
 
-  // Build coachMap: team_id → first coach name
-  const teamIds = teams.map((t: { id: string }) => t.id)
+  // Build coachMap: team_id → first coach name (active + draft teams)
+  const allTeamIds = [
+    ...teams.map((t: { id: string }) => t.id),
+    ...draftTeams.map((t: { id: string }) => t.id),
+  ]
+  const teamIds = allTeamIds
   const { data: coachRows } = teamIds.length > 0
     ? await sb
         .from('team_coaches')
@@ -89,6 +120,7 @@ export default async function InscripcionesPage() {
         <InscripcionesTable
           players={players}
           teams={teams}
+          draftTeams={draftTeams.length > 0 ? draftTeams : undefined}
           coachMap={coachMap}
           isAdmin={isAdmin}
           trialLetterPlayerIds={trialLetterIds}

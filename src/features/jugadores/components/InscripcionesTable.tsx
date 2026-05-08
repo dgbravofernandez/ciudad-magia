@@ -71,12 +71,15 @@ function downloadCsv(rows: Record<string, unknown>[], filename: string) {
 export function InscripcionesTable({
   players,
   teams,
+  draftTeams,
   coachMap = {},
   isAdmin = false,
   trialLetterPlayerIds = [],
 }: {
   players: PlayerWithTeam[]
   teams: { id: string; name: string }[]
+  /** Equipos borrador de la próxima temporada (active=false). Se usan en el dropdown next_team_id. */
+  draftTeams?: { id: string; name: string; season: string }[]
   coachMap?: Record<string, string>
   isAdmin?: boolean
   trialLetterPlayerIds?: string[]
@@ -594,8 +597,10 @@ export function InscripcionesTable({
                         disabled={isDismissed || isPending}
                       >
                         <option value="">Sin equipo</option>
-                        {teams.map(t => (
-                          <option key={t.id} value={t.id}>{t.name}</option>
+                        {(draftTeams ?? teams).map(t => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}{'season' in t ? ` (${(t as { season: string }).season.replace('20', '')})` : ''}
+                          </option>
                         ))}
                       </select>
                       {(player.next_team_id ?? player.next_team?.id) && coachMap[(player.next_team_id ?? player.next_team?.id)!] && (
