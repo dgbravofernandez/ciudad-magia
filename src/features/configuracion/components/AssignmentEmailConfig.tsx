@@ -111,7 +111,7 @@ export function AssignmentEmailConfig() {
     .replaceAll('{tutor_nombre}', 'María García')
     .replaceAll('{equipo}', 'Benjamín A')
     .replaceAll('{entrenador_nombre}', 'Juan Martínez')
-    .replaceAll('{importe_reserva}', '50,00 €')
+    .replaceAll('{importe_reserva}', '60,00 €')
     .replaceAll('{fecha_limite}', '30 de junio de 2026')
     .replaceAll('{temporada}', '26/27')
 

@@ -124,9 +124,14 @@ export async function sendTeamAssignmentEmail(
     const entrenadorNombre: string = coachRows?.[0]?.club_members?.full_name ?? 'Por confirmar'
 
     // 4. Importe de reserva
+    // season_fees puede guardar la temporada con guión (2026-27) o barra (2026/27)
+    // → intentar ambos formatos
     let importeReserva = ''
     try {
-      const fee = await resolveFee(team.season, team.id, 'Reserva')
+      const seasonSlash = team.season                          // '2026/27'
+      const seasonDash  = team.season.replace('/', '-')        // '2026-27'
+      let fee = await resolveFee(seasonSlash, team.id, 'Reserva')
+      if (fee === null) fee = await resolveFee(seasonDash, team.id, 'Reserva')
       if (fee !== null) importeReserva = `${fee.toFixed(2)} €`
     } catch {
       // fallback — la cuota puede no existir
