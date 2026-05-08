@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { getClubId } from '@/lib/supabase/get-club-id'
+import { getClubId, getClubContext } from '@/lib/supabase/get-club-id'
 import { COACHES_FORM_LINK } from '@/features/jugadores/constants'
 import { sendHtmlEmail } from '@/lib/email/send'
 
@@ -172,7 +172,11 @@ export interface CoachForPlanning {
 export async function getCoachesForPlanning(): Promise<{ success: boolean; coaches?: CoachForPlanning[]; error?: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
-  const clubId = await getClubId()
+  // getClubContext lee headers del middleware (x-club-id) — más fiable que
+  // getClubId (sesión anon) cuando se llama desde server actions del área app
+  const { clubId } = await getClubContext()
+
+  if (!clubId) return { success: false, error: 'No se pudo obtener el club' }
 
   // Equipos del club (activos e inactivos — para incluir coaches de cualquier temporada)
   const { data: clubTeams } = await sb

@@ -26,12 +26,14 @@ interface Props {
 export function CoachDraftAssignment({ draftTeams, initialAssignments, nextSeason }: Props) {
   const [coaches, setCoaches] = useState<CoachForPlanning[]>([])
   const [coachesLoaded, setCoachesLoaded] = useState(false)
+  const [coachesError, setCoachesError] = useState<string | null>(null)
   const [assignments, setAssignments] = useState<Record<string, string | null>>({})
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
     getCoachesForPlanning().then(r => {
       if (r.success && r.coaches) setCoaches(r.coaches)
+      else if (!r.success) setCoachesError(r.error ?? 'Error desconocido')
       setCoachesLoaded(true)
     })
 
@@ -91,8 +93,10 @@ export function CoachDraftAssignment({ draftTeams, initialAssignments, nextSeaso
 
       {!coachesLoaded ? (
         <p className="text-sm text-slate-400 italic">Cargando entrenadores...</p>
+      ) : coachesError ? (
+        <p className="text-sm text-red-500 italic">Error al cargar entrenadores: {coachesError}</p>
       ) : coaches.length === 0 ? (
-        <p className="text-sm text-slate-400 italic">No hay entrenadores registrados en el club. Añádelos primero en Entrenadores → Staff.</p>
+        <p className="text-sm text-slate-400 italic">No se encontraron entrenadores. Asigna primero cuerpo técnico a los equipos de la temporada actual.</p>
       ) : (
         <div className="border border-slate-200 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
