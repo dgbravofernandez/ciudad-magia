@@ -15,6 +15,10 @@ import {
   getNewInscriptionsSheetId,
   type NewPlayerRow,
 } from '@/features/jugadores/actions/sync-new-inscriptions.actions'
+import { getDraftCoachAssignments } from '@/features/configuracion/actions/assignment-email.actions'
+import { CoachDraftAssignment } from './CoachDraftAssignment'
+import { AssignmentEmailConfig } from './AssignmentEmailConfig'
+import { SeasonRosters } from './SeasonRosters'
 
 interface DraftTeam { id: string; name: string; season: string }
 interface SeasonPreview {
@@ -323,6 +327,7 @@ function ActivationSection({ preview, draftTeams }: { preview: SeasonPreview; dr
 export function SeasonPlanningPage() {
   const [preview, setPreview] = useState<SeasonPreview | null>(null)
   const [draftTeams, setDraftTeams] = useState<DraftTeam[]>([])
+  const [draftAssignments, setDraftAssignments] = useState<{ team_id: string; member_id: string }[]>([])
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async () => {
@@ -333,6 +338,14 @@ export function SeasonPlanningPage() {
     setPreview(prevRes)
     if (initRes.success && initRes.teams) {
       setDraftTeams(initRes.teams)
+      // Load current coach assignments for draft teams
+      const teamIds = initRes.teams.map((t: DraftTeam) => t.id)
+      if (teamIds.length > 0) {
+        const assignRes = await getDraftCoachAssignments(teamIds)
+        if (assignRes.success && assignRes.assignments) {
+          setDraftAssignments(assignRes.assignments)
+        }
+      }
     }
     setLoading(false)
   }, [])
@@ -341,7 +354,7 @@ export function SeasonPlanningPage() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto p-6 space-y-4">
+      <div className="max-w-3xl mx-auto p-6 space-y-4">
         <div className="h-8 bg-slate-100 rounded animate-pulse w-64" />
         <div className="h-40 bg-slate-100 rounded animate-pulse" />
       </div>
@@ -351,7 +364,7 @@ export function SeasonPlanningPage() {
   if (!preview) return null
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-5">
+    <div className="max-w-3xl mx-auto p-6 space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
@@ -369,8 +382,21 @@ export function SeasonPlanningPage() {
       {/* Equipos borrador */}
       <TeamsSection teams={draftTeams} nextSeason={preview.nextSeason} onRefresh={loadData} />
 
+      {/* Cuerpo técnico 26/27 */}
+      <CoachDraftAssignment
+        draftTeams={draftTeams}
+        initialAssignments={draftAssignments}
+        nextSeason={preview.nextSeason}
+      />
+
       {/* Nuevas inscripciones */}
       <NewInscriptionsSection />
+
+      {/* Email de asignación */}
+      <AssignmentEmailConfig />
+
+      {/* Listado de plantillas */}
+      <SeasonRosters />
 
       {/* Activación */}
       <ActivationSection preview={preview} draftTeams={draftTeams} />

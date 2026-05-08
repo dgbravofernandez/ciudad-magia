@@ -152,6 +152,34 @@ export async function removeCoachFromTeam(
   return { success: true }
 }
 
+export interface CoachForPlanning {
+  id: string
+  full_name: string
+  role: string
+  email: string | null
+}
+
+/**
+ * Lista los miembros del club con rol de entrenador o coordinador activos.
+ * Se usa en la planificación de temporada para asignar cuerpo técnico a equipos borrador.
+ */
+export async function getCoachesForPlanning(): Promise<{ success: boolean; coaches?: CoachForPlanning[]; error?: string }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const clubId = await getClubId()
+
+  const { data, error } = await sb
+    .from('club_members')
+    .select('id, full_name, role, email')
+    .eq('club_id', clubId)
+    .eq('active', true)
+    .in('role', ['entrenador', 'coordinador', 'director_deportivo', 'admin'])
+    .order('full_name')
+
+  if (error) return { success: false, error: error.message }
+  return { success: true, coaches: data ?? [] }
+}
+
 export async function assignCoordinatorToTeam(
   memberId: string,
   teamId: string

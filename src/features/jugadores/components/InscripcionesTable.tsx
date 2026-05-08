@@ -11,6 +11,7 @@ import {
   resetEmailFlag,
   sendTrialLetter,
 } from '@/features/jugadores/actions/player.actions'
+import { sendTeamAssignmentEmail } from '@/features/configuracion/actions/assignment-email.actions'
 import {
   previewInscriptionSync,
   applyInscriptionSync,
@@ -275,6 +276,15 @@ export function InscripcionesTable({
       let noEmail = 0
       let fail = 0
       for (const playerId of targetIds) {
+        // team_assignment uses the new configurable email action
+        if (emailType === 'team_assignment') {
+          const result = await sendTeamAssignmentEmail(playerId)
+          if (!result.success) {
+            if (result.error?.includes('email de tutor') || result.error?.includes('no tiene email')) noEmail++
+            else fail++
+          } else sent++
+          continue
+        }
         const result = await sendEmail(playerId, emailType)
         if (!result.success) { fail++; continue }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -728,8 +738,8 @@ export function InscripcionesTable({
                         <button
                           onClick={() => {
                             startTransition(async () => {
-                              const r = await sendEmail(player.id, 'team_assignment')
-                              if (r.success) toast.success('Email de asignación registrado')
+                              const r = await sendTeamAssignmentEmail(player.id)
+                              if (r.success) toast.success('Email de asignación enviado')
                               else toast.error(r.error ?? 'Error')
                             })
                           }}
