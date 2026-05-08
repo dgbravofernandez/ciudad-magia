@@ -155,7 +155,7 @@ export async function removeCoachFromTeam(
 export interface CoachForPlanning {
   id: string
   full_name: string
-  role: string
+  role?: string
   email: string | null
 }
 
@@ -198,25 +198,25 @@ export async function getCoachesForPlanning(): Promise<{ success: boolean; coach
     if (memberIds.length > 0) {
       const { data, error } = await sb
         .from('club_members')
-        .select('id, full_name, role, email')
+        .select('id, full_name, email')
         .eq('club_id', clubId)
         .in('id', memberIds)
         .order('full_name')
 
       if (error) return { success: false, error: error.message }
-      return { success: true, coaches: data ?? [] }
+      return { success: true, coaches: (data ?? []).map((c: { id: string; full_name: string; email: string | null }) => ({ ...c, role: 'entrenador' })) }
     }
   }
 
   // Fallback: todos los miembros del club (útil si aún no hay team_coaches)
   const { data, error } = await sb
     .from('club_members')
-    .select('id, full_name, role, email')
+    .select('id, full_name, email')
     .eq('club_id', clubId)
     .order('full_name')
 
   if (error) return { success: false, error: error.message }
-  return { success: true, coaches: data ?? [] }
+  return { success: true, coaches: (data ?? []).map((c: { id: string; full_name: string; email: string | null }) => ({ ...c, role: 'entrenador' })) }
 }
 
 export async function assignCoordinatorToTeam(
