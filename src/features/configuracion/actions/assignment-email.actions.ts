@@ -140,7 +140,7 @@ export async function sendTeamAssignmentEmail(
     // 5. Configuración del club
     const { data: settings } = await sb
       .from('club_settings')
-      .select('fees_image_url, assignment_email_subject, assignment_email_body, reservation_deadline, club_name')
+      .select('fees_image_url, assignment_email_subject, assignment_email_body, reservation_deadline')
       .eq('club_id', clubId)
       .single()
 
