@@ -51,6 +51,7 @@ export interface CoachSyncItem {
   teamId: string | null     // null = team not found in DB
   teamName: string
   isNew: boolean            // true = will create a new club_member
+  matchedByEmail: boolean   // true = match fue por email exacto (fiable); false = por nombre (no sobreescribir foto)
   // From sheet columns
   photoUrl: string | null
   docDniUrl: string | null
@@ -176,16 +177,22 @@ export async function previewCoachSync(rows: string[][]): Promise<CoachSyncPrevi
         }
       }
 
-      // Match existing member by name or email
+      // Match existing member — email exact match tiene prioridad absoluta.
+      // El name-match requiere 0.75+ para evitar falsos positivos como
+      // "Daniel Gimenez" ↔ "Daniel Jambrina" (comparten nombre, 0.5 < 0.75 → rechazado).
       let bestMember: { id: string; full_name: string; email: string } | null = null
       let bestScore = 0
+      let matchedByEmail = false
       for (const m of (members ?? [])) {
-        // exact email match wins
-        if (email && m.email === email) { bestMember = m; bestScore = 1; break }
+        // exact email match wins — no name check needed
+        if (email && m.email.toLowerCase() === email.toLowerCase()) {
+          bestMember = m; bestScore = 1; matchedByEmail = true; break
+        }
         const s = Math.max(wordOverlap(coachNameRaw, m.full_name), wordOverlap(m.full_name, coachNameRaw))
         if (s > bestScore) { bestScore = s; bestMember = m }
       }
-      if (bestScore < 0.3) bestMember = null
+      // Umbral alto para name-match: requiere que coincidan al menos nombre Y apellido
+      if (!matchedByEmail && bestScore < 0.75) bestMember = null
 
       toAssign.push({
         coachNameRaw,
@@ -197,6 +204,7 @@ export async function previewCoachSync(rows: string[][]): Promise<CoachSyncPrevi
         teamId: bestTeam?.id ?? null,
         teamName: bestTeam?.name ?? teamLabel,
         isNew: bestMember === null,
+        matchedByEmail,
         photoUrl,
         docDniUrl,
         docAntecedentesUrl,
@@ -299,6 +307,12 @@ export async function applyCoachSync(
       } else {
         // Update existing member with any new data from sheet
         const updateFields: Record<string, unknown> = { ...docFields }
+        // Solo sobreescribir avatar_url si el match fue por email exacto.
+        // Si fue por nombre (fuzzy), nunca tocar la foto — evita asignar
+        // la foto de "Daniel Gimenez" al perfil de "Daniel Jambrina".
+        if (!item.matchedByEmail) {
+          delete updateFields.avatar_url
+        }
         if (item.phone) updateFields.phone = item.phone
         if (Object.keys(updateFields).length > 0) {
           await supabase.from('club_members')
