@@ -108,8 +108,8 @@ function detectCoachColumns(rows: string[][]): CoachCols {
   // Fallbacks for common positions when no header matched
   if (cols.emailCol === -1) cols.emailCol = 2
   if (cols.teamCol === -1) cols.teamCol = 5   // Column F (index 5) = equipo
-  // Column I (index 8) is the photo URL — hardcoded fallback if not detected by header
-  if (cols.photoCol === -1) cols.photoCol = 8
+  // NO fallback for photoCol — solo usar foto si la columna se detectó explícitamente
+  // (el fallback a col 8 causaba fotos incorrectas cuando esa columna era otro doc)
 
   // Log headers to help debug column detection
   console.log('[detectCoachColumns] headers:', rows[0])

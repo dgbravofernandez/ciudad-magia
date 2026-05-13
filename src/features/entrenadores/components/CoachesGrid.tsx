@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   UserCircle2, Users, ClipboardList, Plus, X, Shield, UserPlus, Send, RefreshCw
@@ -60,6 +61,7 @@ export function CoachesGrid({
   isAdmin: boolean
   clubId?: string
 }) {
+  const router = useRouter()
   const [search, setSearch] = useState('')
   const [filterRole, setFilterRole] = useState('')
   const [showInviteModal, setShowInviteModal] = useState(false)
@@ -125,6 +127,7 @@ export function CoachesGrid({
       if (preview.unknownTeams.length > 0) {
         toast.warning(`Equipos sin coincidencia: ${preview.unknownTeams.slice(0, 4).join(', ')}`)
       }
+      router.refresh()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al sincronizar entrenadores')
     } finally {
