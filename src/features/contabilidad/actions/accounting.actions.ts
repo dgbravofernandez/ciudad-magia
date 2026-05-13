@@ -638,16 +638,19 @@ export async function updatePendingPaymentAmount(paymentId: string, amountDue: n
 
   const { data: existing } = await sb
     .from('quota_payments')
-    .select('status, club_id')
+    .select('status, club_id, amount_paid')
     .eq('id', paymentId)
     .single()
 
   if (!existing) return { success: false, error: 'Pago no encontrado' }
   if (existing.club_id !== clubId) return { success: false, error: 'No autorizado' }
 
+  // amountDue es el importe PENDIENTE que quiere el usuario → amount_due = ya_pagado + pendiente
+  const newAmountDue = (Number(existing.amount_paid) || 0) + amountDue
+
   const { error } = await sb
     .from('quota_payments')
-    .update({ amount_due: amountDue })
+    .update({ amount_due: newAmountDue })
     .eq('id', paymentId)
 
   if (error) return { success: false, error: error.message }
