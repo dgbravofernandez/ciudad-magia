@@ -616,10 +616,7 @@ export async function updatePlayerTeam(
   teamId: string | null,
   isNextSeason = false,
 ) {
-  const { sb, clubId, roles } = await resolveClubAndMember()
-  if (!roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
-    return { success: false, error: 'Sin permisos' }
-  }
+  const { sb, clubId } = await resolveClubAndMember()
 
   const field = isNextSeason ? 'next_team_id' : 'team_id'
   const { error } = await sb
@@ -637,10 +634,7 @@ export async function updatePlayerTeam(
 // ── updatePendingPaymentAmount ─────────────────────────────────────────────────
 // Corrige el importe pendiente de un quota_payment con status='pending'.
 export async function updatePendingPaymentAmount(paymentId: string, amountDue: number) {
-  const { sb, clubId, roles } = await resolveClubAndMember()
-  if (!roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
-    return { success: false, error: 'Sin permisos' }
-  }
+  const { sb, clubId } = await resolveClubAndMember()
 
   const { data: existing } = await sb
     .from('quota_payments')
