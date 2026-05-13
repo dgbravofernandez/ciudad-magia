@@ -213,6 +213,7 @@ export async function updatePayment(data: {
   if (movementError) return { success: false, error: movementError.message }
 
   revalidatePath('/contabilidad/pagos')
+  revalidatePath('/contabilidad/caja')
   return { success: true }
 }
 

@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
 import {
   Search,
   Euro,
@@ -100,6 +101,7 @@ export function PaymentRegistration({
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null)
   const [selectedMethod, setSelectedMethod] = useState<string>('cash')
   const [selectedPlayers, setSelectedPlayers] = useState<Set<string>>(new Set())
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null)
   const [editAmount, setEditAmount] = useState('')
@@ -392,6 +394,7 @@ export function PaymentRegistration({
       commentSaveInProgress.current = false
       if (result.success) {
         toast.success('Comentario guardado')
+        router.refresh()
       } else {
         toast.error(result.error ?? 'Error al guardar comentario')
       }

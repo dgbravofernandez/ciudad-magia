@@ -6,6 +6,8 @@ import { CashRegisterPage } from '@/features/contabilidad/components/CashRegiste
 import { Topbar } from '@/components/layout/Topbar'
 import type { Metadata } from 'next'
 
+export const dynamic    = 'force-dynamic'
+export const maxDuration = 30
 export const metadata: Metadata = { title: 'Caja' }
 
 export default async function CajaPage() {

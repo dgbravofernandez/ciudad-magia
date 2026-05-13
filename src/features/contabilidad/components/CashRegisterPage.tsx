@@ -2,11 +2,18 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Lock, CheckCircle, AlertTriangle, FileText, Download } from 'lucide-react'
+import {
+  Lock, CheckCircle, AlertTriangle, FileText, Download,
+  Unlock, Pencil, Trash2, X, FileDown,
+} from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatDate } from '@/lib/utils/currency'
-import { closeCash, reopenCashClose } from '@/features/contabilidad/actions/accounting.actions'
-import { Unlock } from 'lucide-react'
+import {
+  closeCash,
+  reopenCashClose,
+  deletePayment,
+  updatePayment,
+} from '@/features/contabilidad/actions/accounting.actions'
 import { useRouter } from 'next/navigation'
 
 const METHOD_LABELS: Record<string, string> = {
@@ -14,6 +21,12 @@ const METHOD_LABELS: Record<string, string> = {
   card: 'Tarjeta',
   transfer: 'Transferencia',
 }
+
+const PAYMENT_METHODS = [
+  { value: 'cash',     label: 'Efectivo'       },
+  { value: 'card',     label: 'Tarjeta'        },
+  { value: 'transfer', label: 'Transferencia'  },
+]
 
 interface Movement {
   id: string
@@ -71,10 +84,16 @@ export function CashRegisterPage({
   movementDetails,
 }: Props) {
   const router = useRouter()
-  const [realCash, setRealCash] = useState('')
-  const [realCard, setRealCard] = useState('')
-  const [notes, setNotes] = useState('')
+  const [realCash, setRealCash]   = useState('')
+  const [realCard, setRealCard]   = useState('')
+  const [notes, setNotes]         = useState('')
   const [isPending, startTransition] = useTransition()
+
+  // Edit-movement modal state
+  const [editMovement, setEditMovement] = useState<Movement | null>(null)
+  const [editAmount, setEditAmount]     = useState('')
+  const [editDate, setEditDate]         = useState('')
+  const [editMethod, setEditMethod]     = useState('cash')
 
   function handleReopen(id: string, period: string) {
     if (!confirm(`¿Reabrir el cierre del periodo ${period}?\n\nPodrás modificar pagos y gastos de ese periodo otra vez. El cierre se borrará.`)) return
@@ -87,12 +106,61 @@ export function CashRegisterPage({
     })
   }
 
+  function openEditMovement(m: Movement) {
+    setEditMovement(m)
+    setEditAmount(m.amount.toFixed(2))
+    setEditDate(m.movement_date)
+    setEditMethod(m.payment_method ?? 'cash')
+  }
+
+  function closeEditMovement() {
+    setEditMovement(null)
+  }
+
+  function handleUpdateMovement() {
+    if (!editMovement?.related_payment_id) return
+    const amount = parseFloat(editAmount)
+    if (!amount || amount <= 0) { toast.error('Importe inválido'); return }
+    startTransition(async () => {
+      const result = await updatePayment({
+        paymentId: editMovement.related_payment_id!,
+        amount,
+        method:    editMethod,
+        date:      editDate,
+        notes:     '',
+      })
+      if (result.success) {
+        toast.success('Pago actualizado')
+        closeEditMovement()
+        router.refresh()
+      } else {
+        toast.error(result.error ?? 'Error al actualizar')
+      }
+    })
+  }
+
+  function handleDeleteMovement(m: Movement) {
+    if (!m.related_payment_id) return
+    const detail = m.related_payment_id ? detailMap[m.related_payment_id] : null
+    const name   = detail?.player_name || m.description
+    if (!confirm(`¿Borrar el pago de ${formatCurrency(m.amount)} de ${name}?\n\nEsta acción no se puede deshacer.`)) return
+    startTransition(async () => {
+      const result = await deletePayment(m.related_payment_id!)
+      if (result.success) {
+        toast.success('Pago borrado')
+        router.refresh()
+      } else {
+        toast.error(result.error ?? 'Error al borrar')
+      }
+    })
+  }
+
   const realCashNum = parseFloat(realCash) || 0
   const realCardNum = parseFloat(realCard) || 0
-  const diffCash = realCashNum - systemCash
-  const diffCard = realCardNum - systemCard
-  const cashBalanced = Math.abs(diffCash) < 0.01
-  const cardBalanced = Math.abs(diffCard) < 0.01
+  const diffCash    = realCashNum - systemCash
+  const diffCard    = realCardNum - systemCard
+  const cashBalanced  = Math.abs(diffCash) < 0.01
+  const cardBalanced  = Math.abs(diffCard) < 0.01
   const fullyBalanced = cashBalanced && cardBalanced
 
   // Build detail map for enriching movements
@@ -106,11 +174,11 @@ export function CashRegisterPage({
         periodStart,
         periodEnd,
         systemCash,
-        realCash: realCashNum,
+        realCash:  realCashNum,
         systemCard,
-        realCard: realCardNum,
+        realCard:  realCardNum,
         notes,
-        closedBy: memberId,
+        closedBy:  memberId,
       })
 
       if (result.success) {
@@ -118,32 +186,32 @@ export function CashRegisterPage({
         setRealCash('')
         setRealCard('')
         setNotes('')
+        router.refresh()
       } else {
         toast.error(result.error ?? 'Error al cerrar la caja')
       }
     })
   }
 
-  const incomeMovements = movements.filter(m => m.type === 'income')
+  const incomeMovements  = movements.filter(m => m.type === 'income')
   const expenseMovements = movements.filter(m => m.type === 'expense')
-  const totalIncome = incomeMovements.reduce((s, m) => s + m.amount, 0)
+  const totalIncome  = incomeMovements.reduce((s, m) => s + m.amount, 0)
   const totalExpense = expenseMovements.reduce((s, m) => s + m.amount, 0)
 
   function exportCSV() {
-    const BOM = '\uFEFF'
+    const BOM    = '﻿'
     const header = 'Nombre,Equipo,Cantidad,Forma de Pago,Fecha,Tipo\n'
-    const rows = movements.map((m) => {
+    const rows   = movements.map((m) => {
       const detail = m.related_payment_id ? detailMap[m.related_payment_id] : null
-      const name = detail?.player_name || m.description
-      const team = detail?.team_name || ''
+      const name   = detail?.player_name || m.description
+      const team   = detail?.team_name   || ''
       const amount = m.amount.toFixed(2)
       const method = METHOD_LABELS[m.payment_method] ?? m.payment_method
-      const date = m.movement_date
-      const type = m.type === 'income' ? 'Ingreso' : 'Gasto'
+      const date   = m.movement_date
+      const type   = m.type === 'income' ? 'Ingreso' : 'Gasto'
       return `"${name}","${team}",${amount},"${method}",${date},"${type}"`
     }).join('\n')
 
-    // Add summary rows
     const summary = [
       '',
       `"TOTAL INGRESOS",,${totalIncome.toFixed(2)},,,`,
@@ -153,11 +221,11 @@ export function CashRegisterPage({
       `"PERIODO","${periodStart} a ${periodEnd}",,,,`,
     ].join('\n')
 
-    const csv = BOM + header + rows + '\n' + summary
+    const csv  = BOM + header + rows + '\n' + summary
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
     a.download = `Arqueo_${periodStart}_${periodEnd}.csv`
     a.click()
     URL.revokeObjectURL(url)
@@ -209,6 +277,7 @@ export function CashRegisterPage({
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b">
             <h3 className="font-semibold">Detalle de ingresos del periodo</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Puedes modificar o borrar pagos antes de cerrar la caja</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -219,11 +288,13 @@ export function CashRegisterPage({
                   <th className="text-right px-4 py-3 font-medium text-muted-foreground">Cantidad</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">F. Pago</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Fecha</th>
+                  <th className="px-4 py-3 w-20"></th>
                 </tr>
               </thead>
               <tbody>
                 {incomeMovements.map((m) => {
                   const detail = m.related_payment_id ? detailMap[m.related_payment_id] : null
+                  const canEdit = !!m.related_payment_id
                   return (
                     <tr key={m.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
                       <td className="px-4 py-3 font-medium">{detail?.player_name || m.description}</td>
@@ -231,6 +302,30 @@ export function CashRegisterPage({
                       <td className="px-4 py-3 text-right font-semibold text-green-600">{formatCurrency(m.amount)}</td>
                       <td className="px-4 py-3 text-muted-foreground">{METHOD_LABELS[m.payment_method] ?? m.payment_method}</td>
                       <td className="px-4 py-3 text-muted-foreground">{formatDate(m.movement_date)}</td>
+                      <td className="px-4 py-3">
+                        {canEdit && (
+                          <div className="flex items-center gap-1 justify-end">
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => openEditMovement(m)}
+                              className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                              title="Modificar pago"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => handleDeleteMovement(m)}
+                              className="p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
+                              title="Borrar pago"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
@@ -367,15 +462,26 @@ export function CashRegisterPage({
                     {c.card_difference >= 0 ? '+' : ''}{formatCurrency(c.card_difference)}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{formatDate(c.created_at)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => handleReopen(c.id, `${formatDate(c.period_start)} — ${formatDate(c.period_end)}`)}
-                      disabled={isPending}
-                      className="inline-flex items-center gap-1 text-xs text-yellow-700 hover:text-yellow-900 hover:underline"
-                      title="Reabrir este cierre"
-                    >
-                      <Unlock className="w-3.5 h-3.5" /> Reabrir
-                    </button>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2 justify-end">
+                      <a
+                        href={`/api/pdf/cash-close/${c.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-900 hover:underline"
+                        title="Descargar arqueo en PDF"
+                      >
+                        <FileDown className="w-3.5 h-3.5" /> PDF
+                      </a>
+                      <button
+                        onClick={() => handleReopen(c.id, `${formatDate(c.period_start)} — ${formatDate(c.period_end)}`)}
+                        disabled={isPending}
+                        className="inline-flex items-center gap-1 text-xs text-yellow-700 hover:text-yellow-900 hover:underline"
+                        title="Reabrir este cierre"
+                      >
+                        <Unlock className="w-3.5 h-3.5" /> Reabrir
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -390,6 +496,109 @@ export function CashRegisterPage({
           </table>
         </div>
       </div>
+
+      {/* Edit movement modal */}
+      {editMovement && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={closeEditMovement}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-movement-title"
+        >
+          <div
+            className="bg-background rounded-xl shadow-xl w-full max-w-md p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 id="edit-movement-title" className="text-lg font-semibold">Modificar pago</h3>
+              <button
+                type="button"
+                onClick={closeEditMovement}
+                className="p-1 rounded hover:bg-muted text-muted-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {(() => {
+              const detail = editMovement.related_payment_id
+                ? detailMap[editMovement.related_payment_id]
+                : null
+              return detail ? (
+                <p className="text-sm text-muted-foreground">
+                  {detail.player_name}
+                  {detail.team_name ? ` — ${detail.team_name}` : ''}
+                </p>
+              ) : null
+            })()}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="label">Importe</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  min="0"
+                  className="input w-full"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="label">Fecha</label>
+                <input
+                  type="date"
+                  className="input w-full"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="label">Forma de pago</label>
+              <div className="grid grid-cols-3 gap-2">
+                {PAYMENT_METHODS.map((m) => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => setEditMethod(m.value)}
+                    className={cn(
+                      'p-2 rounded-lg border text-sm font-medium transition-colors',
+                      editMethod === m.value
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:border-muted-foreground',
+                    )}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={closeEditMovement}
+                className="btn-secondary flex-1"
+                disabled={isPending}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdateMovement}
+                className="btn-primary flex-1"
+                disabled={isPending}
+              >
+                {isPending ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
