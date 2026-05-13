@@ -1,8 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
-const CLUB_NAME = 'Escuela de Futbol Ciudad de Getafe'
-
-const COLOR_NAVY  = rgb(0.08, 0.12, 0.24)
 const COLOR_GREEN = rgb(0.09, 0.55, 0.25)
 const COLOR_RED   = rgb(0.75, 0.15, 0.15)
 const COLOR_DARK  = rgb(0.2, 0.2, 0.2)
@@ -10,9 +7,15 @@ const COLOR_MID   = rgb(0.45, 0.45, 0.45)
 const COLOR_LIGHT = rgb(0.85, 0.85, 0.85)
 const COLOR_WHITE = rgb(1, 1, 1)
 const COLOR_ALT   = rgb(0.96, 0.97, 0.99)
-const COLOR_HDR   = rgb(0.22, 0.26, 0.42)
-const COLOR_NET   = rgb(0.93, 0.96, 1.0)
-const COLOR_SUB   = rgb(0.70, 0.78, 0.92)
+
+const SOURCE_LABELS: Record<string, string> = {
+  cuota: 'Cuota',
+  ropa: 'Ropa',
+  torneo: 'Torneo',
+  actividad: 'Actividad',
+  gasto: 'Gasto',
+  otro: 'Otro',
+}
 
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Efectivo',
@@ -28,6 +31,7 @@ export interface CashCloseMovement {
   movement_date: string
   description: string
   type: 'income' | 'expense'
+  source?: string | null
 }
 
 export interface CashCloseParams {
@@ -40,6 +44,78 @@ export interface CashCloseParams {
   realCard: number
   notes: string | null
   movements: CashCloseMovement[]
+  // Club branding
+  clubName?: string
+  primaryColor?: string   // hex e.g. '#003087'
+  logoUrl?: string
+}
+
+function hexToRgbColor(hex: string) {
+  try {
+    const h = hex.replace('#', '')
+    const r = parseInt(h.slice(0, 2), 16) / 255
+    const g = parseInt(h.slice(2, 4), 16) / 255
+    const b = parseInt(h.slice(4, 6), 16) / 255
+    return rgb(r, g, b)
+  } catch {
+    return rgb(0.08, 0.12, 0.24)
+  }
+}
+
+// Ligeramente más claro que primaryColor para el header de tabla
+function lightenColor(hex: string) {
+  try {
+    const h = hex.replace('#', '')
+    const r = Math.min(1, parseInt(h.slice(0, 2), 16) / 255 + 0.15)
+    const g = Math.min(1, parseInt(h.slice(2, 4), 16) / 255 + 0.15)
+    const b = Math.min(1, parseInt(h.slice(4, 6), 16) / 255 + 0.15)
+    return rgb(r, g, b)
+  } catch {
+    return rgb(0.22, 0.26, 0.42)
+  }
+}
+
+function netBg(hex: string) {
+  try {
+    const h = hex.replace('#', '')
+    const r = Math.min(1, parseInt(h.slice(0, 2), 16) / 255 * 0.15 + 0.85)
+    const g = Math.min(1, parseInt(h.slice(2, 4), 16) / 255 * 0.15 + 0.85)
+    const b = Math.min(1, parseInt(h.slice(4, 6), 16) / 255 * 0.15 + 0.85)
+    return rgb(r, g, b)
+  } catch {
+    return rgb(0.93, 0.96, 1.0)
+  }
+}
+
+function subColor(hex: string) {
+  try {
+    const h = hex.replace('#', '')
+    const r = Math.min(1, parseInt(h.slice(0, 2), 16) / 255 * 0.55 + 0.45)
+    const g = Math.min(1, parseInt(h.slice(2, 4), 16) / 255 * 0.55 + 0.45)
+    const b = Math.min(1, parseInt(h.slice(4, 6), 16) / 255 * 0.55 + 0.45)
+    return rgb(r, g, b)
+  } catch {
+    return rgb(0.70, 0.78, 0.92)
+  }
+}
+
+async function tryEmbedLogo(doc: PDFDocument, url: string) {
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(5000) })
+    if (!resp.ok) return null
+    const buf = new Uint8Array(await resp.arrayBuffer())
+    // PNG: 89 50 4E 47
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) {
+      return await doc.embedPng(buf)
+    }
+    // JPEG: FF D8
+    if (buf[0] === 0xFF && buf[1] === 0xD8) {
+      return await doc.embedJpg(buf)
+    }
+    return null
+  } catch {
+    return null
+  }
 }
 
 function eur(n: number) {
@@ -58,24 +134,42 @@ function trunc(str: string, max: number) {
   return str.length > max ? str.slice(0, max - 1) + '…' : str
 }
 
+function getSourceLabel(m: CashCloseMovement): string {
+  if (m.source && SOURCE_LABELS[m.source]) return SOURCE_LABELS[m.source]
+  const desc = m.description.toLowerCase()
+  if (desc.startsWith('pago cuota') || desc.includes('cuota')) return 'Cuota'
+  if (desc.startsWith('ropa')) return 'Ropa'
+  if (desc.includes('torneo')) return 'Torneo'
+  if (desc.includes('actividad')) return 'Actividad'
+  return 'Otro'
+}
+
 export async function generateCashClosePDF(params: CashCloseParams): Promise<Buffer> {
+  const CLUB_NAME = params.clubName ?? 'Escuela de Futbol Ciudad de Getafe'
+  const primaryHex = params.primaryColor ?? '#003087'
+  const COLOR_NAVY  = hexToRgbColor(primaryHex)
+  const COLOR_HDR   = lightenColor(primaryHex)
+  const COLOR_NET   = netBg(primaryHex)
+  const COLOR_SUB   = subColor(primaryHex)
+
   const doc  = await PDFDocument.create()
   const font = await doc.embedFont(StandardFonts.Helvetica)
   const bold = await doc.embedFont(StandardFonts.HelveticaBold)
 
-  const W  = 595        // A4 width
-  const H  = 842        // A4 height
-  const ML = 42         // margin left/right
-  const CW = W - ML * 2 // content width
+  // Intentar cargar logo del club
+  const logoImg = params.logoUrl ? await tryEmbedLogo(doc, params.logoUrl) : null
 
-  // ── Mutable draw state (closures update these) ──────────────────
+  const W  = 595
+  const H  = 842
+  const ML = 42
+  const CW = W - ML * 2
+
   let page = doc.addPage([W, H])
   let y    = H - ML
 
   function newPage() {
     page = doc.addPage([W, H])
     y    = H - ML
-    // mini header on continuation pages
     page.drawRectangle({ x: 0, y: H - 26, width: W, height: 26, color: COLOR_NAVY })
     const cont = `${CLUB_NAME.toUpperCase()} — ARQUEO ${dateES(params.periodStart)} a ${dateES(params.periodEnd)} (cont.)`
     page.drawText(cont, { x: ML, y: H - 17, size: 8, font: bold, color: COLOR_WHITE })
@@ -86,11 +180,29 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
     if (y < needed + 52) newPage()
   }
 
-  // ── MAIN HEADER ─────────────────────────────────────────────────
-  page.drawRectangle({ x: 0, y: H - 88, width: W, height: 88, color: COLOR_NAVY })
+  // ── MAIN HEADER ──────────────────────────────────────────────────
+  const HEADER_H = 88
+  page.drawRectangle({ x: 0, y: H - HEADER_H, width: W, height: HEADER_H, color: COLOR_NAVY })
 
+  // Logo — esquina derecha del header
+  if (logoImg) {
+    const maxLogoH = 64
+    const maxLogoW = 90
+    const scale = Math.min(maxLogoH / logoImg.height, maxLogoW / logoImg.width)
+    const lw = logoImg.width * scale
+    const lh = logoImg.height * scale
+    page.drawImage(logoImg, {
+      x: W - ML - lw,
+      y: H - HEADER_H / 2 - lh / 2,
+      width: lw,
+      height: lh,
+    })
+  }
+
+  const textAreaW = logoImg ? W - ML * 2 - 100 : CW
   page.drawText(CLUB_NAME.toUpperCase(), {
-    x: ML, y: H - 24, size: 10, font: bold, color: COLOR_SUB,
+    x: ML, y: H - 22, size: 9.5, font: bold, color: COLOR_SUB,
+    maxWidth: textAreaW,
   })
   page.drawText('ARQUEO DE CAJA', {
     x: ML, y: H - 48, size: 24, font: bold, color: COLOR_WHITE,
@@ -103,9 +215,9 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
   const clW = font.widthOfTextAtSize(cl, 9)
   page.drawText(cl, { x: W - ML - clW, y: H - 66, size: 9, font, color: COLOR_SUB })
 
-  y = H - 88 - 22
+  y = H - HEADER_H - 22
 
-  // ── KPI SUMMARY BOXES ───────────────────────────────────────────
+  // ── KPI BOXES ────────────────────────────────────────────────────
   const incomeMovs  = params.movements.filter(m => m.type === 'income')
   const expenseMovs = params.movements.filter(m => m.type === 'expense')
   const totalIncome  = incomeMovs.reduce((s, m) => s + m.amount, 0)
@@ -188,18 +300,21 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
     y -= 8
     sectionTitle('DETALLE DE INGRESOS')
 
-    const xN  = ML + 6
-    const xEq = ML + 196
-    const xM  = ML + 326
-    const xD  = ML + 394
-    const xA  = ML + CW - 6
+    // Columnas: TIPO | JUGADOR | EQUIPO | F.PAGO | FECHA | IMPORTE
+    const xTipo = ML + 6
+    const xN    = ML + 58
+    const xEq   = ML + 198
+    const xM    = ML + 318
+    const xD    = ML + 388
+    const xA    = ML + CW - 6
 
     tableHeader([
-      { label: 'JUGADOR / DESCRIPCIÓN', x: xN  },
-      { label: 'EQUIPO',                x: xEq },
-      { label: 'F. PAGO',               x: xM  },
-      { label: 'FECHA',                 x: xD  },
-      { label: 'IMPORTE',               x: xA, align: 'right' },
+      { label: 'TIPO',                   x: xTipo },
+      { label: 'JUGADOR / DESCRIPCIÓN',  x: xN    },
+      { label: 'EQUIPO',                 x: xEq   },
+      { label: 'F. PAGO',                x: xM    },
+      { label: 'FECHA',                  x: xD    },
+      { label: 'IMPORTE',                x: xA, align: 'right' },
     ])
 
     let incTotal = 0
@@ -207,10 +322,11 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
       const m = incomeMovs[i]
       incTotal += m.amount
       tableRow([
-        { text: trunc(m.player_name || m.description, 30), x: xN  },
-        { text: trunc(m.team_name || '—', 20),              x: xEq },
-        { text: METHOD_LABELS[m.payment_method] ?? m.payment_method ?? '—', x: xM },
-        { text: dateES(m.movement_date),                     x: xD  },
+        { text: getSourceLabel(m),                                            x: xTipo, color: COLOR_NAVY, bold: true },
+        { text: trunc(m.player_name || m.description, 22),                   x: xN    },
+        { text: trunc(m.team_name || '—', 18),                               x: xEq   },
+        { text: METHOD_LABELS[m.payment_method] ?? m.payment_method ?? '—',  x: xM    },
+        { text: dateES(m.movement_date),                                      x: xD    },
         { text: eur(m.amount), x: xA, align: 'right', bold: true, color: COLOR_GREEN },
       ], i)
     }

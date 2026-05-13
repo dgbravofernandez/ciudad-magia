@@ -118,6 +118,11 @@ export function PaymentRegistration({
   const [savingCommentId, setSavingCommentId] = useState<string | null>(null)
   const commentSaveInProgress = useRef(false)
 
+  // Filtros y ordenación de pendientes
+  const [pendingTeamFilter, setPendingTeamFilter] = useState<string>('')
+  const [pendingSearch, setPendingSearch] = useState<string>('')
+  const [pendingSort, setPendingSort] = useState<'name' | 'amount_desc' | 'amount_asc' | 'last_payment'>('amount_desc')
+
   const today = new Date().toISOString().slice(0, 10)
 
   // Get annual quota amount for a player based on team.
@@ -196,6 +201,41 @@ export function PaymentRegistration({
         adminComment: pendingByPlayer[pl.id].adminComment,
       }))
   }, [players, payments])
+
+  // Equipos disponibles para filtrar pendientes
+  const pendingTeams = useMemo(() => {
+    const teamSet = new Set<string>()
+    for (const pl of pendingPlayers) {
+      if (pl.teams?.name) teamSet.add(pl.teams.name)
+    }
+    return Array.from(teamSet).sort()
+  }, [pendingPlayers])
+
+  // Pendientes filtrados y ordenados
+  const filteredPendingPlayers = useMemo(() => {
+    let result = pendingPlayers
+    if (pendingTeamFilter) {
+      result = result.filter((pl) => pl.teams?.name === pendingTeamFilter)
+    }
+    if (pendingSearch.trim()) {
+      const q = pendingSearch.toLowerCase()
+      result = result.filter((pl) =>
+        `${pl.first_name} ${pl.last_name}`.toLowerCase().includes(q)
+      )
+    }
+    return [...result].sort((a, b) => {
+      if (pendingSort === 'amount_desc') return b.pendingAmount - a.pendingAmount
+      if (pendingSort === 'amount_asc') return a.pendingAmount - b.pendingAmount
+      if (pendingSort === 'last_payment') {
+        if (!a.lastPayment && !b.lastPayment) return 0
+        if (!a.lastPayment) return 1
+        if (!b.lastPayment) return -1
+        return a.lastPayment < b.lastPayment ? 1 : -1
+      }
+      // name
+      return `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
+    })
+  }, [pendingPlayers, pendingTeamFilter, pendingSearch, pendingSort])
 
   // Search results — only players with assigned team
   const searchResults = useMemo(() => {
@@ -733,18 +773,50 @@ export function PaymentRegistration({
 
       {/* Pending payments table */}
       <div className="card overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h3 className="font-semibold">Pagos pendientes</h3>
-          {selectedPlayers.size > 0 && canRegisterPayments && (
-            <button
-              disabled={isPending}
-              onClick={handleSendReminders}
-              className="btn-secondary gap-2 flex items-center text-sm"
+        <div className="px-5 py-4 border-b space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="font-semibold">Pagos pendientes ({filteredPendingPlayers.length}{filteredPendingPlayers.length !== pendingPlayers.length ? ` de ${pendingPlayers.length}` : ''})</h3>
+            {selectedPlayers.size > 0 && canRegisterPayments && (
+              <button
+                disabled={isPending}
+                onClick={handleSendReminders}
+                className="btn-secondary gap-2 flex items-center text-sm"
+              >
+                <Mail className="w-4 h-4" />
+                Enviar aviso ({selectedPlayers.size})
+              </button>
+            )}
+          </div>
+          {/* Filtros */}
+          <div className="flex flex-wrap gap-2">
+            <input
+              type="text"
+              className="input text-sm py-1.5 px-3 w-44"
+              placeholder="Buscar jugador..."
+              value={pendingSearch}
+              onChange={(e) => setPendingSearch(e.target.value)}
+            />
+            <select
+              className="input text-sm py-1.5 px-3 w-44"
+              value={pendingTeamFilter}
+              onChange={(e) => setPendingTeamFilter(e.target.value)}
             >
-              <Mail className="w-4 h-4" />
-              Enviar aviso ({selectedPlayers.size})
-            </button>
-          )}
+              <option value="">Todos los equipos</option>
+              {pendingTeams.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+            <select
+              className="input text-sm py-1.5 px-3 w-44"
+              value={pendingSort}
+              onChange={(e) => setPendingSort(e.target.value as typeof pendingSort)}
+            >
+              <option value="amount_desc">Mayor deuda primero</option>
+              <option value="amount_asc">Menor deuda primero</option>
+              <option value="name">Nombre A→Z</option>
+              <option value="last_payment">Último pago reciente</option>
+            </select>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -770,7 +842,7 @@ export function PaymentRegistration({
               </tr>
             </thead>
             <tbody>
-              {pendingPlayers.map((player) => (
+              {filteredPendingPlayers.map((player) => (
                 <tr key={player.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
                   {canRegisterPayments && (
                     <td className="px-4 py-3">
@@ -824,10 +896,10 @@ export function PaymentRegistration({
                   </td>
                 </tr>
               ))}
-              {pendingPlayers.length === 0 && (
+              {filteredPendingPlayers.length === 0 && (
                 <tr>
                   <td colSpan={canRegisterPayments ? 7 : 6} className="px-4 py-12 text-center text-muted-foreground">
-                    No hay pagos pendientes
+                    {pendingPlayers.length === 0 ? 'No hay pagos pendientes' : 'Ningún resultado para los filtros aplicados'}
                   </td>
                 </tr>
               )}

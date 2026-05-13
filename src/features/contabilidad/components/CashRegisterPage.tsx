@@ -13,6 +13,7 @@ import {
   reopenCashClose,
   deletePayment,
   updatePayment,
+  updateCashMovement,
 } from '@/features/contabilidad/actions/accounting.actions'
 import { useRouter } from 'next/navigation'
 
@@ -28,6 +29,15 @@ const PAYMENT_METHODS = [
   { value: 'transfer', label: 'Transferencia'  },
 ]
 
+const SOURCE_LABELS: Record<string, string> = {
+  cuota: 'Cuota',
+  ropa: 'Ropa',
+  torneo: 'Torneo',
+  actividad: 'Actividad',
+  gasto: 'Gasto',
+  otro: 'Otro',
+}
+
 interface Movement {
   id: string
   type: string
@@ -36,6 +46,8 @@ interface Movement {
   payment_method: string
   movement_date: string
   related_payment_id: string | null
+  related_expense_id: string | null
+  source: string | null
 }
 
 interface MovementDetail {
@@ -118,19 +130,18 @@ export function CashRegisterPage({
   }
 
   function handleUpdateMovement() {
-    if (!editMovement?.related_payment_id) return
+    if (!editMovement) return
     const amount = parseFloat(editAmount)
     if (!amount || amount <= 0) { toast.error('Importe inválido'); return }
     startTransition(async () => {
-      const result = await updatePayment({
-        paymentId: editMovement.related_payment_id!,
+      const result = await updateCashMovement({
+        movementId: editMovement.id,
         amount,
-        method:    editMethod,
-        date:      editDate,
-        notes:     '',
+        method: editMethod,
+        date:   editDate,
       })
       if (result.success) {
-        toast.success('Pago actualizado')
+        toast.success('Movimiento actualizado')
         closeEditMovement()
         router.refresh()
       } else {
@@ -283,7 +294,8 @@ export function CashRegisterPage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Jugador</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tipo</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Jugador / Descripción</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Equipo</th>
                   <th className="text-right px-4 py-3 font-medium text-muted-foreground">Cantidad</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">F. Pago</th>
@@ -294,26 +306,31 @@ export function CashRegisterPage({
               <tbody>
                 {incomeMovements.map((m) => {
                   const detail = m.related_payment_id ? detailMap[m.related_payment_id] : null
-                  const canEdit = !!m.related_payment_id
+                  const sourceLabel = SOURCE_LABELS[m.source ?? ''] ?? (m.source ?? 'Otro')
                   return (
                     <tr key={m.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                          {sourceLabel}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 font-medium">{detail?.player_name || m.description}</td>
                       <td className="px-4 py-3 text-muted-foreground">{detail?.team_name || '—'}</td>
                       <td className="px-4 py-3 text-right font-semibold text-green-600">{formatCurrency(m.amount)}</td>
                       <td className="px-4 py-3 text-muted-foreground">{METHOD_LABELS[m.payment_method] ?? m.payment_method}</td>
                       <td className="px-4 py-3 text-muted-foreground">{formatDate(m.movement_date)}</td>
                       <td className="px-4 py-3">
-                        {canEdit && (
-                          <div className="flex items-center gap-1 justify-end">
-                            <button
-                              type="button"
-                              disabled={isPending}
-                              onClick={() => openEditMovement(m)}
-                              className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
-                              title="Modificar pago"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
+                        <div className="flex items-center gap-1 justify-end">
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => openEditMovement(m)}
+                            className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                            title="Modificar"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          {m.related_payment_id && (
                             <button
                               type="button"
                               disabled={isPending}
@@ -323,8 +340,8 @@ export function CashRegisterPage({
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -525,12 +542,10 @@ export function CashRegisterPage({
               const detail = editMovement.related_payment_id
                 ? detailMap[editMovement.related_payment_id]
                 : null
-              return detail ? (
-                <p className="text-sm text-muted-foreground">
-                  {detail.player_name}
-                  {detail.team_name ? ` — ${detail.team_name}` : ''}
-                </p>
-              ) : null
+              const label = detail
+                ? `${detail.player_name}${detail.team_name ? ` — ${detail.team_name}` : ''}`
+                : editMovement.description
+              return <p className="text-sm text-muted-foreground">{label}</p>
             })()}
 
             <div className="grid grid-cols-2 gap-3">

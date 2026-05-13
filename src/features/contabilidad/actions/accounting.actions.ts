@@ -71,24 +71,55 @@ export async function registerPayment(data: {
   const { sb, clubId, memberId } = await resolveClubAndMember()
   const dbMethod = toDbMethod(data.method)
 
-  // Insert quota_payment record
-  const { data: payment, error: paymentError } = await sb.from('quota_payments').insert({
-    club_id: clubId,
-    player_id: data.playerId,
-    season: data.season ?? getCurrentSeason(),
-    month: data.month ?? new Date(data.date).getMonth() + 1,
-    concept: data.concept ?? 'Cuota mensual',
-    amount_due: data.amount,
-    amount_paid: data.amount,
-    payment_date: data.date,
-    payment_method: dbMethod,
-    status: 'paid',
-    notes: data.notes || null,
-    email_sent: false,
-    registered_by: memberId || null,
-  }).select('id').single()
+  // Buscar registro pendiente existente para este jugador y temporada
+  const season = data.season ?? getCurrentSeason()
+  const { data: pendingRec } = await sb
+    .from('quota_payments')
+    .select('id, amount_due, amount_paid')
+    .eq('club_id', clubId)
+    .eq('player_id', data.playerId)
+    .eq('season', season)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
 
-  if (paymentError) return { success: false, error: paymentError.message }
+  let paymentId: string | null = null
+
+  if (pendingRec) {
+    // Actualizar el registro pendiente existente → pagado
+    const { error: updateErr } = await sb.from('quota_payments').update({
+      amount_paid: data.amount,
+      amount_due: Math.max(Number(pendingRec.amount_due), data.amount),
+      payment_date: data.date,
+      payment_method: dbMethod,
+      status: 'paid',
+      notes: data.notes || null,
+      email_sent: false,
+      registered_by: memberId || null,
+    }).eq('id', pendingRec.id)
+    if (updateErr) return { success: false, error: updateErr.message }
+    paymentId = pendingRec.id
+  } else {
+    // Sin pendiente previo — crear registro nuevo pagado
+    const { data: payment, error: paymentError } = await sb.from('quota_payments').insert({
+      club_id: clubId,
+      player_id: data.playerId,
+      season,
+      month: data.month ?? new Date(data.date).getMonth() + 1,
+      concept: data.concept ?? 'Cuota mensual',
+      amount_due: data.amount,
+      amount_paid: data.amount,
+      payment_date: data.date,
+      payment_method: dbMethod,
+      status: 'paid',
+      notes: data.notes || null,
+      email_sent: false,
+      registered_by: memberId || null,
+    }).select('id').single()
+    if (paymentError) return { success: false, error: paymentError.message }
+    paymentId = payment?.id ?? null
+  }
 
   // Create cash_movement record
   const { error: movementError } = await sb.from('cash_movements').insert({
@@ -98,7 +129,8 @@ export async function registerPayment(data: {
     payment_method: dbMethod,
     description: `Pago cuota - ${data.playerName}`,
     movement_date: data.date,
-    related_payment_id: payment?.id ?? null,
+    related_payment_id: paymentId,
+    source: 'cuota',
     registered_by: memberId || null,
   })
 
@@ -107,10 +139,10 @@ export async function registerPayment(data: {
   // Send PDF receipt email — must await (Vercel kills serverless after response)
   // Use a timeout so the UI doesn't hang forever if email is slow
   let emailSent = false
-  if (data.tutorEmail && payment?.id) {
+  if (data.tutorEmail && paymentId) {
     try {
       const emailPromise = sendPaymentReceiptEmail({
-        paymentId: payment.id,
+        paymentId: paymentId!,
         tutorEmail: data.tutorEmail,
         playerName: data.playerName,
         teamName: data.teamName,
@@ -135,7 +167,8 @@ export async function registerPayment(data: {
 
   logger.info({ action: 'registerPayment', clubId, memberId, amount: data.amount, emailSent })
   revalidatePath('/contabilidad/pagos')
-  return { success: true, paymentId: payment?.id, emailSent }
+  revalidatePath('/contabilidad/caja')
+  return { success: true, paymentId: paymentId ?? undefined, emailSent }
 }
 
 export async function deletePayment(paymentId: string) {
@@ -573,6 +606,67 @@ async function sendPaymentReceiptEmail(params: {
     const sb = createAdminClient() as any
     await sb.from('quota_payments').update({ email_sent: true }).eq('id', params.paymentId)
   }
+}
+
+// ── updateCashMovement ───────────────────────────────────────────────────────
+// Edita un movimiento de caja directamente (no cuota). Actualiza también el
+// registro enlazado si existe (quota_payment o expense).
+export async function updateCashMovement(data: {
+  movementId: string
+  amount: number
+  method: string
+  date: string
+  description?: string
+}) {
+  const { sb, clubId } = await resolveClubAndMember()
+  const dbMethod = toDbMethod(data.method)
+
+  const { data: existing } = await sb
+    .from('cash_movements')
+    .select('movement_date, related_payment_id, related_expense_id, club_id')
+    .eq('id', data.movementId)
+    .single()
+
+  if (!existing) return { success: false, error: 'Movimiento no encontrado' }
+  if (existing.club_id !== clubId) return { success: false, error: 'No autorizado' }
+
+  const oldCheck = await assertNotLocked(existing.movement_date, clubId)
+  if (!oldCheck.ok) return { success: false, error: oldCheck.error }
+  if (data.date) {
+    const newCheck = await assertNotLocked(data.date, clubId)
+    if (!newCheck.ok) return { success: false, error: newCheck.error }
+  }
+
+  // Actualizar cash_movement
+  const patch: Record<string, unknown> = {
+    amount: data.amount,
+    payment_method: dbMethod,
+    movement_date: data.date,
+  }
+  if (data.description) patch.description = data.description
+
+  const { error: movErr } = await sb.from('cash_movements').update(patch).eq('id', data.movementId)
+  if (movErr) return { success: false, error: movErr.message }
+
+  // Actualizar registro enlazado si existe
+  if (existing.related_payment_id) {
+    await sb.from('quota_payments').update({
+      amount_paid: data.amount,
+      amount_due: data.amount,
+      payment_date: data.date,
+      payment_method: dbMethod,
+    }).eq('id', existing.related_payment_id)
+  }
+  if (existing.related_expense_id) {
+    await sb.from('expenses').update({
+      amount: data.amount,
+      expense_date: data.date,
+    }).eq('id', existing.related_expense_id)
+  }
+
+  revalidatePath('/contabilidad/pagos')
+  revalidatePath('/contabilidad/caja')
+  return { success: true }
 }
 
 function getCurrentSeason(): string {

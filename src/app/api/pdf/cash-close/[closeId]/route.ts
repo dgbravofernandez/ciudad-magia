@@ -44,10 +44,17 @@ export async function GET(
     return new Response('Forbidden', { status: 403 })
   }
 
+  // ── Fetch club branding ──────────────────────────────────────────
+  const { data: clubData } = await sb
+    .from('clubs')
+    .select('name, logo_url, primary_color')
+    .eq('id', close.club_id)
+    .single()
+
   // ── Fetch movements for the close period ─────────────────────────
   const { data: movements } = await sb
     .from('cash_movements')
-    .select('*')
+    .select('*, source')
     .eq('club_id', close.club_id)
     .gte('movement_date', close.period_start)
     .lte('movement_date', close.period_end)
@@ -117,19 +124,23 @@ export async function GET(
     movement_date:  m.movement_date,
     description:    m.description ?? '',
     type:           m.type as 'income' | 'expense',
+    source:         m.source ?? null,
   }))
 
   // ── Generate PDF ─────────────────────────────────────────────────
   const pdfBuffer = await generateCashClosePDF({
-    periodStart: close.period_start,
-    periodEnd:   close.period_end,
-    closedAt:    close.created_at,
-    systemCash:  close.system_cash,
-    realCash:    close.real_cash,
-    systemCard:  close.system_card,
-    realCard:    close.real_card,
-    notes:       close.notes ?? null,
-    movements:   enriched,
+    periodStart:  close.period_start,
+    periodEnd:    close.period_end,
+    closedAt:     close.created_at,
+    systemCash:   close.system_cash,
+    realCash:     close.real_cash,
+    systemCard:   close.system_card,
+    realCard:     close.real_card,
+    notes:        close.notes ?? null,
+    movements:    enriched,
+    clubName:     clubData?.name ?? undefined,
+    primaryColor: clubData?.primary_color ?? undefined,
+    logoUrl:      clubData?.logo_url ?? undefined,
   })
 
   const filename = `Arqueo_${close.period_start}_${close.period_end}.pdf`
