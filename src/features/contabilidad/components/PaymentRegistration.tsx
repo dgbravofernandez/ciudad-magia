@@ -18,6 +18,7 @@ import {
   Pencil,
   Trash2,
   X,
+  Check,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatDate } from '@/lib/utils/currency'
@@ -28,6 +29,8 @@ import {
   updatePayment,
   refundPayment,
   updateQuotaPaymentComment,
+  updatePlayerTeam,
+  updatePendingPaymentAmount,
 } from '@/features/contabilidad/actions/accounting.actions'
 
 interface PlayerRow {
@@ -58,6 +61,7 @@ interface Payment {
 interface Props {
   clubId: string
   season?: string
+  isNextSeason?: boolean
   totalPaidThisMonth: number
   totalPending: number
   playersWithDebtCount: number
@@ -71,6 +75,7 @@ interface Props {
     teams?: Record<string, number>
   }
   seasonFees?: Array<{ team_id: string | null; concept: string; amount: number }>
+  teams?: { id: string; name: string }[]
 }
 
 const PAYMENT_METHODS = [
@@ -88,6 +93,7 @@ const METHOD_LABELS: Record<string, string> = {
 export function PaymentRegistration({
   clubId,
   season,
+  isNextSeason = false,
   totalPaidThisMonth,
   totalPending,
   playersWithDebtCount,
@@ -96,6 +102,7 @@ export function PaymentRegistration({
   canRegisterPayments,
   quotaAmounts,
   seasonFees,
+  teams = [],
 }: Props) {
   const [search, setSearch] = useState('')
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null)
@@ -122,6 +129,11 @@ export function PaymentRegistration({
   const [pendingTeamFilter, setPendingTeamFilter] = useState<string>('')
   const [pendingSearch, setPendingSearch] = useState<string>('')
   const [pendingSort, setPendingSort] = useState<'name' | 'amount_desc' | 'amount_asc' | 'last_payment'>('amount_desc')
+
+  // Edición inline de equipo/importe en pendientes
+  const [editingPendingId, setEditingPendingId] = useState<string | null>(null) // player.id
+  const [editPendingTeam, setEditPendingTeam] = useState<string>('')
+  const [editPendingAmount, setEditPendingAmount] = useState<string>('')
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -437,6 +449,47 @@ export function PaymentRegistration({
         router.refresh()
       } else {
         toast.error(result.error ?? 'Error al guardar comentario')
+      }
+    })
+  }
+
+  function openEditPending(player: { id: string; teams: { id: string; name: string } | null; pendingAmount: number }) {
+    setEditingPendingId(player.id)
+    setEditPendingTeam(player.teams?.id ?? '')
+    setEditPendingAmount(player.pendingAmount.toFixed(2))
+  }
+
+  function closeEditPending() {
+    setEditingPendingId(null)
+  }
+
+  function handleSavePendingRow(player: { id: string; firstPendingPaymentId: string | null }) {
+    startTransition(async () => {
+      const promises: Promise<{ success: boolean; error?: string }>[] = []
+
+      // Cambio de equipo
+      const currentPlayer = players.find((p) => p.id === player.id)
+      const currentTeamId = currentPlayer?.teams?.id ?? ''
+      if (editPendingTeam !== currentTeamId) {
+        promises.push(updatePlayerTeam(player.id, editPendingTeam || null, isNextSeason))
+      }
+
+      // Cambio de importe pendiente
+      if (player.firstPendingPaymentId) {
+        const newAmount = parseFloat(editPendingAmount)
+        if (!isNaN(newAmount) && newAmount > 0) {
+          promises.push(updatePendingPaymentAmount(player.firstPendingPaymentId, newAmount))
+        }
+      }
+
+      const results = await Promise.all(promises)
+      const failed = results.find((r) => !r.success)
+      if (failed) {
+        toast.error(failed.error ?? 'Error al guardar')
+      } else {
+        toast.success('Guardado correctamente')
+        closeEditPending()
+        router.refresh()
       }
     })
   }
@@ -839,66 +892,147 @@ export function PaymentRegistration({
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Ultimo pago</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Email tutor</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Comentario</th>
+                {canRegisterPayments && <th className="w-10 px-2 py-3"></th>}
               </tr>
             </thead>
             <tbody>
-              {filteredPendingPlayers.map((player) => (
-                <tr key={player.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                  {canRegisterPayments && (
-                    <td className="px-4 py-3">
-                      <button onClick={() => toggleSelectPlayer(player.id)}>
-                        {selectedPlayers.has(player.id) ? (
-                          <CheckSquare className="w-4 h-4 text-primary" />
-                        ) : (
-                          <Square className="w-4 h-4 text-muted-foreground" />
-                        )}
-                      </button>
-                    </td>
-                  )}
-                  <td className="px-4 py-3 font-medium">{player.first_name} {player.last_name}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{player.teams?.name ?? '—'}</td>
-                  <td className="px-4 py-3 text-red-600 font-semibold">{formatCurrency(player.pendingAmount)}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{player.lastPayment ? formatDate(player.lastPayment) : '—'}</td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">{player.tutor_email ?? '—'}</td>
-                  <td className="px-4 py-2 min-w-[180px]">
-                    {player.firstPendingPaymentId && (
-                      editingCommentId === player.firstPendingPaymentId ? (
-                        <input
-                          autoFocus
-                          type="text"
-                          className="input text-xs w-full"
-                          value={commentDraft}
-                          onChange={(e) => setCommentDraft(e.target.value)}
-                          onBlur={() => doSaveComment(player.firstPendingPaymentId!)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') { e.preventDefault(); doSaveComment(player.firstPendingPaymentId!) }
-                            if (e.key === 'Escape') cancelEditComment()
-                          }}
-                          placeholder="Escribe una nota..."
-                        />
-                      ) : savingCommentId === player.firstPendingPaymentId ? (
-                        <span className="text-xs text-muted-foreground italic">Guardando...</span>
-                      ) : (
-                        <button
-                          type="button"
-                          className="text-xs text-left w-full min-h-[28px] px-2 py-1 rounded hover:bg-muted/50 transition-colors group"
-                          onClick={() => startEditComment(player.firstPendingPaymentId!, player.adminComment)}
-                          title="Haz clic para añadir o editar el comentario"
-                        >
-                          {player.adminComment ? (
-                            <span className="text-foreground">{player.adminComment}</span>
+              {filteredPendingPlayers.map((player) => {
+                const isEditingRow = editingPendingId === player.id
+                return (
+                  <>
+                    <tr key={player.id} className="border-b hover:bg-muted/20 transition-colors">
+                      {canRegisterPayments && (
+                        <td className="px-4 py-3">
+                          <button onClick={() => toggleSelectPlayer(player.id)}>
+                            {selectedPlayers.has(player.id) ? (
+                              <CheckSquare className="w-4 h-4 text-primary" />
+                            ) : (
+                              <Square className="w-4 h-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        </td>
+                      )}
+                      <td className="px-4 py-3 font-medium">{player.first_name} {player.last_name}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{player.teams?.name ?? <span className="text-amber-600 text-xs font-medium">Sin equipo</span>}</td>
+                      <td className="px-4 py-3 text-red-600 font-semibold">{formatCurrency(player.pendingAmount)}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{player.lastPayment ? formatDate(player.lastPayment) : '—'}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{player.tutor_email ?? '—'}</td>
+                      <td className="px-4 py-2 min-w-[180px]">
+                        {player.firstPendingPaymentId && (
+                          editingCommentId === player.firstPendingPaymentId ? (
+                            <input
+                              autoFocus
+                              type="text"
+                              className="input text-xs w-full"
+                              value={commentDraft}
+                              onChange={(e) => setCommentDraft(e.target.value)}
+                              onBlur={() => doSaveComment(player.firstPendingPaymentId!)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') { e.preventDefault(); doSaveComment(player.firstPendingPaymentId!) }
+                                if (e.key === 'Escape') cancelEditComment()
+                              }}
+                              placeholder="Escribe una nota..."
+                            />
+                          ) : savingCommentId === player.firstPendingPaymentId ? (
+                            <span className="text-xs text-muted-foreground italic">Guardando...</span>
                           ) : (
-                            <span className="text-muted-foreground/40 italic group-hover:text-muted-foreground transition-colors">Añadir nota...</span>
-                          )}
-                        </button>
-                      )
+                            <button
+                              type="button"
+                              className="text-xs text-left w-full min-h-[28px] px-2 py-1 rounded hover:bg-muted/50 transition-colors group"
+                              onClick={() => startEditComment(player.firstPendingPaymentId!, player.adminComment)}
+                              title="Haz clic para añadir o editar el comentario"
+                            >
+                              {player.adminComment ? (
+                                <span className="text-foreground">{player.adminComment}</span>
+                              ) : (
+                                <span className="text-muted-foreground/40 italic group-hover:text-muted-foreground transition-colors">Añadir nota...</span>
+                              )}
+                            </button>
+                          )
+                        )}
+                      </td>
+                      {canRegisterPayments && (
+                        <td className="px-2 py-3">
+                          <button
+                            type="button"
+                            onClick={() => isEditingRow ? closeEditPending() : openEditPending(player)}
+                            className={cn(
+                              'p-1.5 rounded transition-colors',
+                              isEditingRow
+                                ? 'bg-muted text-primary'
+                                : 'hover:bg-muted text-muted-foreground hover:text-primary'
+                            )}
+                            title={isEditingRow ? 'Cancelar edición' : 'Editar equipo e importe'}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                    {/* Fila de edición expandida */}
+                    {isEditingRow && (
+                      <tr key={`${player.id}-edit`} className="border-b bg-blue-50/50">
+                        <td colSpan={canRegisterPayments ? 8 : 7} className="px-4 py-3">
+                          <div className="flex flex-wrap items-end gap-3">
+                            {/* Selector de equipo */}
+                            <div className="space-y-1">
+                              <label className="text-xs font-medium text-muted-foreground">Equipo</label>
+                              <select
+                                className="input text-sm py-1.5 px-3 min-w-[180px]"
+                                value={editPendingTeam}
+                                onChange={(e) => setEditPendingTeam(e.target.value)}
+                              >
+                                <option value="">Sin equipo</option>
+                                {teams.map((t) => (
+                                  <option key={t.id} value={t.id}>{t.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            {/* Importe pendiente */}
+                            {player.firstPendingPaymentId && (
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-muted-foreground">Importe pendiente (€)</label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  inputMode="decimal"
+                                  min="0"
+                                  className="input text-sm py-1.5 px-3 w-32"
+                                  value={editPendingAmount}
+                                  onChange={(e) => setEditPendingAmount(e.target.value)}
+                                />
+                              </div>
+                            )}
+                            {/* Botones */}
+                            <div className="flex gap-2 pb-0.5">
+                              <button
+                                type="button"
+                                disabled={isPending}
+                                onClick={() => handleSavePendingRow(player)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                {isPending ? 'Guardando…' : 'Guardar'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={closeEditPending}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm text-muted-foreground hover:bg-muted transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  </td>
-                </tr>
-              ))}
+                  </>
+                )
+              })}
               {filteredPendingPlayers.length === 0 && (
                 <tr>
-                  <td colSpan={canRegisterPayments ? 7 : 6} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={canRegisterPayments ? 8 : 7} className="px-4 py-12 text-center text-muted-foreground">
                     {pendingPlayers.length === 0 ? 'No hay pagos pendientes' : 'Ningún resultado para los filtros aplicados'}
                   </td>
                 </tr>

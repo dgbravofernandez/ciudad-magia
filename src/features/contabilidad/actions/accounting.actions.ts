@@ -608,6 +608,60 @@ async function sendPaymentReceiptEmail(params: {
   }
 }
 
+// ── updatePlayerTeam ─────────────────────────────────────────────────────────
+// Cambia el equipo de un jugador desde la vista de pendientes.
+// isNextSeason=true → actualiza next_team_id; false → team_id.
+export async function updatePlayerTeam(
+  playerId: string,
+  teamId: string | null,
+  isNextSeason = false,
+) {
+  const { sb, clubId, roles } = await resolveClubAndMember()
+  if (!roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+    return { success: false, error: 'Sin permisos' }
+  }
+
+  const field = isNextSeason ? 'next_team_id' : 'team_id'
+  const { error } = await sb
+    .from('players')
+    .update({ [field]: teamId })
+    .eq('id', playerId)
+    .eq('club_id', clubId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/contabilidad/pagos')
+  return { success: true }
+}
+
+// ── updatePendingPaymentAmount ─────────────────────────────────────────────────
+// Corrige el importe pendiente de un quota_payment con status='pending'.
+export async function updatePendingPaymentAmount(paymentId: string, amountDue: number) {
+  const { sb, clubId, roles } = await resolveClubAndMember()
+  if (!roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+    return { success: false, error: 'Sin permisos' }
+  }
+
+  const { data: existing } = await sb
+    .from('quota_payments')
+    .select('status, club_id')
+    .eq('id', paymentId)
+    .single()
+
+  if (!existing) return { success: false, error: 'Pago no encontrado' }
+  if (existing.club_id !== clubId) return { success: false, error: 'No autorizado' }
+
+  const { error } = await sb
+    .from('quota_payments')
+    .update({ amount_due: amountDue })
+    .eq('id', paymentId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/contabilidad/pagos')
+  return { success: true }
+}
+
 // ── updateCashMovement ───────────────────────────────────────────────────────
 // Edita un movimiento de caja directamente (no cuota). Actualiza también el
 // registro enlazado si existe (quota_payment o expense).

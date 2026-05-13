@@ -208,6 +208,7 @@ export default async function PagosPage({
         <PaymentRegistration
           clubId={clubId}
           season={season}
+          isNextSeason={isNextSeason}
           totalPaidThisMonth={totalPaidThisMonth}
           totalPending={totalPending}
           playersWithDebtCount={uniqueDebtors}
@@ -216,6 +217,7 @@ export default async function PagosPage({
           canRegisterPayments={canRegisterPayments}
           quotaAmounts={quotaAmounts}
           seasonFees={(seasonFees ?? []) as Array<{ team_id: string | null; concept: string; amount: number }>}
+          teams={(teams ?? []) as { id: string; name: string }[]}
         />
       </div>
     </div>
