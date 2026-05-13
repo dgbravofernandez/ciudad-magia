@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import {
   Search,
@@ -26,6 +26,7 @@ import {
   deletePayment,
   updatePayment,
   refundPayment,
+  updateQuotaPaymentComment,
 } from '@/features/contabilidad/actions/accounting.actions'
 
 interface PlayerRow {
@@ -47,6 +48,7 @@ interface Payment {
   payment_method: string | null
   status: string
   notes: string | null
+  admin_comment: string | null
   created_at: string
   concept: string | null
   email_sent?: boolean | null
@@ -108,6 +110,12 @@ export function PaymentRegistration({
   // Modal de reembolso — reemplaza prompt() (no funciona en iOS Safari)
   const [refundModal, setRefundModal] = useState<{ payment: Payment; method: string } | null>(null)
 
+  // Comentarios inline en pagos pendientes
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null) // payment_id
+  const [commentDraft, setCommentDraft] = useState('')
+  const [savingCommentId, setSavingCommentId] = useState<string | null>(null)
+  const commentSaveInProgress = useRef(false)
+
   const today = new Date().toISOString().slice(0, 10)
 
   // Get annual quota amount for a player based on team.
@@ -149,11 +157,21 @@ export function PaymentRegistration({
 
   // Pending players for table
   const pendingPlayers = useMemo(() => {
-    const pendingByPlayer: Record<string, { amount: number; lastPayment: string | null }> = {}
+    const pendingByPlayer: Record<string, {
+      amount: number
+      lastPayment: string | null
+      firstPendingPaymentId: string | null
+      adminComment: string | null
+    }> = {}
     for (const p of payments) {
       if (p.status === 'pending') {
         if (!pendingByPlayer[p.player_id]) {
-          pendingByPlayer[p.player_id] = { amount: 0, lastPayment: null }
+          pendingByPlayer[p.player_id] = {
+            amount: 0,
+            lastPayment: null,
+            firstPendingPaymentId: p.id,
+            adminComment: p.admin_comment ?? null,
+          }
         }
         pendingByPlayer[p.player_id].amount += p.amount_due - p.amount_paid
       }
@@ -168,7 +186,13 @@ export function PaymentRegistration({
     }
     return players
       .filter((pl) => pendingByPlayer[pl.id])
-      .map((pl) => ({ ...pl, pendingAmount: pendingByPlayer[pl.id].amount, lastPayment: pendingByPlayer[pl.id].lastPayment }))
+      .map((pl) => ({
+        ...pl,
+        pendingAmount: pendingByPlayer[pl.id].amount,
+        lastPayment: pendingByPlayer[pl.id].lastPayment,
+        firstPendingPaymentId: pendingByPlayer[pl.id].firstPendingPaymentId,
+        adminComment: pendingByPlayer[pl.id].adminComment,
+      }))
   }, [players, payments])
 
   // Search results — only players with assigned team
@@ -338,6 +362,38 @@ export function PaymentRegistration({
         setSelectedPlayers(new Set())
       } else {
         toast.error(result.error ?? 'Error al enviar avisos')
+      }
+    })
+  }
+
+  function startEditComment(paymentId: string, currentComment: string | null) {
+    setEditingCommentId(paymentId)
+    setCommentDraft(currentComment ?? '')
+    commentSaveInProgress.current = false
+  }
+
+  function cancelEditComment() {
+    commentSaveInProgress.current = true
+    setEditingCommentId(null)
+    setCommentDraft('')
+    // reset flag after blur event fires
+    setTimeout(() => { commentSaveInProgress.current = false }, 100)
+  }
+
+  function doSaveComment(paymentId: string) {
+    if (commentSaveInProgress.current) return
+    commentSaveInProgress.current = true
+    const value = commentDraft
+    setSavingCommentId(paymentId)
+    setEditingCommentId(null)
+    startTransition(async () => {
+      const result = await updateQuotaPaymentComment(paymentId, value)
+      setSavingCommentId(null)
+      commentSaveInProgress.current = false
+      if (result.success) {
+        toast.success('Comentario guardado')
+      } else {
+        toast.error(result.error ?? 'Error al guardar comentario')
       }
     })
   }
@@ -707,6 +763,7 @@ export function PaymentRegistration({
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Pendiente</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Ultimo pago</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Email tutor</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Comentario</th>
               </tr>
             </thead>
             <tbody>
@@ -728,11 +785,45 @@ export function PaymentRegistration({
                   <td className="px-4 py-3 text-red-600 font-semibold">{formatCurrency(player.pendingAmount)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{player.lastPayment ? formatDate(player.lastPayment) : '—'}</td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">{player.tutor_email ?? '—'}</td>
+                  <td className="px-4 py-2 min-w-[180px]">
+                    {player.firstPendingPaymentId && (
+                      editingCommentId === player.firstPendingPaymentId ? (
+                        <input
+                          autoFocus
+                          type="text"
+                          className="input text-xs w-full"
+                          value={commentDraft}
+                          onChange={(e) => setCommentDraft(e.target.value)}
+                          onBlur={() => doSaveComment(player.firstPendingPaymentId!)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); doSaveComment(player.firstPendingPaymentId!) }
+                            if (e.key === 'Escape') cancelEditComment()
+                          }}
+                          placeholder="Escribe una nota..."
+                        />
+                      ) : savingCommentId === player.firstPendingPaymentId ? (
+                        <span className="text-xs text-muted-foreground italic">Guardando...</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-xs text-left w-full min-h-[28px] px-2 py-1 rounded hover:bg-muted/50 transition-colors group"
+                          onClick={() => startEditComment(player.firstPendingPaymentId!, player.adminComment)}
+                          title="Haz clic para añadir o editar el comentario"
+                        >
+                          {player.adminComment ? (
+                            <span className="text-foreground">{player.adminComment}</span>
+                          ) : (
+                            <span className="text-muted-foreground/40 italic group-hover:text-muted-foreground transition-colors">Añadir nota...</span>
+                          )}
+                        </button>
+                      )
+                    )}
+                  </td>
                 </tr>
               ))}
               {pendingPlayers.length === 0 && (
                 <tr>
-                  <td colSpan={canRegisterPayments ? 6 : 5} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={canRegisterPayments ? 7 : 6} className="px-4 py-12 text-center text-muted-foreground">
                     No hay pagos pendientes
                   </td>
                 </tr>

@@ -265,6 +265,25 @@ export async function refundPayment(
   return { success: true }
 }
 
+export async function updateQuotaPaymentComment(paymentId: string, comment: string) {
+  const { sb, clubId, roles } = await resolveClubAndMember()
+
+  if (!roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+    return { success: false, error: 'Sin permisos' }
+  }
+
+  const { error } = await sb
+    .from('quota_payments')
+    .update({ admin_comment: comment.trim() || null })
+    .eq('id', paymentId)
+    .eq('club_id', clubId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/contabilidad/pagos')
+  return { success: true }
+}
+
 export async function sendPendingReminders(playerIds: string[]) {
   const { sb, clubId, memberId } = await resolveClubAndMember()
 
