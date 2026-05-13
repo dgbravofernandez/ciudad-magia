@@ -162,23 +162,29 @@ export interface CoachForPlanning {
 /**
  * Lista los entrenadores disponibles para asignar a equipos borrador de la próxima temporada.
  *
- * Estrategia:
- *  1. Coaches activos = todos los que aparecen en team_coaches (vinculados a algún equipo del club)
- *  2. Fallback: todos los club_members del club (para clubs que aún no tienen coaches asignados)
- *
- * La temporada queda implícita en el equipo al que se asignan: si el equipo es borrador 26/27,
- * la asignación es para 26/27. No hace falta un campo de temporada extra.
+ * Estrategia (UNION):
+ *  1. Miembros con rol 'entrenador' o 'coordinador' en club_member_roles → incluye coaches nuevos
+ *     que aún no tienen equipo asignado pero ya rellenaron el formulario.
+ *  2. Miembros que aparecen en team_coaches de algún equipo del club → incluye coaches
+ *     que fueron asignados directamente sin pasar por club_member_roles.
+ *  Resultado: la unión de ambos conjuntos, sin duplicados.
  */
 export async function getCoachesForPlanning(): Promise<{ success: boolean; coaches?: CoachForPlanning[]; error?: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
-  // getClubContext lee headers del middleware (x-club-id) — más fiable que
-  // getClubId (sesión anon) cuando se llama desde server actions del área app
   const { clubId } = await getClubContext()
 
   if (!clubId) return { success: false, error: 'No se pudo obtener el club' }
 
-  // Equipos del club (activos e inactivos — para incluir coaches de cualquier temporada)
+  // Set 1: miembros con rol entrenador/coordinador en club_member_roles
+  const { data: roleRows } = await sb
+    .from('club_member_roles')
+    .select('member_id')
+    .in('role', ['entrenador', 'coordinador'])
+
+  const roleIds: string[] = (roleRows ?? []).map((r: { member_id: string }) => r.member_id)
+
+  // Set 2: miembros asignados a algún equipo del club (team_coaches)
   const { data: clubTeams } = await sb
     .from('teams')
     .select('id')
@@ -186,33 +192,34 @@ export async function getCoachesForPlanning(): Promise<{ success: boolean; coach
 
   const teamIds = (clubTeams ?? []).map((t: { id: string }) => t.id)
 
+  let tcIds: string[] = []
   if (teamIds.length > 0) {
-    // Obtener member_ids de quienes son/han sido entrenadores en este club
     const { data: tcRows } = await sb
       .from('team_coaches')
       .select('member_id')
       .in('team_id', teamIds)
-
-    const memberIds = [...new Set((tcRows ?? []).map((r: { member_id: string }) => r.member_id))]
-
-    if (memberIds.length > 0) {
-      const { data, error } = await sb
-        .from('club_members')
-        .select('id, full_name, email')
-        .eq('club_id', clubId)
-        .in('id', memberIds)
-        .order('full_name')
-
-      if (error) return { success: false, error: error.message }
-      return { success: true, coaches: (data ?? []).map((c: { id: string; full_name: string; email: string | null }) => ({ ...c, role: 'entrenador' })) }
-    }
+    tcIds = (tcRows ?? []).map((r: { member_id: string }) => r.member_id)
   }
 
-  // Fallback: todos los miembros del club (útil si aún no hay team_coaches)
+  // Unión sin duplicados
+  const allIds = [...new Set([...roleIds, ...tcIds])]
+
+  if (allIds.length === 0) {
+    // Último fallback: cualquier miembro activo del club
+    const { data, error } = await sb
+      .from('club_members')
+      .select('id, full_name, email')
+      .eq('club_id', clubId)
+      .order('full_name')
+    if (error) return { success: false, error: error.message }
+    return { success: true, coaches: (data ?? []).map((c: { id: string; full_name: string; email: string | null }) => ({ ...c, role: 'entrenador' })) }
+  }
+
   const { data, error } = await sb
     .from('club_members')
     .select('id, full_name, email')
     .eq('club_id', clubId)
+    .in('id', allIds)
     .order('full_name')
 
   if (error) return { success: false, error: error.message }
