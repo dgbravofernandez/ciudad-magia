@@ -267,11 +267,10 @@ export async function refundPayment(
 }
 
 export async function updateQuotaPaymentComment(paymentId: string, comment: string) {
-  const { sb, clubId, roles } = await resolveClubAndMember()
+  // Anotaciones son de solo información — cualquier miembro del club puede añadirlas
+  const { sb, clubId } = await resolveClubAndMember()
 
-  if (!roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
-    return { success: false, error: 'Sin permisos' }
-  }
+  if (!clubId) return { success: false, error: 'Club no identificado' }
 
   const { error } = await sb
     .from('quota_payments')
@@ -279,7 +278,10 @@ export async function updateQuotaPaymentComment(paymentId: string, comment: stri
     .eq('id', paymentId)
     .eq('club_id', clubId)
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    logger.error({ action: 'updateQuotaPaymentComment', clubId, paymentId, error: error.message })
+    return { success: false, error: error.message }
+  }
 
   revalidatePath('/contabilidad/pagos')
   return { success: true }
