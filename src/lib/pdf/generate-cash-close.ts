@@ -2,11 +2,13 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
 const COLOR_GREEN = rgb(0.09, 0.55, 0.25)
 const COLOR_RED   = rgb(0.75, 0.15, 0.15)
-const COLOR_DARK  = rgb(0.2, 0.2, 0.2)
-const COLOR_MID   = rgb(0.45, 0.45, 0.45)
-const COLOR_LIGHT = rgb(0.85, 0.85, 0.85)
+const COLOR_DARK  = rgb(0.18, 0.18, 0.18)
+const COLOR_MID   = rgb(0.42, 0.42, 0.42)
+const COLOR_LIGHT = rgb(0.82, 0.82, 0.82)
 const COLOR_WHITE = rgb(1, 1, 1)
 const COLOR_ALT   = rgb(0.96, 0.97, 0.99)
+// Texto secundario en fondo blanco (gris medio-oscuro — siempre contrasta)
+const COLOR_SECONDARY = rgb(0.38, 0.42, 0.50)
 
 const SOURCE_LABELS: Record<string, string> = {
   cuota: 'Cuota',
@@ -150,7 +152,6 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
   const COLOR_NAVY  = hexToRgbColor(primaryHex)
   const COLOR_HDR   = lightenColor(primaryHex)
   const COLOR_NET   = netBg(primaryHex)
-  const COLOR_SUB   = subColor(primaryHex)
 
   const doc  = await PDFDocument.create()
   const font = await doc.embedFont(StandardFonts.Helvetica)
@@ -164,16 +165,24 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
   const ML = 42
   const CW = W - ML * 2
 
+  // Header en dos zonas:
+  //   ZONA BLANCA (arriba): logo + nombre del club
+  //   ZONA COLOR  (abajo):  título + periodo
+  const WHITE_H = 54   // zona blanca
+  const NAVY_H  = 48   // zona de color
+  const HEADER_H = WHITE_H + NAVY_H
+
   let page = doc.addPage([W, H])
   let y    = H - ML
 
   function newPage() {
     page = doc.addPage([W, H])
     y    = H - ML
-    page.drawRectangle({ x: 0, y: H - 26, width: W, height: 26, color: COLOR_NAVY })
+    // Cabecera compacta de continuación (zona color)
+    page.drawRectangle({ x: 0, y: H - 28, width: W, height: 28, color: COLOR_NAVY })
     const cont = `${CLUB_NAME.toUpperCase()} — ARQUEO ${dateES(params.periodStart)} a ${dateES(params.periodEnd)} (cont.)`
-    page.drawText(cont, { x: ML, y: H - 17, size: 8, font: bold, color: COLOR_WHITE })
-    y = H - 26 - 14
+    page.drawText(cont, { x: ML, y: H - 18, size: 8, font: bold, color: COLOR_WHITE })
+    y = H - 28 - 14
   }
 
   function checkBreak(needed = 60) {
@@ -181,39 +190,58 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
   }
 
   // ── MAIN HEADER ──────────────────────────────────────────────────
-  const HEADER_H = 88
-  page.drawRectangle({ x: 0, y: H - HEADER_H, width: W, height: HEADER_H, color: COLOR_NAVY })
+  // Zona blanca: fondo blanco con borde inferior sutil
+  page.drawRectangle({ x: 0, y: H - WHITE_H, width: W, height: WHITE_H, color: COLOR_WHITE })
+  page.drawLine({
+    start: { x: 0, y: H - WHITE_H },
+    end:   { x: W, y: H - WHITE_H },
+    thickness: 0.8, color: COLOR_LIGHT,
+  })
 
-  // Logo — esquina derecha del header
+  // Logo en zona blanca — derecha
+  const LOGO_ZONE_W = logoImg ? 100 : 0
   if (logoImg) {
-    const maxLogoH = 64
-    const maxLogoW = 90
-    const scale = Math.min(maxLogoH / logoImg.height, maxLogoW / logoImg.width)
+    const maxH = 42
+    const maxW = 88
+    const scale = Math.min(maxH / logoImg.height, maxW / logoImg.width)
     const lw = logoImg.width * scale
     const lh = logoImg.height * scale
     page.drawImage(logoImg, {
       x: W - ML - lw,
-      y: H - HEADER_H / 2 - lh / 2,
+      y: H - WHITE_H / 2 - lh / 2,
       width: lw,
       height: lh,
     })
   }
 
-  const textAreaW = logoImg ? W - ML * 2 - 100 : CW
+  // Nombre del club en zona blanca — izquierda
+  const clubTextMaxW = W - ML * 2 - LOGO_ZONE_W - 10
   page.drawText(CLUB_NAME.toUpperCase(), {
-    x: ML, y: H - 22, size: 9.5, font: bold, color: COLOR_SUB,
-    maxWidth: textAreaW,
+    x: ML, y: H - 20, size: 10, font: bold, color: COLOR_NAVY,
+    maxWidth: clubTextMaxW,
   })
-  page.drawText('ARQUEO DE CAJA', {
-    x: ML, y: H - 48, size: 24, font: bold, color: COLOR_WHITE,
-  })
-  page.drawText(`Periodo: ${dateES(params.periodStart)} — ${dateES(params.periodEnd)}`, {
-    x: ML, y: H - 66, size: 9, font, color: COLOR_SUB,
+  page.drawText('Gestión Deportiva', {
+    x: ML, y: H - 36, size: 8, font, color: COLOR_SECONDARY,
   })
 
-  const cl  = `Cerrado el ${dateES(params.closedAt)}`
-  const clW = font.widthOfTextAtSize(cl, 9)
-  page.drawText(cl, { x: W - ML - clW, y: H - 66, size: 9, font, color: COLOR_SUB })
+  // Zona de color (navy)
+  page.drawRectangle({ x: 0, y: H - HEADER_H, width: W, height: NAVY_H, color: COLOR_NAVY })
+
+  // Título "ARQUEO DE CAJA" en zona navy — izquierda
+  page.drawText('ARQUEO DE CAJA', {
+    x: ML, y: H - WHITE_H - 20, size: 20, font: bold, color: COLOR_WHITE,
+  })
+
+  // Periodo y fecha de cierre en zona navy
+  const periodoTxt = `Periodo: ${dateES(params.periodStart)} — ${dateES(params.periodEnd)}`
+  page.drawText(periodoTxt, {
+    x: ML, y: H - WHITE_H - 40, size: 8, font, color: rgb(0.80, 0.87, 0.95),
+  })
+  const clTxt = `Cerrado: ${dateES(params.closedAt)}`
+  const clW   = font.widthOfTextAtSize(clTxt, 8)
+  page.drawText(clTxt, {
+    x: W - ML - clW, y: H - WHITE_H - 40, size: 8, font, color: rgb(0.80, 0.87, 0.95),
+  })
 
   y = H - HEADER_H - 22
 
