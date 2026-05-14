@@ -999,22 +999,26 @@ function DismissMenu({
   disabled?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const [confirming, setConfirming] = useState<'requirements' | 'non_payment' | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false)
+        setConfirming(null)
       }
     }
     if (open) document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
 
+  const reasonLabel = confirming === 'requirements' ? 'no cumplir requisitos' : 'impago de reserva'
+
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={() => { setOpen(v => !v); setConfirming(null) }}
         disabled={disabled}
         className="flex items-center gap-0.5 text-xs text-destructive hover:text-destructive/80 transition-colors disabled:opacity-40 px-1"
         title="Dar de baja"
@@ -1023,32 +1027,49 @@ function DismissMenu({
         <ChevronDown className="w-3 h-3" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 card min-w-44 shadow-lg p-1 border">
-          <p className="text-xs text-muted-foreground px-2 py-1 font-medium">
-            Dar baja a {playerName.split(' ')[0]}
-          </p>
-          <button
-            onClick={() => {
-              setOpen(false)
-              if (confirm(`¿Dar de baja a ${playerName} por no cumplir requisitos?\nSe registrará un email de notificación.`)) {
-                onDismiss('requirements')
-              }
-            }}
-            className="w-full text-left text-xs px-2 py-1.5 hover:bg-muted rounded transition-colors"
-          >
-            Por requisitos
-          </button>
-          <button
-            onClick={() => {
-              setOpen(false)
-              if (confirm(`¿Dar de baja a ${playerName} por impago de reserva?\nSe registrará un email de notificación.`)) {
-                onDismiss('non_payment')
-              }
-            }}
-            className="w-full text-left text-xs px-2 py-1.5 hover:bg-muted rounded transition-colors"
-          >
-            Por impago de reserva
-          </button>
+        <div className="absolute right-0 top-full mt-1 z-50 card min-w-52 shadow-lg p-1 border">
+          {confirming === null ? (
+            <>
+              <p className="text-xs text-muted-foreground px-2 py-1 font-medium">
+                Dar baja a {playerName.split(' ')[0]}
+              </p>
+              <button
+                onClick={() => setConfirming('requirements')}
+                className="w-full text-left text-xs px-2 py-1.5 hover:bg-muted rounded transition-colors"
+              >
+                Por requisitos
+              </button>
+              <button
+                onClick={() => setConfirming('non_payment')}
+                className="w-full text-left text-xs px-2 py-1.5 hover:bg-muted rounded transition-colors"
+              >
+                Por impago de reserva
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground px-2 py-1 font-medium">
+                ¿Dar de baja por {reasonLabel}?
+              </p>
+              <p className="text-xs text-muted-foreground px-2 pb-1">
+                Se enviará email al tutor.
+              </p>
+              <div className="flex gap-1 px-1 pb-1">
+                <button
+                  onClick={() => { setOpen(false); setConfirming(null); onDismiss(confirming) }}
+                  className="flex-1 text-xs px-2 py-1.5 bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 transition-colors"
+                >
+                  Confirmar
+                </button>
+                <button
+                  onClick={() => setConfirming(null)}
+                  className="flex-1 text-xs px-2 py-1.5 hover:bg-muted rounded transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

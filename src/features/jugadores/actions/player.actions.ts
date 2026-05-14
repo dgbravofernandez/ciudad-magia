@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { sendHtmlEmail } from '@/lib/email/send'
 import { generateTrialLetterPDF } from '@/lib/pdf/generate-trial-letter'
@@ -320,23 +321,22 @@ export async function dismissPlayerInscription(
   playerId: string,
   reason: 'requirements' | 'non_payment'
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const { getClubId } = await import('@/lib/supabase/get-club-id')
-  const clubId = await getClubId()
+  try {
+  const { getClubContext } = await import('@/lib/supabase/get-club-id')
+  const { clubId } = await getClubContext()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
 
   const updateData = reason === 'requirements'
     ? { meets_requirements: false }
     : { made_reservation: false }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
 
   const { data: player, error } = await sb
     .from('players')
     .update(updateData)
     .eq('id', playerId)
     .eq('club_id', clubId)
-    .select('id, first_name, last_name, tutor_name, tutor_email, teams(name)')
+    .select('id, first_name, last_name, tutor_name, tutor_email, team_id')
     .single()
 
   if (error) return { success: false, error: error.message }
@@ -345,7 +345,7 @@ export async function dismissPlayerInscription(
   if (player?.tutor_email) {
     const playerName = `${player.first_name} ${player.last_name}`
     const tutorName = player.tutor_name || playerName
-    const teamName = player.teams?.name ?? ''
+    const teamName = ''
     const emailType = reason === 'requirements' ? 'dismissed_requirements' : 'dismissed_non_payment'
 
     const { data: template } = await sb
@@ -381,6 +381,9 @@ export async function dismissPlayerInscription(
 
   revalidatePath('/jugadores/inscripciones')
   return { success: true }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
 }
 
 export async function createPlayer(formData: FormData) {
