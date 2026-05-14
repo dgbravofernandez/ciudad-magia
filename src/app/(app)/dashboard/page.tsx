@@ -50,7 +50,7 @@ export default async function DashboardPage() {
   ] = await Promise.all([
     sb
       .from('players')
-      .select('id, first_name, last_name, status, date_of_birth, team_id, teams(name)')
+      .select('id, first_name, last_name, status, date_of_birth, team_id')
       .eq('club_id', clubId),
     sb
       .from('injuries')
@@ -103,7 +103,7 @@ export default async function DashboardPage() {
     // Todos los jugadores con fecha de nacimiento para calcular próximos cumpleaños
     sb
       .from('players')
-      .select('id, first_name, last_name, date_of_birth, teams(name)')
+      .select('id, first_name, last_name, date_of_birth, team_id')
       .eq('club_id', clubId)
       .not('date_of_birth', 'is', null),
   ])
