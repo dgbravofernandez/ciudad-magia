@@ -73,8 +73,9 @@ export default async function DashboardPage() {
       .limit(10),
     sb
       .from('quota_payments')
-      .select('amount')
+      .select('amount_paid')
       .eq('club_id', clubId)
+      .eq('status', 'paid')
       .gte('payment_date', monthStart),
     sb
       .from('expenses')
@@ -83,8 +84,9 @@ export default async function DashboardPage() {
       .gte('expense_date', monthStart),
     sb
       .from('quota_payments')
-      .select('amount, payment_date')
+      .select('amount_paid, payment_date')
       .eq('club_id', clubId)
+      .eq('status', 'paid')
       .gte('payment_date', sixMonthsAgoIso),
     sb
       .from('sessions')
@@ -119,7 +121,7 @@ export default async function DashboardPage() {
   ).length
 
   const revenueThisMonth = (paymentsMonthRes.data ?? []).reduce(
-    (acc: number, p: { amount: unknown }) => acc + Number(p.amount ?? 0),
+    (acc: number, p: { amount_paid: unknown }) => acc + Number(p.amount_paid ?? 0),
     0
   )
   const expensesThisMonth = (expensesMonthRes.data ?? []).reduce(
@@ -147,7 +149,7 @@ export default async function DashboardPage() {
   }>) {
     if (!p.payment_date) continue
     const key = p.payment_date.substring(0, 7)
-    if (monthsMap[key]) monthsMap[key].ingresos += Number(p.amount ?? 0)
+    if (monthsMap[key]) monthsMap[key].ingresos += Number((p as { amount_paid?: unknown }).amount_paid ?? 0)
   }
   for (const s of (sessionsChartRes.data ?? []) as Array<{ session_date: string }>) {
     const key = s.session_date.substring(0, 7)

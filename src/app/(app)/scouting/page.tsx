@@ -16,7 +16,7 @@ export default async function ScoutingPage() {
 
   const { data: reports, error } = await sb
     .from('scouting_reports')
-    .select('*, reporter:club_members!scouting_reports_reported_by_fkey(full_name)')
+    .select('*, reporter:club_members!reported_by(full_name)')
     .eq('club_id', clubId)
     .order('created_at', { ascending: false })
     .limit(500)

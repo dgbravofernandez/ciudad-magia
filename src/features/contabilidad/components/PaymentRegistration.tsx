@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo, useRef } from 'react'
+import React, { useState, useTransition, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import {
@@ -899,8 +899,8 @@ export function PaymentRegistration({
               {filteredPendingPlayers.map((player) => {
                 const isEditingRow = editingPendingId === player.id
                 return (
-                  <>
-                    <tr key={player.id} className="border-b hover:bg-muted/20 transition-colors">
+                  <React.Fragment key={player.id}>
+                    <tr className="border-b hover:bg-muted/20 transition-colors">
                       {canRegisterPayments && (
                         <td className="px-4 py-3">
                           <button onClick={() => toggleSelectPlayer(player.id)}>
@@ -971,7 +971,7 @@ export function PaymentRegistration({
                     </tr>
                     {/* Fila de edición expandida */}
                     {isEditingRow && (
-                      <tr key={`${player.id}-edit`} className="border-b bg-blue-50/50">
+                      <tr className="border-b bg-blue-50/50">
                         <td colSpan={canRegisterPayments ? 8 : 7} className="px-4 py-3">
                           <div className="flex flex-wrap items-end gap-3">
                             {/* Selector de equipo */}
@@ -1027,7 +1027,7 @@ export function PaymentRegistration({
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 )
               })}
               {filteredPendingPlayers.length === 0 && (
