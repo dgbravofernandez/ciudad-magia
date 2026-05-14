@@ -145,7 +145,7 @@ export async function GET(
 
   const filename = `Arqueo_${close.period_start}_${close.period_end}.pdf`
 
-  return new Response(pdfBuffer, {
+  return new Response(pdfBuffer as unknown as BodyInit, {
     headers: {
       'Content-Type':        'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,

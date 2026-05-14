@@ -10,7 +10,8 @@ export default async function InfanciaPageRoute() {
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
 
-  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = await createClient() as any
 
   // Fetch unresolved incidents, high severity first
   const { data: incidents } = await supabase
@@ -47,8 +48,10 @@ export default async function InfanciaPageRoute() {
     .eq('club_id', clubId)
     .eq('active', true)
 
-  const coordinatorMembers = (coordinators ?? []).filter((m) =>
-    (m.club_member_roles as Array<{ role: string }>)?.some((r) =>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const coordinatorMembers = (coordinators ?? []).filter((m: any) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (m.club_member_roles as Array<{ role: string }>)?.some((r: any) =>
       ['admin', 'coordinador', 'direccion', 'infancia'].includes(r.role)
     )
   )
@@ -60,7 +63,8 @@ export default async function InfanciaPageRoute() {
         <InfanciaPage
           incidents={incidents ?? []}
           meetings={meetings ?? []}
-          coordinators={coordinatorMembers.map((m) => ({ id: m.id, full_name: m.full_name }))}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          coordinators={coordinatorMembers.map((m: any) => ({ id: m.id, full_name: m.full_name }))}
         />
       </div>
     </div>

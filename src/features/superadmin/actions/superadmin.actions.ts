@@ -147,7 +147,11 @@ export async function impersonateClub(clubId: string): Promise<void> {
   if (!user) redirect('/login')
 
   // Firma HMAC: payload = "clubId:userId", clave = APP_SECRET
-  const secret = process.env.APP_SECRET ?? 'dev-secret-replace-in-prod'
+  const secret = process.env.APP_SECRET
+  if (!secret) {
+    console.error('[superadmin] APP_SECRET no configurado — impersonación rechazada')
+    redirect('/superadmin?error=misconfiguration')
+  }
   const payload = `${clubId}:${user.id}`
   const signed = await signValue(payload, secret)
 

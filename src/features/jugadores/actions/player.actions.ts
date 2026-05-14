@@ -320,7 +320,7 @@ function buildFallbackEmail(
 export async function dismissPlayerInscription(
   playerId: string,
   reason: 'requirements' | 'non_payment'
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; warning?: string }> {
   try {
   const { getClubContext } = await import('@/lib/supabase/get-club-id')
   const { clubId } = await getClubContext()
@@ -341,46 +341,52 @@ export async function dismissPlayerInscription(
 
   if (error) return { success: false, error: error.message }
 
-  // Record the communication (email would be sent by the email service later)
+  // Enviar email de notificación al tutor (independiente de la baja — la baja ya fue procesada)
+  let emailWarning: string | undefined
   if (player?.tutor_email) {
-    const playerName = `${player.first_name} ${player.last_name}`
-    const tutorName = player.tutor_name || playerName
-    const teamName = ''
-    const emailType = reason === 'requirements' ? 'dismissed_requirements' : 'dismissed_non_payment'
+    try {
+      const playerName = `${player.first_name} ${player.last_name}`
+      const tutorName = player.tutor_name || playerName
+      const emailType = reason === 'requirements' ? 'dismissed_requirements' : 'dismissed_non_payment'
 
-    const { data: template } = await sb
-      .from('email_templates')
-      .select('*')
-      .eq('club_id', clubId)
-      .eq('event_type', emailType)
-      .eq('active', true)
-      .single()
+      const { data: template } = await sb
+        .from('email_templates')
+        .select('*')
+        .eq('club_id', clubId)
+        .eq('event_type', emailType)
+        .eq('active', true)
+        .single()
 
-    const fallback = buildFallbackEmail(emailType, playerName, tutorName, teamName)
-    const subject = (template?.subject ?? fallback.subject) as string
-    const body = (template?.body_html ?? fallback.body) as string
+      const fallback = buildFallbackEmail(emailType, playerName, tutorName, '')
+      const subject = (template?.subject ?? fallback.subject) as string
+      const body = (template?.body_html ?? fallback.body) as string
 
-    // Send the actual email
-    const { sent: emailSent } = await sendHtmlEmail({
-      to: player.tutor_email,
-      subject,
-      html: body,
-    })
+      const { sent: emailSent } = await sendHtmlEmail({
+        to: player.tutor_email,
+        subject,
+        html: body,
+      })
 
-    await sb.from('communications').insert({
-      club_id: clubId,
-      subject,
-      body_html: body,
-      template_id: template?.id ?? null,
-      recipient_type: 'individual',
-      recipient_ids: [playerId],
-      status: emailSent ? 'sent' : 'error',
-      sent_at: new Date().toISOString(),
-    })
+      await sb.from('communications').insert({
+        club_id: clubId,
+        subject,
+        body_html: body,
+        template_id: template?.id ?? null,
+        recipient_type: 'individual',
+        recipient_ids: [playerId],
+        status: emailSent ? 'sent' : 'error',
+        sent_at: new Date().toISOString(),
+      })
+
+      if (!emailSent) emailWarning = 'Baja procesada, pero el email al tutor no se pudo enviar'
+    } catch (emailErr) {
+      console.error('[dismissPlayerInscription] error enviando email:', emailErr)
+      emailWarning = 'Baja procesada, pero el email al tutor no se pudo enviar'
+    }
   }
 
   revalidatePath('/jugadores/inscripciones')
-  return { success: true }
+  return { success: true, warning: emailWarning }
   } catch (e) {
     return { success: false, error: (e as Error).message }
   }

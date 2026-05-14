@@ -159,24 +159,25 @@ export function ImportarJugadores({ clubId, teams }: Props) {
         const ws = wb.Sheets[wb.SheetNames[0]]
 
         // The file has a title in row 1, headers in row 2
-        const rows: Record<string, unknown>[] = utils.sheet_to_json(ws, {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rows: any[][] = utils.sheet_to_json(ws, {
           header: 1,
           defval: '',
           raw: true,
-        }) as Record<string, unknown>[]
+        }) as any[][]
 
         // Find the header row (contains "Código" or "Nombre")
         let headerIdx = -1
         for (let i = 0; i < Math.min(5, rows.length); i++) {
-          const row = rows[i] as unknown[]
-          if (row.some(c => String(c).toLowerCase().includes('código') || String(c).toLowerCase().includes('nombre'))) {
+          const row = rows[i]
+          if (row.some((c: unknown) => String(c).toLowerCase().includes('código') || String(c).toLowerCase().includes('nombre'))) {
             headerIdx = i
             break
           }
         }
         if (headerIdx === -1) headerIdx = 1
 
-        const headerRow = rows[headerIdx] as unknown[]
+        const headerRow = rows[headerIdx]
         // Map column names to indices
         const colIdx: Record<string, number> = {}
         headerRow.forEach((h, i) => {
@@ -194,7 +195,7 @@ export function ImportarJugadores({ clubId, teams }: Props) {
         let skippedCount = 0
 
         for (let i = headerIdx + 1; i < rows.length; i++) {
-          const row = rows[i] as unknown[]
+          const row = rows[i]
           const dni = String(row[colIdx.dni] ?? '').trim()
 
           // Skip empty or sub-header rows
@@ -235,7 +236,7 @@ export function ImportarJugadores({ clubId, teams }: Props) {
 
         // ── Post-process: compute F7/F11 for Alevín masculino only ──
         // Group ONLY masculino alevín by team_letter to detect cohorts
-        const alevinGroups: Record<string, string[]> = {}
+        const alevinGroups: Record<string, (string | null)[]> = {}
         for (const p of parsed) {
           if (p.license_type === 'AL') {  // only masculino
             const key = p.team_letter

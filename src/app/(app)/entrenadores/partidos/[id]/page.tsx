@@ -16,7 +16,8 @@ export default async function PartidoDetailPage({
 }) {
   const { id } = await params
   const { clubId } = await getClubContext()
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
 
   const { data: session } = await supabase
     .from('sessions')
@@ -57,7 +58,8 @@ export default async function PartidoDetailPage({
     .single()
 
   // Player season yellow card counts
-  const playerIds = (players ?? []).map((p) => p.id)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const playerIds = (players ?? []).map((p: any) => p.id)
   let yellowCardCounts: Record<string, number> = {}
 
   if (playerIds.length > 0) {

@@ -20,7 +20,8 @@ export async function addSessionDirectorComment(input: {
     if (!canWrite(roles)) return { success: false, error: 'No tienes permiso' }
     if (!input.comment?.trim()) return { success: false, error: 'El comentario no puede estar vacío' }
 
-    const sb = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
     const { error } = await sb.from('session_director_comments').insert({
       club_id: clubId,
       session_id: input.session_id,
@@ -49,7 +50,8 @@ export async function updateSessionDirectorComment(input: {
     if (input.comment !== undefined) patch.comment = input.comment.trim()
     if (input.visible_to_coach !== undefined) patch.visible_to_coach = input.visible_to_coach
 
-    const sb = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
     const { error } = await sb
       .from('session_director_comments')
       .update(patch)
@@ -68,7 +70,8 @@ export async function deleteSessionDirectorComment(
   try {
     const { clubId, roles } = await getClubContext()
     if (!canWrite(roles)) return { success: false, error: 'No tienes permiso' }
-    const sb = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
     const { error } = await sb
       .from('session_director_comments')
       .delete()

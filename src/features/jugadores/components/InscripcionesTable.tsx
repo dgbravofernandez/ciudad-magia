@@ -325,6 +325,9 @@ export function InscripcionesTable({
       const result = await dismissPlayerInscription(playerId, reason)
       if (result.success) {
         toast.success(`Baja procesada: ${playerName}`)
+        if ((result as { warning?: string }).warning) {
+          toast.warning((result as { warning?: string }).warning)
+        }
       } else {
         toast.error(result.error ?? 'Error al procesar la baja')
       }

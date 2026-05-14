@@ -154,7 +154,8 @@ export async function sendBulkEmail(input: {
 }
 
 export async function saveTemplate(formData: FormData) {
-  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = await createClient() as any
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
 
@@ -189,7 +190,8 @@ export async function saveTemplate(formData: FormData) {
 }
 
 export async function deleteTemplate(templateId: string) {
-  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = await createClient() as any
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
 

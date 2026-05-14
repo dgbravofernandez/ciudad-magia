@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 
 export async function saveQuotaSettings(data: {
   clubId: string
-  quotaAmounts: { default: number; teams: Record<string, number> }
+  quotaAmounts: Record<string, unknown>
   deadlineDay: number
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

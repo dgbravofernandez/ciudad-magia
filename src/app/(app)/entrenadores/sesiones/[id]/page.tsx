@@ -23,7 +23,8 @@ export default async function SessionDetailPage({
 }) {
   const { id } = await params
   const { clubId, roles } = await getClubContext()
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const isDirector = roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))
   const isCoach = roles.some((r) => ['entrenador', 'coordinador'].includes(r))
 

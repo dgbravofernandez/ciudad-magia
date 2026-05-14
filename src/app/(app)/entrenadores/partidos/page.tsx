@@ -14,7 +14,8 @@ export const dynamic = 'force-dynamic'
 
 export default async function PartidosPage() {
   const { clubId, memberId, roles: memberRoles } = await getClubContext()
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
 
   let query = supabase
     .from('sessions')
@@ -35,7 +36,8 @@ export default async function PartidosPage() {
       .from('team_coaches')
       .select('team_id')
       .eq('member_id', memberId)
-    const teamIds = (coachTeams ?? []).map((t) => t.team_id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const teamIds = (coachTeams ?? []).map((t: any) => t.team_id)
     if (teamIds.length > 0) {
       query = query.in('team_id', teamIds)
     }
@@ -66,7 +68,8 @@ export default async function PartidosPage() {
               No hay partidos registrados
             </div>
           )}
-          {(matches ?? []).map((match) => {
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          {(matches ?? []).map((match: any) => {
             const hasResult = match.score_home != null && match.score_away != null
             const isWin = hasResult && match.score_home! > match.score_away!
             const isLoss = hasResult && match.score_home! < match.score_away!

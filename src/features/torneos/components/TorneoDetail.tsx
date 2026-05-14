@@ -69,9 +69,9 @@ export function TorneoDetail({ torneo, equipos, grupos, partidos }: Props) {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{torneo.name as string}</h1>
             <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
-              {torneo.category && <span>{torneo.category as string}</span>}
+              {!!torneo.category && <span>{torneo.category as string}</span>}
               <span>{FORMAT_LABELS[torneo.format as string] ?? torneo.format as string}</span>
-              {torneo.location && <span>{torneo.location as string}</span>}
+              {!!torneo.location && <span>{torneo.location as string}</span>}
             </div>
           </div>
         </div>
@@ -98,7 +98,7 @@ export function TorneoDetail({ torneo, equipos, grupos, partidos }: Props) {
           ))}
           {showAddTeam ? (
             <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-2">
-              <input autoFocus value={newTeamName} onChange={e => setNewTeamName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newTeamName) { setLocalTeams(ts => [...ts, { id: Date.now().toString(), name: newTeamName }]); setNewTeamName(''); setShowAddTeam(false); toast.success('Equipo añadido') } if (e.key === 'Escape') setShowAddTeam(false) }} className="flex-1 border-0 outline-none text-sm" placeholder="Nombre del equipo..." />
+              <input autoFocus value={newTeamName} onChange={e => setNewTeamName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newTeamName) { setLocalTeams(ts => [...ts, { id: Date.now().toString(), name: newTeamName }]); setNewTeamName(''); setShowAddTeam(false); toast.success('Equipo añadido') } if (e.key === 'Escape') setShowAddTeam(false) }} className="flex-1 border-0 outline-none focus-visible:ring-2 focus-visible:ring-primary rounded text-sm" placeholder="Nombre del equipo..." />
               <button onClick={() => { if (newTeamName) { setLocalTeams(ts => [...ts, { id: Date.now().toString(), name: newTeamName }]); setNewTeamName(''); setShowAddTeam(false); toast.success('Equipo añadido') } }} className="text-green-600 hover:text-green-700"><Check className="w-4 h-4" /></button>
               <button onClick={() => setShowAddTeam(false)} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
             </div>

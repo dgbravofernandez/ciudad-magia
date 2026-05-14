@@ -53,8 +53,8 @@ function RosterColumn({ label, rosters, showEmailStatus }: {
                     </span>
                     {showEmailStatus && (
                       player.email_team_assignment_sent
-                        ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="Email de asignación enviado" aria-label="Email enviado" />
-                        : <Mail className="w-3.5 h-3.5 text-slate-300 shrink-0" title="Email pendiente" aria-label="Email pendiente" />
+                        ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" aria-label="Email enviado" />
+                        : <Mail className="w-3.5 h-3.5 text-slate-300 shrink-0" aria-label="Email pendiente" />
                     )}
                   </li>
                 ))}

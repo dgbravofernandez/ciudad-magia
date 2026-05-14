@@ -14,7 +14,8 @@ interface Props {
 export default async function ExerciseDetailPage({ params }: Props) {
   const { id } = await params
   const { clubId, memberId, roles } = await getClubContext()
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
 
   const isAdmin = roles.some((r) => ['admin', 'direccion'].includes(r))
 

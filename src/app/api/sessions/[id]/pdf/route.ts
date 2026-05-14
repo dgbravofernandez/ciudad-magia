@@ -23,7 +23,8 @@ export async function GET(
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
-    const supabase = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = createAdminClient() as any
 
     const { data: session, error: sErr } = await supabase
       .from('sessions')
@@ -93,7 +94,7 @@ export async function GET(
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')}-${s.session_date}.pdf`
 
-    return new NextResponse(pdf, {
+    return new NextResponse(pdf as unknown as BodyInit, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',

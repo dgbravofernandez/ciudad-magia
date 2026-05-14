@@ -107,7 +107,7 @@ export function TeamScheduleModal({
     startTransition(async () => {
       const res = await generateWeekSessions()
       if (res.success) {
-        toast.success(`${res.created} sesiones creadas, ${res.skipped} ya existían`)
+        toast.success(`${res.created} sesiones creadas, ${'skipped' in res ? res.skipped : 0} ya existían`)
         router.refresh()
       } else toast.error(res.error ?? 'Error')
     })

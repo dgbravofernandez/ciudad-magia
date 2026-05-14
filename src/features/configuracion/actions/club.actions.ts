@@ -23,7 +23,8 @@ export async function updateClubBasics(input: UpdateClubBasicsInput) {
   const { clubId } = await getClubContext()
   if (!clubId) return { success: false as const, error: 'No autenticado' }
 
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
 
   // ---- clubs table ----
   const clubUpdate: Record<string, string | null> = {}
@@ -91,7 +92,8 @@ export async function uploadClubLogo(formData: FormData) {
     return { success: false as const, error: 'El archivo supera los 3 MB' }
   }
 
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
 
   // Derive extension from mime type, fallback to .png
   const ext = (file.type.split('/')[1] ?? 'png').toLowerCase().replace('jpeg', 'jpg')
@@ -235,7 +237,8 @@ export async function uploadSponsorLogo(formData: FormData) {
     return { success: false as const, error: 'El archivo supera los 3 MB' }
   }
 
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const ext = (file.type.split('/')[1] ?? 'png').toLowerCase().replace('jpeg', 'jpg')
   const path = `club-sponsors/${clubId}-${Date.now()}.${ext}`
 

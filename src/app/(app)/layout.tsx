@@ -19,7 +19,8 @@ export default async function AppLayout({
   let memberId = headersList.get('x-member-id')
   let rolesHeader = headersList.get('x-user-roles')
 
-  const adminClient = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adminClient = createAdminClient() as any
 
   // Fallback: if middleware headers missing, look up from session directly
   if (!clubId || !memberId) {
@@ -53,9 +54,9 @@ export default async function AppLayout({
   // Fetch club data
   const [{ data: club }, { data: settings }, { data: member }] =
     await Promise.all([
-      supabase.from('clubs').select('*').eq('id', clubId).single(),
-      supabase.from('club_settings').select('*').eq('club_id', clubId).single(),
-      supabase.from('club_members').select('*').eq('id', memberId).single(),
+      supabase.from('clubs').select('*').eq('id', clubId!).single(),
+      supabase.from('club_settings').select('*').eq('club_id', clubId!).single(),
+      supabase.from('club_members').select('*').eq('id', memberId!).single(),
     ])
 
   if (!club || !member) {

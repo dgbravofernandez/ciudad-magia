@@ -177,6 +177,8 @@ export function parseClubCompetitionsText(text: string, clubNameHint?: string): 
  * (`./test/data/05-versions-space.pdf`) que no existe en runtime serverless.
  */
 export async function parseClubCompetitionsPdf(buffer: Buffer, clubNameHint?: string): Promise<PdfParseResult> {
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore – pdf-parse has no type declarations
   const mod = await import('pdf-parse/lib/pdf-parse.js')
   const pdfParse = (mod as { default: (b: Buffer) => Promise<{ text: string }> }).default
   const { text } = await pdfParse(buffer)

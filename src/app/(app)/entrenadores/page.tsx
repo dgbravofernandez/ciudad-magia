@@ -12,7 +12,8 @@ export default async function EntrenadoresPage() {
   const memberRoles = JSON.parse(headersList.get('x-user-roles') ?? '[]') as string[]
   const memberId = headersList.get('x-member-id')!
 
-  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = await createClient() as any
 
   // Get teams with their coaches
   let teamsQuery = supabase
@@ -34,7 +35,8 @@ export default async function EntrenadoresPage() {
       .from('team_coaches')
       .select('team_id')
       .eq('member_id', memberId)
-    const teamIds = (coachTeams ?? []).map((t) => t.team_id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const teamIds = (coachTeams ?? []).map((t: any) => t.team_id)
     if (teamIds.length > 0) {
       teamsQuery = teamsQuery.in('id', teamIds)
     }
@@ -43,7 +45,8 @@ export default async function EntrenadoresPage() {
   const { data: teams } = await teamsQuery
 
   // Get last and next sessions per team
-  const teamIds = (teams ?? []).map((t) => t.id)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const teamIds = (teams ?? []).map((t: any) => t.id)
 
   let lastSessions: Record<string, string> = {}
   let nextSessions: Record<string, string> = {}

@@ -25,11 +25,10 @@ const nextConfig: NextConfig = {
   // Allow server actions up to 30s (PDF generation + email)
   serverExternalPackages: ['@react-pdf/renderer'],
   typescript: {
-    // Tables not yet in generated Supabase types — doesn't affect runtime
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   webpack: (config: any, { isServer }: { isServer: boolean }) => {
     if (isServer) {

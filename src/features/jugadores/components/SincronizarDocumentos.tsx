@@ -181,11 +181,11 @@ export function SincronizarDocumentos({ clubId }: Props) {
             </button>
             <button
               onClick={handleApply}
-              disabled={selected.size === 0 || step === 'applying'}
+              disabled={selected.size === 0 || (step as string) === 'applying'}
               className="flex items-center gap-2 px-5 py-2 text-black rounded-lg text-sm font-semibold disabled:opacity-50"
               style={{ backgroundColor: 'var(--color-primary)' }}
             >
-              <RefreshCw className={`w-4 h-4 ${step === 'applying' ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${(step as string) === 'applying' ? 'animate-spin' : ''}`} />
               Aplicar {selected.size} actualizaciones
             </button>
           </div>

@@ -5,7 +5,8 @@ import { getClubContext } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
 
 export async function createSession(formData: FormData) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId, memberId } = await getClubContext()
 
   const sessionType = formData.get('session_type') as string
@@ -56,7 +57,8 @@ export async function createSession(formData: FormData) {
 }
 
 export async function deleteSession(sessionId: string): Promise<{ success: boolean; error?: string }> {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId } = await getClubContext()
 
   // Verify the session belongs to this club
@@ -95,7 +97,8 @@ export async function updateSession(input: {
   notes?: string | null
   session_type?: 'training' | 'match' | 'futsal' | 'friendly'
 }): Promise<{ success: boolean; error?: string }> {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId } = await getClubContext()
 
   const patch: Record<string, unknown> = {}
@@ -138,7 +141,8 @@ export async function updateSessionAttendance(
   sessionId: string,
   attendance: AttendanceRecord[]
 ) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId } = await getClubContext()
 
   // Verify session belongs to club
@@ -183,7 +187,8 @@ export interface MatchEvent {
 }
 
 export async function addMatchEvent(sessionId: string, event: MatchEvent) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId } = await getClubContext()
 
   const { data: session } = await supabase
@@ -218,7 +223,7 @@ export async function addMatchEvent(sessionId: string, event: MatchEvent) {
       p_team: 'home',
     })
   }
-  if (event.event_type === 'goal_away') {
+  if ((event.event_type as string) === 'goal_away') {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).rpc('increment_session_score', {
       p_session_id: sessionId,
@@ -231,7 +236,8 @@ export async function addMatchEvent(sessionId: string, event: MatchEvent) {
 }
 
 export async function completeSession(sessionId: string) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId } = await getClubContext()
 
   const { data: session } = await supabase
@@ -315,7 +321,8 @@ function parseInt0(v: FormDataEntryValue | null): number | null {
 }
 
 export async function createExercise(formData: FormData) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId, memberId } = await getClubContext()
 
   const tagsRaw = formData.get('objective_tags') as string
@@ -352,7 +359,8 @@ export async function createExercise(formData: FormData) {
 }
 
 export async function updateExercise(exerciseId: string, formData: FormData) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId, memberId, roles } = await getClubContext()
   const isAdmin = roles.some((r) => ['admin', 'direccion'].includes(r))
 
@@ -404,7 +412,8 @@ export async function updateExercise(exerciseId: string, formData: FormData) {
 }
 
 export async function deleteExercise(exerciseId: string) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId, memberId, roles } = await getClubContext()
   const isAdmin = roles.some((r) => ['admin', 'direccion'].includes(r))
 
@@ -428,7 +437,8 @@ export async function deleteExercise(exerciseId: string) {
 }
 
 export async function toggleExerciseFavorite(exerciseId: string) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { memberId } = await getClubContext()
 
   // Check if already favorited
@@ -459,7 +469,8 @@ export async function toggleExerciseFavorite(exerciseId: string) {
 }
 
 export async function createExerciseCategory(name: string, color: string) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId, roles } = await getClubContext()
   const canCreate = roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))
 
@@ -488,7 +499,8 @@ export async function createExerciseCategory(name: string, color: string) {
 }
 
 export async function deleteExerciseCategory(categoryId: string) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId, roles } = await getClubContext()
   const canDelete = roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))
 
@@ -512,7 +524,8 @@ export async function addSessionExercise(
   slotOrder: number,
   notes?: string
 ) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId } = await getClubContext()
 
   const { data: session } = await supabase
@@ -539,7 +552,8 @@ export async function addSessionExercise(
 }
 
 export async function removeSessionExercise(sessionId: string, slotOrder: number) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId } = await getClubContext()
 
   const { data: session } = await supabase
@@ -567,7 +581,8 @@ export async function updateSessionPlanning(
   sessionId: string,
   data: { microcycle?: string | null; macrocycle?: string | null; session_number?: number | null },
 ) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId } = await getClubContext()
 
   const update: Record<string, string | number | null> = {}
@@ -594,7 +609,8 @@ export async function updateSessionPlanning(
 }
 
 export async function updateSessionObjectives(sessionId: string, objectives: string[]) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId } = await getClubContext()
 
   const { error } = await supabase
@@ -613,7 +629,8 @@ export async function updatePlayerBibs(
   sessionId: string,
   assignments: { player_id: string; group_color: 'orange' | 'pink' | 'white' | null; is_goalkeeper: boolean }[]
 ) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId } = await getClubContext()
 
   const { data: session } = await supabase
@@ -686,7 +703,8 @@ export async function saveScoutingReport(
 }
 
 export async function createObservation(formData: FormData) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId, memberId } = await getClubContext()
 
   const playerRatingsRaw = formData.get('player_ratings') as string
@@ -713,7 +731,8 @@ export async function createObservation(formData: FormData) {
 }
 
 export async function deleteObservation(observationId: string) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId, memberId, roles } = await getClubContext()
 
   // Allow authors + admin/direccion/director_deportivo
@@ -741,7 +760,8 @@ export async function deleteObservation(observationId: string) {
 }
 
 export async function updateObservationComment(observationId: string, comment: string) {
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
   const { clubId, memberId, roles } = await getClubContext()
 
   const { data: obs } = await supabase

@@ -18,7 +18,8 @@ export default async function SesionesPage({
 }) {
   const params = await searchParams
   const { clubId, memberId, roles: memberRoles } = await getClubContext()
-  const supabase = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createAdminClient() as any
 
   let sessionsQuery = supabase
     .from('sessions')
@@ -38,7 +39,8 @@ export default async function SesionesPage({
       .from('team_coaches')
       .select('team_id')
       .eq('member_id', memberId)
-    const teamIds = (coachTeams ?? []).map((t) => t.team_id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const teamIds = (coachTeams ?? []).map((t: any) => t.team_id)
     if (teamIds.length > 0) {
       sessionsQuery = sessionsQuery.in('team_id', teamIds)
     }
@@ -85,7 +87,8 @@ export default async function SesionesPage({
         <form method="GET" className="card p-4 flex flex-wrap gap-3">
           <select name="team" defaultValue={params.team ?? ''} className="input w-auto min-w-[160px]">
             <option value="">Todos los equipos</option>
-            {(teams ?? []).map((t) => (
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {(teams ?? []).map((t: any) => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </select>
@@ -109,7 +112,8 @@ export default async function SesionesPage({
               No hay sesiones registradas
             </div>
           )}
-          {(sessions ?? []).map((session) => (
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          {(sessions ?? []).map((session: any) => (
             <Link
               key={session.id}
               href={session.session_type === 'match' ? `/entrenadores/partidos/${session.id}` : `/entrenadores/sesiones/${session.id}`}

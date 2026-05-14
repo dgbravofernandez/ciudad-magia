@@ -351,7 +351,7 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
 
   // ── Actions ──────────────────────────────────────────────────
 
-  function handleSync(type: 'full' | 'calendar' | 'actas' | 'scorers' | 'scorers_f7' | 'scorers_f11') {
+  function handleSync(type: 'full' | 'calendar' | 'actas' | 'scorers' | 'scorers_f7' | 'scorers_f11' | 'standings' | 'enrich') {
     startTransition(async () => {
       const toastId = toast.loading('Sincronizando con RFFM...')
       const r = await triggerRffmSync(type)
