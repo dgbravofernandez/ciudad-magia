@@ -79,6 +79,21 @@ export async function enrichSignalsBatch(
     return result
   }
 
+  // ── Caché local: buscar en rffm_players antes de llamar a RFFM API ──────
+  // Un solo SELECT con todos los codjugadores del batch → evita N llamadas HTTP
+  // para jugadores ya conocidos. Reduce semanas a días en el primer gran barrido.
+  const allCodigos = candidates.map(c => c.codjugador)
+  const { data: cachedPlayers } = await sb
+    .from('rffm_players')
+    .select('codjugador, anio_nacimiento')
+    .in('codjugador', allCodigos)
+    .not('anio_nacimiento', 'is', null)
+
+  const cacheMap = new Map<string, number>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (cachedPlayers ?? []).map((r: any) => [r.codjugador, r.anio_nacimiento as number])
+  )
+
   const budgetStart = Date.now()
   let consecutiveErrors = 0
 
@@ -88,30 +103,38 @@ export async function enrichSignalsBatch(
     let anio: number | null = null
     let errorMsg: string | null = null
 
-    try {
-      const profile = await getPlayerProfile(p.codjugador, {
-        skipRateLimit: true,
-        timeoutMs: FETCH_TIMEOUT_MS,
-      })
-      anio = profile.anio_nacimiento ? parseInt(profile.anio_nacimiento, 10) || null : null
+    // 1. Intentar caché local primero (sin llamada HTTP)
+    const cached = cacheMap.get(p.codjugador)
+    if (cached) {
+      anio = cached
+      consecutiveErrors = 0  // caché = éxito
+    } else {
+      // 2. Caché miss → llamar a RFFM API
+      try {
+        const profile = await getPlayerProfile(p.codjugador, {
+          skipRateLimit: true,
+          timeoutMs: FETCH_TIMEOUT_MS,
+        })
+        anio = profile.anio_nacimiento ? parseInt(profile.anio_nacimiento, 10) || null : null
 
-      if (anio) {
-        // Upsert en tabla de perfiles de jugadores RFFM
-        await sb.from('rffm_players').upsert({
-          codjugador: p.codjugador,
-          club_id: clubId,
-          nombre_jugador: profile.nombre_jugador,
-          anio_nacimiento: anio,
-          last_fetched_at: new Date().toISOString(),
-        }, { onConflict: 'codjugador' })
+        if (anio) {
+          // Upsert en tabla de perfiles de jugadores RFFM para cachear futuras consultas
+          await sb.from('rffm_players').upsert({
+            codjugador: p.codjugador,
+            club_id: clubId,
+            nombre_jugador: profile.nombre_jugador,
+            anio_nacimiento: anio,
+            last_fetched_at: new Date().toISOString(),
+          }, { onConflict: 'codjugador' })
+        }
+
+        consecutiveErrors = 0  // reset en éxito
+      } catch (e) {
+        errorMsg = (e as Error).message
+        result.errors.push(`${p.codjugador}: ${errorMsg}`)
+        result.failed++
+        consecutiveErrors++
       }
-
-      consecutiveErrors = 0  // reset en éxito
-    } catch (e) {
-      errorMsg = (e as Error).message
-      result.errors.push(`${p.codjugador}: ${errorMsg}`)
-      result.failed++
-      consecutiveErrors++
     }
 
     // ── UPDATE atómico: un solo UPDATE por codjugador (sin SELECT previo) ──
