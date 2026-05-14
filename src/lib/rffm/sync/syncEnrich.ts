@@ -5,9 +5,12 @@ import { getPlayerProfile } from '../player'
 // Configuración
 // ────────────────────────────────────────────────────────────────
 const DEFAULT_BATCH = 200
-const MAX_ATTEMPTS = 3
-// Umbral de goles para considerar un jugador "relevante" para el enrich
-const MIN_GOLES_FOR_ENRICH = 10
+// Aumentado de 3 → 30: con 3 crons/día, los 3 intentos se agotaban en 1 día
+// dejando todos los jugadores bloqueados permanentemente.
+const MAX_ATTEMPTS = 30
+// Bajado de 10 → 2: en fútbol base la mayoría de goleadores tiene 2-8 goles.
+// Con 10 se excluían casi todos los jugadores de las señales de scouting.
+const MIN_GOLES_FOR_ENRICH = 2
 // Trabajadores paralelos. 3 es el punto dulce: RFFM aguanta sin bloquear.
 const CONCURRENCY = 3
 // Timeout por fetch individual (reducido a 8s para fallar rápido en vez de esperar 15s×3)

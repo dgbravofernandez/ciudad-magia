@@ -498,6 +498,51 @@ export async function enrichSignalsNow(
   }
 }
 
+/**
+ * Resetea enrich_attempts a 0 para todas las señales sin año de nacimiento.
+ * Útil cuando el enrich estuvo fallando y los jugadores quedaron bloqueados
+ * por haber alcanzado MAX_ATTEMPTS.
+ */
+export async function resetEnrichAttempts(): Promise<{
+  success: boolean
+  error?: string
+  reset?: number
+}> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+
+    // Cuenta primero para mostrar cuántos se van a resetear
+    const { count } = await sb
+      .from('rffm_scouting_signals')
+      .select('*', { count: 'exact', head: true })
+      .eq('club_id', clubId)
+      .is('anio_nacimiento', null)
+      .gt('enrich_attempts', 0)
+
+    const { error } = await sb
+      .from('rffm_scouting_signals')
+      .update({
+        enrich_attempts: 0,
+        enrich_error: null,
+        enriched_at: null,
+      })
+      .eq('club_id', clubId)
+      .is('anio_nacimiento', null)
+
+    if (error) return { success: false, error: error.message }
+
+    revalidatePath('/scouting/rffm')
+    return { success: true, reset: count ?? 0 }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
 // ── Scouting signals management ───────────────────────────────
 
 export async function updateSignalStatus(

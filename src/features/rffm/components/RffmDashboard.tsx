@@ -17,6 +17,7 @@ import {
   autoDetectOurTeamCode,
   exportSignalPdf,
   enrichSignalsNow,
+  resetEnrichAttempts,
   refreshStandingsNow,
   parseClubPdfAction,
   matchClubPdfRows,
@@ -376,6 +377,20 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
         router.refresh()
       } else {
         toast.error(r.error ?? 'Error en enrich')
+      }
+    })
+  }
+
+  function handleResetEnrich() {
+    startTransition(async () => {
+      const toastId = toast.loading('Reseteando intentos bloqueados…')
+      const r = await resetEnrichAttempts()
+      toast.dismiss(toastId)
+      if (r.success) {
+        toast.success(`${r.reset ?? 0} señales desbloqueadas. El cron las reintentará automáticamente.`)
+        router.refresh()
+      } else {
+        toast.error(r.error ?? 'Error al resetear')
       }
     })
   }
@@ -1281,6 +1296,29 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
               </button>
             ))}
           </div>
+
+          {/* Alerta de señales bloqueadas por intentos agotados */}
+          {enrichExhausted > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+              <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-amber-800">
+                  {enrichExhausted} goleador{enrichExhausted !== 1 ? 'es' : ''} sin año de nacimiento (intentos agotados)
+                </p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  El enriquecimiento automático falló 3+ veces seguidas (RFFM caído o perfil sin datos).
+                  Pulsa "Reintentar todos" para volver a intentarlo.
+                </p>
+              </div>
+              <button
+                onClick={handleResetEnrich}
+                disabled={isPending}
+                className="flex-shrink-0 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Reintentar todos
+              </button>
+            </div>
+          )}
 
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
             <p className="font-semibold mb-1">Crons automáticos configurados</p>
