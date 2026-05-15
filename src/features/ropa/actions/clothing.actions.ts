@@ -104,7 +104,7 @@ export async function markClothingOrderPaid(
   orderId: string,
   paymentMethod: ClothingPaymentMethod,
   partialAmount?: number   // si se omite → paga el total pendiente
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; emailSent?: boolean; emailError?: string }> {
   const supabase = createAdminClient()
   const { clubId, memberId } = await getClubContext()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -119,7 +119,6 @@ export async function markClothingOrderPaid(
     .single()
 
   if (fetchErr || !order) return { success: false, error: fetchErr?.message ?? 'Pedido no encontrado' }
-  console.log(`[ropa] markClothingOrderPaid — orderId: ${orderId}, status: ${order.payment_status}, player_id: ${order.player_id ?? 'SIN PLAYER'}`)
   if (order.payment_status === 'paid') return { success: false, error: 'Este pedido ya está pagado' }
 
   const alreadyPaid = Number(order.amount_paid ?? 0)
@@ -186,11 +185,13 @@ export async function markClothingOrderPaid(
     return { success: false, error: movementErr.message }
   }
 
-  console.log(`[ropa] DEBUG llegando a email block, player_id: ${order.player_id ?? 'NULL'}`)
-
   // Email de confirmación con justificante PDF — DEBE ir antes de revalidatePath
-  if (order.player_id) {
-    console.log(`[ropa] DEBUG dentro de if(player_id), fetching player...`)
+  let emailSent = false
+  let emailError: string | undefined
+
+  if (!order.player_id) {
+    emailError = 'El pedido no tiene jugador del club asociado (es manual/externo)'
+  } else {
     const { data: player } = await sb
       .from('players')
       .select('tutor_email, team_id, teams(name)')
@@ -201,12 +202,11 @@ export async function markClothingOrderPaid(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const teamName = (player?.teams as any)?.name ?? 'Ropa'
 
-    console.log(`[ropa] DEBUG tutorEmail: ${tutorEmail ?? 'NULL'}, teamName: ${teamName}`)
-
-    if (tutorEmail) {
-      console.log(`[ropa] DEBUG llamando a sendPaymentReceiptEmail...`)
+    if (!tutorEmail) {
+      emailError = 'El jugador no tiene email de tutor configurado'
+    } else {
       try {
-        await Promise.race([
+        const res = await Promise.race([
           sendPaymentReceiptEmail({
             tutorEmail,
             playerName: playerLabel,
@@ -219,24 +219,24 @@ export async function markClothingOrderPaid(
               : `Ropa (pago parcial)${order.description ? ` — ${order.description}` : ''}`,
             clubId,
           }),
-          new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
+          new Promise<{ sent: boolean; error?: string }>((_, rej) =>
+            setTimeout(() => rej(new Error('timeout tras 20s')), 20000)),
         ])
-        console.log(`[ropa] email enviado a ${tutorEmail}`)
+        emailSent = res.sent
+        if (!res.sent) emailError = res.error ?? 'Error desconocido al enviar'
+        console.log(`[ropa] email → sent=${res.sent}${res.error ? ` error=${res.error}` : ''}`)
       } catch (err) {
+        emailError = (err as Error).message
         console.error('[ropa] email error (pago ya registrado):', err)
       }
-    } else {
-      console.warn(`[ropa] DEBUG SIN tutorEmail — no se envía email`)
     }
-  } else {
-    console.warn(`[ropa] DEBUG SIN player_id — no se envía email`)
   }
 
   revalidatePath('/ropa')
   revalidatePath('/contabilidad/caja')
   revalidatePath('/contabilidad/pagos')
 
-  return { success: true }
+  return { success: true, emailSent, emailError }
 }
 
 /**

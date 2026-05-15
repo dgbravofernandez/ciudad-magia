@@ -131,7 +131,11 @@ export function RopaPage({ pedidos, players, clubId: _clubId }: Props) {
     startTransition(async () => {
       const r = await markClothingOrderPaid(target.id, payMethod, amountToSend < remaining ? amountToSend : undefined)
       if (r.success) {
-        toast.success('Pago registrado en caja')
+        if (r.emailSent) {
+          toast.success('Pago registrado y email enviado a la familia')
+        } else {
+          toast.warning(`Pago registrado, pero el email NO se envió: ${r.emailError ?? 'motivo desconocido'}`)
+        }
         setPayTarget(null)
         router.refresh()
       } else {

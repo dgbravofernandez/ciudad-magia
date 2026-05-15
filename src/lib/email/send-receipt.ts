@@ -41,25 +41,41 @@ async function fetchClubBranding(clubId: string): Promise<ClubBranding> {
   }
 }
 
-export async function sendPaymentReceiptEmail(params: ReceiptEmailParams): Promise<void> {
+export async function sendPaymentReceiptEmail(
+  params: ReceiptEmailParams,
+): Promise<{ sent: boolean; error?: string }> {
   const receiptNumber = params.paymentId
     ? `REC-${params.paymentId.slice(0, 8).toUpperCase()}`
     : `REC-${Date.now().toString(36).toUpperCase()}`
 
-  const branding = await fetchClubBranding(params.clubId)
+  // Branding — si falla, usar valores por defecto (no abortar el email)
+  let branding: ClubBranding
+  try {
+    branding = await fetchClubBranding(params.clubId)
+  } catch (err) {
+    console.error('[receipt] fetchClubBranding falló, usando defaults:', err)
+    branding = { name: 'Escuela de Fútbol Ciudad de Getafe', logoUrl: null, primaryColor: '#0d2e6e' }
+  }
 
-  const pdfBuffer = await generateReceiptPDF({
-    playerName: params.playerName,
-    teamName:   params.teamName,
-    amount:     params.amount,
-    method:     params.method,
-    date:       params.date,
-    concept:    params.concept,
-    receiptNumber,
-    clubName:     branding.name,
-    logoUrl:      branding.logoUrl,
-    primaryColor: branding.primaryColor ?? undefined,
-  })
+  // PDF — si falla, enviar el email SIN adjunto en vez de abortar todo
+  let pdfBuffer: Buffer | null = null
+  try {
+    pdfBuffer = await generateReceiptPDF({
+      playerName: params.playerName,
+      teamName:   params.teamName,
+      amount:     params.amount,
+      method:     params.method,
+      date:       params.date,
+      concept:    params.concept,
+      receiptNumber,
+      clubName:     branding.name,
+      logoUrl:      branding.logoUrl,
+      primaryColor: branding.primaryColor ?? undefined,
+    })
+  } catch (err) {
+    console.error('[receipt] generateReceiptPDF falló, se envía email sin adjunto:', err)
+    pdfBuffer = null
+  }
 
   const formattedAmount = new Intl.NumberFormat('es-ES', {
     style: 'currency', currency: 'EUR',
@@ -165,11 +181,13 @@ export async function sendPaymentReceiptEmail(params: ReceiptEmailParams): Promi
     to: params.tutorEmail,
     subject: `Confirmación de pago — ${params.playerName}`,
     html,
-    attachments: [{
-      filename: `Justificante_${params.playerName.replace(/\s+/g, '_')}_${params.date}.pdf`,
-      content: pdfBuffer,
-      contentType: 'application/pdf',
-    }],
+    attachments: pdfBuffer
+      ? [{
+          filename: `Justificante_${params.playerName.replace(/\s+/g, '_')}_${params.date}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+        }]
+      : undefined,
   })
 
   // Si hay paymentId y tabla, marcar email_sent=true
@@ -178,4 +196,6 @@ export async function sendPaymentReceiptEmail(params: ReceiptEmailParams): Promi
     const sb = createAdminClient() as any
     await sb.from(params.paymentTable).update({ email_sent: true }).eq('id', params.paymentId)
   }
+
+  return { sent: result.sent, error: result.error }
 }
