@@ -184,7 +184,14 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
     startTransition(async () => {
       const res = await markChargePaid(charge.id, m, amountToSend < remaining ? amountToSend : undefined)
       if (res.success) {
-        toast.success(amountToSend >= remaining ? 'Marcado como pagado' : 'Pago parcial registrado')
+        const base = amountToSend >= remaining ? 'Marcado como pagado' : 'Pago parcial registrado'
+        if (res.emailSent) {
+          toast.success(`${base} · email enviado a la familia`)
+        } else if (res.emailError && !res.emailError.startsWith('Pago parcial')) {
+          toast.warning(`${base}, pero el email NO se envió: ${res.emailError}`)
+        } else {
+          toast.success(base)
+        }
         router.refresh()
       } else toast.error(res.error ?? 'Error')
     })

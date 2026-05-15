@@ -303,10 +303,18 @@ export async function markChargePaid(
     }
 
     // Email de confirmación con justificante PDF (solo si pago completo y hay jugador con tutor_email)
-    if (isFullyPaid && charge.player_id) {
-      const { data: player } = await sb
+    // NO usar join teams(name) — PostgREST falla silenciosamente y devuelve null.
+    let emailSent = false
+    let emailError: string | undefined
+
+    if (!isFullyPaid) {
+      emailError = 'Pago parcial — el email se envía al completar el pago'
+    } else if (!charge.player_id) {
+      emailError = 'El cargo no tiene jugador del club asociado'
+    } else {
+      const { data: player, error: playerErr } = await sb
         .from('players')
-        .select('tutor_email, first_name, last_name, team_id, teams(name)')
+        .select('tutor_email, first_name, last_name, team_id')
         .eq('id', charge.player_id)
         .single()
 
@@ -314,34 +322,49 @@ export async function markChargePaid(
       const playerName = player
         ? `${player.first_name ?? ''} ${player.last_name ?? ''}`.trim()
         : (charge.participant_name ?? 'Participante')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const teamName = (player?.teams as any)?.name ?? 'Actividad'
 
-      if (tutorEmail) {
-        const emailPromise = sendPaymentReceiptEmail({
-          tutorEmail,
-          playerName,
-          teamName,
-          amount: payNow,
-          method: paymentMethod,
-          date,
-          concept: charge.concept ?? 'Actividad',
-          clubId,
-        })
+      let teamName = 'Actividad'
+      if (player?.team_id) {
+        const { data: team } = await sb
+          .from('teams')
+          .select('name')
+          .eq('id', player.team_id)
+          .single()
+        if (team?.name) teamName = team.name
+      }
+
+      if (playerErr) {
+        emailError = `Error al leer el jugador: ${playerErr.message}`
+      } else if (!tutorEmail) {
+        emailError = 'El jugador no tiene email de tutor configurado'
+      } else {
         try {
-          await Promise.race([
-            emailPromise,
-            new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
+          const res = await Promise.race([
+            sendPaymentReceiptEmail({
+              tutorEmail,
+              playerName,
+              teamName,
+              amount: payNow,
+              method: paymentMethod,
+              date,
+              concept: charge.concept ?? 'Actividad',
+              clubId,
+            }),
+            new Promise<{ sent: boolean; error?: string }>((_, rej) =>
+              setTimeout(() => rej(new Error('timeout tras 20s')), 20000)),
           ])
-          console.log(`[actividades] email enviado a ${tutorEmail}`)
+          emailSent = res.sent
+          if (!res.sent) emailError = res.error ?? 'Error desconocido al enviar'
+          console.log(`[actividades] email → sent=${res.sent}${res.error ? ` error=${res.error}` : ''}`)
         } catch (err) {
+          emailError = (err as Error).message
           console.error('[actividades] email error (pago ya registrado):', err)
         }
       }
     }
 
     revalidatePath(`/contabilidad/actividades/${charge.activity_id}`)
-    return { success: true }
+    return { success: true, emailSent, emailError }
   } catch (e) {
     return { success: false, error: (e as Error).message }
   }

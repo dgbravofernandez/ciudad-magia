@@ -290,7 +290,12 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
     startTransition(async () => {
       const r = await markAttendeePaid(target.id, torneo.id, payAttMethod, amount)
       if (r.success) {
-        toast.success(amount ? `Pago parcial de ${eur(amount)} registrado` : 'Pago completo registrado')
+        const base = amount ? `Pago parcial de ${eur(amount)} registrado` : 'Pago completo registrado'
+        if (r.emailSent) {
+          toast.success(`${base} · email enviado a la familia`)
+        } else {
+          toast.warning(`${base}, pero el email NO se envió: ${r.emailError ?? 'motivo desconocido'}`)
+        }
         setPayAttTarget(null)
         setPayAttAmount(0)
         router.refresh()

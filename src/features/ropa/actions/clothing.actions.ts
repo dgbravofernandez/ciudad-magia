@@ -192,17 +192,29 @@ export async function markClothingOrderPaid(
   if (!order.player_id) {
     emailError = 'El pedido no tiene jugador del club asociado (es manual/externo)'
   } else {
-    const { data: player } = await sb
+    // NO usar join teams(name) — PostgREST falla silenciosamente y devuelve null.
+    // Se consulta el equipo por separado.
+    const { data: player, error: playerErr } = await sb
       .from('players')
-      .select('tutor_email, team_id, teams(name)')
+      .select('tutor_email, team_id')
       .eq('id', order.player_id)
       .single()
 
     const tutorEmail = player?.tutor_email ?? null
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const teamName = (player?.teams as any)?.name ?? 'Ropa'
 
-    if (!tutorEmail) {
+    let teamName = 'Ropa'
+    if (player?.team_id) {
+      const { data: team } = await sb
+        .from('teams')
+        .select('name')
+        .eq('id', player.team_id)
+        .single()
+      if (team?.name) teamName = team.name
+    }
+
+    if (playerErr) {
+      emailError = `Error al leer el jugador: ${playerErr.message}`
+    } else if (!tutorEmail) {
       emailError = 'El jugador no tiene email de tutor configurado'
     } else {
       try {

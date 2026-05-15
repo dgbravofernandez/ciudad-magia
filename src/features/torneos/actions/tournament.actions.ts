@@ -426,7 +426,7 @@ export async function markAttendeePaid(
   tournamentId: string,
   method: PayMethod,
   partialAmount?: number   // si se omite → paga el total pendiente
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; emailSent?: boolean; emailError?: string }> {
   const check = await verifyTournamentOwnership(tournamentId)
   if (!check.ok) return { success: false, error: check.error }
 
@@ -507,46 +507,65 @@ export async function markAttendeePaid(
   }
 
   // Email de confirmación con justificante PDF — DEBE ir antes de revalidatePath
-  // (revalidatePath en Vercel puede cortar el trabajo asíncrono pendiente)
-  const { data: playerWithTutor } = await sb
-    .from('players')
-    .select('tutor_email, team_id, teams(name)')
-    .eq('id', attendee.player_id)
-    .single()
+  // NO usar join teams(name) — PostgREST falla silenciosamente y devuelve null.
+  let emailSent = false
+  let emailError: string | undefined
 
-  const tutorEmail = playerWithTutor?.tutor_email ?? null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const teamName = (playerWithTutor?.teams as any)?.name ?? tourneyName
-
-  console.log(`[torneo] pago registrado — jugador: ${playerLabel}, tutor_email: ${tutorEmail ?? 'NO TIENE'}, isFullyPaid: ${isFullyPaid}`)
-
-  if (tutorEmail) {
-    try {
-      await Promise.race([
-        sendPaymentReceiptEmail({
-          tutorEmail,
-          playerName: playerLabel,
-          teamName,
-          amount: payNow,
-          method,
-          date: today,
-          concept: isFullyPaid ? `Torneo: ${tourneyName}` : `Torneo: ${tourneyName} (pago parcial)`,
-          clubId,
-        }),
-        new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
-      ])
-      console.log(`[torneo] email enviado a ${tutorEmail}`)
-    } catch (err) {
-      console.error('[torneo] email error (pago ya registrado):', err)
-    }
+  if (!attendee.player_id) {
+    emailError = 'El asistente no tiene jugador del club asociado'
   } else {
-    console.warn('[torneo] email omitido — el jugador no tiene tutor_email configurado')
+    const { data: playerWithTutor, error: playerErr } = await sb
+      .from('players')
+      .select('tutor_email, team_id')
+      .eq('id', attendee.player_id)
+      .single()
+
+    const tutorEmail = playerWithTutor?.tutor_email ?? null
+
+    let teamName = tourneyName
+    if (playerWithTutor?.team_id) {
+      const { data: team } = await sb
+        .from('teams')
+        .select('name')
+        .eq('id', playerWithTutor.team_id)
+        .single()
+      if (team?.name) teamName = team.name
+    }
+
+    if (playerErr) {
+      emailError = `Error al leer el jugador: ${playerErr.message}`
+    } else if (!tutorEmail) {
+      emailError = 'El jugador no tiene email de tutor configurado'
+    } else {
+      try {
+        const res = await Promise.race([
+          sendPaymentReceiptEmail({
+            tutorEmail,
+            playerName: playerLabel,
+            teamName,
+            amount: payNow,
+            method,
+            date: today,
+            concept: isFullyPaid ? `Torneo: ${tourneyName}` : `Torneo: ${tourneyName} (pago parcial)`,
+            clubId,
+          }),
+          new Promise<{ sent: boolean; error?: string }>((_, rej) =>
+            setTimeout(() => rej(new Error('timeout tras 20s')), 20000)),
+        ])
+        emailSent = res.sent
+        if (!res.sent) emailError = res.error ?? 'Error desconocido al enviar'
+        console.log(`[torneo] email → sent=${res.sent}${res.error ? ` error=${res.error}` : ''}`)
+      } catch (err) {
+        emailError = (err as Error).message
+        console.error('[torneo] email error (pago ya registrado):', err)
+      }
+    }
   }
 
   revalidatePath(`/torneos/${tournamentId}`)
   revalidatePath('/contabilidad/caja')
 
-  return { success: true }
+  return { success: true, emailSent, emailError }
 }
 
 export async function refundAttendee(
