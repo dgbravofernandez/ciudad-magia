@@ -15,7 +15,20 @@ function hexToRgb(hex: string) {
   }
 }
 
-// Versión muy clara del color primario (fondo de filas alternas)
+// Luminancia percibida (0 = negro, 1 = blanco). Sirve para decidir contraste.
+function luminance(hex: string): number {
+  try {
+    const h = hex.replace('#', '')
+    const r = parseInt(h.slice(0, 2), 16) / 255
+    const g = parseInt(h.slice(2, 4), 16) / 255
+    const b = parseInt(h.slice(4, 6), 16) / 255
+    return 0.299 * r + 0.587 * g + 0.114 * b
+  } catch {
+    return 0.2
+  }
+}
+
+// Versión muy clara del color primario (fondo de cajas suaves)
 function paleOf(hex: string) {
   try {
     const h = hex.replace('#', '')
@@ -25,20 +38,6 @@ function paleOf(hex: string) {
     return rgb(r, g, b)
   } catch {
     return rgb(0.94, 0.96, 0.99)
-  }
-}
-
-// Versión oscura del color primario para elementos secundarios
-function darkOf(hex: string) {
-  try {
-    const h = hex.replace('#', '')
-    return rgb(
-      Math.max(0, parseInt(h.slice(0, 2), 16) / 255 * 0.75),
-      Math.max(0, parseInt(h.slice(2, 4), 16) / 255 * 0.75),
-      Math.max(0, parseInt(h.slice(4, 6), 16) / 255 * 0.75),
-    )
-  } catch {
-    return rgb(0.04, 0.14, 0.38)
   }
 }
 
@@ -94,16 +93,31 @@ export interface ReceiptParams {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export async function generateReceiptPDF(params: ReceiptParams): Promise<Buffer> {
-  const CLUB_NAME    = params.clubName ?? 'Escuela de Fútbol Ciudad de Getafe'
-  const primaryHex   = params.primaryColor ?? '#0d2e6e'
-  const COLOR_BRAND  = hexToRgb(primaryHex)
-  const COLOR_DARK_B = darkOf(primaryHex)
-  const COLOR_PALE   = paleOf(primaryHex)
+  const CLUB_NAME  = params.clubName ?? 'Escuela de Fútbol Ciudad de Getafe'
+  const primaryHex = params.primaryColor ?? '#0d2e6e'
+  const COLOR_BRAND = hexToRgb(primaryHex)
+
+  // ¿La marca es clara (amarillo, naranja claro...)? Si lo es, sobre ella el
+  // texto blanco no se ve → usamos bandas NEGRAS con el color de marca encima.
+  const brandIsLight = luminance(primaryHex) > 0.6
+
+  // Paleta base
+  const COLOR_INK    = rgb(0.11, 0.11, 0.13)   // negro suave
   const COLOR_DARK   = rgb(0.13, 0.13, 0.15)
   const COLOR_MID    = rgb(0.42, 0.45, 0.50)
   const COLOR_LIGHT  = rgb(0.88, 0.88, 0.90)
   const COLOR_WHITE  = rgb(1, 1, 1)
   const COLOR_GREEN  = rgb(0.07, 0.55, 0.24)
+  const COLOR_PALE   = paleOf(primaryHex)
+
+  // Bandas (cabecera/pie/título). Marca clara → fondo negro + texto de marca.
+  //                               Marca oscura → fondo de marca + texto blanco.
+  const COLOR_BAND_BG   = brandIsLight ? COLOR_INK   : COLOR_BRAND
+  const COLOR_BAND_TEXT = brandIsLight ? COLOR_BRAND : COLOR_WHITE
+
+  // Acento seguro sobre fondos claros (bordes finos, etiquetas). Marca clara
+  // sería ilegible sobre blanco → usamos negro.
+  const COLOR_ACCENT = brandIsLight ? COLOR_INK : COLOR_BRAND
 
   const doc  = await PDFDocument.create()
   const font = await doc.embedFont(StandardFonts.Helvetica)
@@ -123,7 +137,6 @@ export async function generateReceiptPDF(params: ReceiptParams): Promise<Buffer>
   const WHITE_H = 64
   const BAND_H  = 40
 
-  // Fondo blanco del header (toda la anchura)
   page.drawRectangle({
     x: 0, y: H - WHITE_H,
     width: W, height: WHITE_H,
@@ -131,7 +144,6 @@ export async function generateReceiptPDF(params: ReceiptParams): Promise<Buffer>
   })
 
   if (logoImg) {
-    // Logo a la izquierda, manteniendo proporción, max 48pt alto
     const logoH = Math.min(48, WHITE_H - 10)
     const logoW = logoImg.width * (logoH / logoImg.height)
     page.drawImage(logoImg, {
@@ -140,28 +152,25 @@ export async function generateReceiptPDF(params: ReceiptParams): Promise<Buffer>
       width: logoW,
       height: logoH,
     })
-    // Nombre del club centrado respecto al espacio restante
     const nameX = ML + logoW + 12
     const nameSize = 13
     const nameY = H - WHITE_H / 2 - nameSize / 2 + 2
     page.drawText(CLUB_NAME, {
       x: nameX, y: nameY,
       size: nameSize, font: bold,
-      color: COLOR_DARK_B,
+      color: COLOR_INK,
     })
   } else {
-    // Sin logo: nombre del club centrado
     const nameSize = 15
     const nameW = bold.widthOfTextAtSize(CLUB_NAME, nameSize)
     page.drawText(CLUB_NAME, {
       x: (W - nameW) / 2,
       y: H - WHITE_H / 2 - nameSize / 2 + 2,
       size: nameSize, font: bold,
-      color: COLOR_DARK_B,
+      color: COLOR_INK,
     })
   }
 
-  // Línea separadora fina debajo del logo
   page.drawLine({
     start: { x: 0, y: H - WHITE_H },
     end: { x: W, y: H - WHITE_H },
@@ -172,7 +181,7 @@ export async function generateReceiptPDF(params: ReceiptParams): Promise<Buffer>
   page.drawRectangle({
     x: 0, y: H - WHITE_H - BAND_H,
     width: W, height: BAND_H,
-    color: COLOR_BRAND,
+    color: COLOR_BAND_BG,
   })
   const titulo = 'JUSTIFICANTE DE PAGO'
   const tW = bold.widthOfTextAtSize(titulo, 14)
@@ -180,40 +189,52 @@ export async function generateReceiptPDF(params: ReceiptParams): Promise<Buffer>
     x: (W - tW) / 2,
     y: H - WHITE_H - BAND_H + (BAND_H - 14) / 2 + 2,
     size: 14, font: bold,
-    color: COLOR_WHITE,
+    color: COLOR_BAND_TEXT,
   })
 
   // ── CUERPO ────────────────────────────────────────────────────────────────
-  let y = H - WHITE_H - BAND_H - 32
+  let y = H - WHITE_H - BAND_H - 36
 
-  // Número de recibo (badge esquina superior derecha del cuerpo)
-  const recNumLabel = 'N.º Recibo:'
-  const recNumValue = params.receiptNumber
-  const rnLW = font.widthOfTextAtSize(recNumLabel, 9)
-  const rnVW = bold.widthOfTextAtSize(recNumValue, 9)
-  const rnPad = 8
-  const rnBoxW = rnLW + 6 + rnVW + rnPad * 2
-  const rnBoxH = 20
-  const rnBoxX = W - ML - rnBoxW
-  const rnBoxY = y - rnBoxH + 4
+  // ── Número de recibo — tarjeta oscura, alto contraste ─────────────────────
+  const recLabel = 'Nº DE RECIBO'
+  const recValue = params.receiptNumber
+  const recLabelSize = 7.5
+  const recValueSize = 12
+  const recPadX = 12
+  const recBoxW = Math.max(
+    font.widthOfTextAtSize(recLabel, recLabelSize),
+    bold.widthOfTextAtSize(recValue, recValueSize),
+  ) + recPadX * 2
+  const recBoxH = 38
+  const recBoxX = W - ML - recBoxW
+  const recBoxY = y - recBoxH
 
+  // Fondo oscuro
   page.drawRectangle({
-    x: rnBoxX, y: rnBoxY,
-    width: rnBoxW, height: rnBoxH,
-    color: COLOR_PALE,
-    borderColor: COLOR_BRAND,
-    borderWidth: 0.8,
+    x: recBoxX, y: recBoxY,
+    width: recBoxW, height: recBoxH,
+    color: COLOR_INK,
   })
-  page.drawText(recNumLabel, {
-    x: rnBoxX + rnPad, y: rnBoxY + (rnBoxH - 9) / 2 + 1,
-    size: 9, font, color: COLOR_MID,
+  // Filo de color de marca a la izquierda de la tarjeta
+  page.drawRectangle({
+    x: recBoxX, y: recBoxY,
+    width: 3, height: recBoxH,
+    color: COLOR_BRAND,
   })
-  page.drawText(recNumValue, {
-    x: rnBoxX + rnPad + rnLW + 6, y: rnBoxY + (rnBoxH - 9) / 2 + 1,
-    size: 9, font: bold, color: COLOR_DARK_B,
+  // Etiqueta (gris claro)
+  page.drawText(recLabel, {
+    x: recBoxX + recPadX, y: recBoxY + recBoxH - 14,
+    size: recLabelSize, font,
+    color: rgb(0.62, 0.63, 0.66),
+  })
+  // Valor (color de marca si es claro, blanco si no)
+  page.drawText(recValue, {
+    x: recBoxX + recPadX, y: recBoxY + 9,
+    size: recValueSize, font: bold,
+    color: COLOR_BAND_TEXT,
   })
 
-  y -= 8
+  y -= recBoxH + 16
 
   // ── Tabla de detalles ─────────────────────────────────────────────────────
   const methodLabel = METHOD_LABELS[params.method] ?? params.method
@@ -235,30 +256,26 @@ export async function generateReceiptPDF(params: ReceiptParams): Promise<Buffer>
     const rowY = y - (i + 1) * ROW_H
     const isEven = i % 2 === 0
 
-    // Fondo alternado
     page.drawRectangle({
       x: ML, y: rowY,
       width: CW, height: ROW_H,
       color: isEven ? rgb(0.975, 0.975, 0.978) : COLOR_WHITE,
     })
 
-    // Borde izquierdo de color en filas pares
     if (isEven) {
       page.drawRectangle({
         x: ML, y: rowY,
         width: 3, height: ROW_H,
-        color: COLOR_BRAND,
+        color: COLOR_ACCENT,
       })
     }
 
-    // Label
     page.drawText(label, {
       x: ML + 12, y: rowY + (ROW_H - 10) / 2 + 1,
       size: 10, font,
       color: COLOR_MID,
     })
 
-    // Value — truncar si es muy largo
     const maxValW = CW - LABEL_W - 32
     let valText = value
     while (valText.length > 3 && bold.widthOfTextAtSize(valText, 10) > maxValW) {
@@ -273,7 +290,6 @@ export async function generateReceiptPDF(params: ReceiptParams): Promise<Buffer>
     })
   }
 
-  // Borde exterior de la tabla (solo borde, sin relleno — dibujamos los 4 lados)
   const tableY = y - rows.length * ROW_H
   page.drawLine({ start: { x: ML, y: tableY }, end: { x: ML + CW, y: tableY }, thickness: 0.8, color: COLOR_LIGHT })
   page.drawLine({ start: { x: ML, y }, end: { x: ML + CW, y }, thickness: 0.8, color: COLOR_LIGHT })
@@ -285,23 +301,20 @@ export async function generateReceiptPDF(params: ReceiptParams): Promise<Buffer>
   // ── Caja TOTAL ────────────────────────────────────────────────────────────
   const TOTAL_H = 52
 
-  // Fondo de color suave
   page.drawRectangle({
     x: ML, y: y - TOTAL_H,
     width: CW, height: TOTAL_H,
     color: COLOR_PALE,
-    borderColor: COLOR_BRAND,
+    borderColor: COLOR_ACCENT,
     borderWidth: 1.2,
   })
 
-  // Etiqueta "TOTAL PAGADO"
   page.drawText('TOTAL PAGADO', {
     x: ML + 20, y: y - TOTAL_H + (TOTAL_H - 12) / 2 + 2,
     size: 12, font: bold,
-    color: COLOR_BRAND,
+    color: COLOR_ACCENT,
   })
 
-  // Importe — alineado a la derecha
   const amountStr = eur(params.amount)
   const amountSize = 20
   const amountW = bold.widthOfTextAtSize(amountStr, amountSize)
@@ -324,10 +337,9 @@ export async function generateReceiptPDF(params: ReceiptParams): Promise<Buffer>
   })
 
   // ── FOOTER ────────────────────────────────────────────────────────────────
-  // Banda de color en el pie
   page.drawRectangle({
     x: 0, y: 0, width: W, height: 36,
-    color: COLOR_BRAND,
+    color: COLOR_BAND_BG,
   })
 
   const footerText = `${CLUB_NAME}  ·  Conserve este documento como justificante de pago`
@@ -335,7 +347,7 @@ export async function generateReceiptPDF(params: ReceiptParams): Promise<Buffer>
   page.drawText(footerText, {
     x: (W - footerW) / 2, y: 12,
     size: 8, font,
-    color: COLOR_WHITE,
+    color: COLOR_BAND_TEXT,
   })
 
   const pdfBytes = await doc.save()
