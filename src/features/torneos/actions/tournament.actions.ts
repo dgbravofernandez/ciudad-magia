@@ -520,6 +520,8 @@ export async function markAttendeePaid(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const teamName = (playerWithTutor?.teams as any)?.name ?? tourneyName
 
+  console.log(`[torneo] pago registrado — jugador: ${playerLabel}, tutor_email: ${tutorEmail ?? 'NO TIENE'}, isFullyPaid: ${isFullyPaid}`)
+
   if (tutorEmail) {
     const emailPromise = sendPaymentReceiptEmail({
       tutorEmail,
@@ -535,6 +537,8 @@ export async function markAttendeePaid(
       emailPromise,
       new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
     ]).catch(err => console.error('[torneo] email error:', err))
+  } else {
+    console.warn('[torneo] email omitido — el jugador no tiene tutor_email configurado')
   }
 
   return { success: true }

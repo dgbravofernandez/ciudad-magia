@@ -35,9 +35,11 @@ export async function sendHtmlEmail(payload: EmailPayload): Promise<{ sent: bool
 
   if (!transport) {
     // Credentials not configured — log warning and return gracefully
-    console.warn('[email] GMAIL_USER / GMAIL_APP_PASSWORD not set. Email not sent to:', payload.to)
+    console.warn(`[email] Credenciales no configuradas. GMAIL_USER=${GMAIL_USER ? 'OK' : 'FALTA'} GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD ? 'OK' : 'FALTA'}. Email no enviado a: ${payload.to}`)
     return { sent: false, error: 'email_not_configured' }
   }
+
+  console.log(`[email] Enviando a ${payload.to} | asunto: ${payload.subject}`)
 
   try {
     await transport.sendMail({
