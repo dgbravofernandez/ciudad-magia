@@ -7,7 +7,8 @@ import { assertNotLocked } from '@/lib/accounting/lock'
 import { sendPaymentReceiptEmail } from '@/lib/email/send-receipt'
 
 export interface CreateClothingOrderInput {
-  playerName: string
+  playerName: string          // nombre libre (para externos o cuando no se selecciona del club)
+  playerId?: string | null    // si se selecciona del combo, se usa directamente
   description: string
   size: string
   quantity: number
@@ -33,29 +34,29 @@ export async function createClothingOrder(input: CreateClothingOrderInput): Prom
   const unitPrice = Number.isFinite(input.price) ? Math.max(0, input.price) : 0
   const totalAmount = +(unitPrice * quantity).toFixed(2)
 
-  // Best-effort: try to match the typed name to a real player in the club
-  let playerId: string | null = null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any
-  try {
-    const { data: matches } = await sb
-      .from('players')
-      .select('id, first_name, last_name')
-      .eq('club_id', clubId)
-      .ilike('last_name', `%${name.split(' ').slice(-1)[0]}%`)
-      .limit(5)
-    if (matches && matches.length > 0) {
-      const lower = name.toLowerCase()
-      const exact = matches.find((p: { first_name: string; last_name: string }) =>
-        `${p.first_name} ${p.last_name}`.toLowerCase() === lower
-      )
-      playerId = exact?.id ?? matches[0].id
+
+  // Si se pasó un playerId explícito (seleccionado del combo en la UI) → usarlo directamente.
+  // Si no, guardar el nombre como texto manual en notes (sin fuzzy-match que da falsos positivos).
+  let playerId: string | null = input.playerId ?? null
+
+  // Validar que el playerId pertenece al club (seguridad)
+  if (playerId) {
+    try {
+      const { data: playerCheck } = await sb
+        .from('players')
+        .select('id')
+        .eq('id', playerId)
+        .eq('club_id', clubId)
+        .single()
+      if (!playerCheck) playerId = null
+    } catch {
+      playerId = null
     }
-  } catch {
-    // non-fatal: proceed without player_id
   }
 
-  // Keep the typed name in notes so it doesn't get lost even if no match was found
+  // Keep the typed name in notes when no player was linked
   const mergedNotes = [
     playerId ? null : `Jugador (manual): ${name}`,
     input.notes?.trim() ? input.notes.trim() : null,

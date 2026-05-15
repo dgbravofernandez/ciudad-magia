@@ -8,11 +8,19 @@ export default async function Ropa() {
   const { clubId } = await getClubContext()
   const supabase = createAdminClient()
 
-  const { data: pedidos } = await supabase
-    .from('clothing_orders')
-    .select('*, clothing_order_items(count), player:player_id(first_name, last_name)')
-    .eq('club_id', clubId)
-    .order('created_at', { ascending: false })
+  const [{ data: pedidos }, { data: players }] = await Promise.all([
+    supabase
+      .from('clothing_orders')
+      .select('*, clothing_order_items(count), player:player_id(first_name, last_name)')
+      .eq('club_id', clubId)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('players')
+      .select('id, first_name, last_name')
+      .eq('club_id', clubId)
+      .eq('status', 'active')
+      .order('last_name'),
+  ])
 
-  return <RopaPage pedidos={pedidos ?? []} clubId={clubId} />
+  return <RopaPage pedidos={pedidos ?? []} players={players ?? []} clubId={clubId} />
 }

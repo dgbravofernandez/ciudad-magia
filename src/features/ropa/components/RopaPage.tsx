@@ -1,5 +1,5 @@
 'use client'
-import { Shirt, Plus, Package, DollarSign, Clock, CheckCircle, XCircle, Pencil, Trash2 } from 'lucide-react'
+import { Shirt, Plus, Package, DollarSign, Clock, CheckCircle, XCircle, Pencil, Trash2, Search, X } from 'lucide-react'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
@@ -9,6 +9,7 @@ import { createClothingOrder, markClothingOrderPaid, refundClothingOrder, delete
 
 interface OrderItem { count: number }
 interface Player { first_name: string; last_name: string }
+interface PlayerOption { id: string; first_name: string; last_name: string }
 interface Order {
   id: string
   player_id: string | null
@@ -29,7 +30,7 @@ function fullName(p: Player | null, notes: string | null): string {
   return match?.[1]?.trim() || 'N/A'
 }
 
-interface Props { pedidos: Order[]; clubId: string }
+interface Props { pedidos: Order[]; players: PlayerOption[]; clubId: string }
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '6', '8', '10', '12', '14', '16'] as const
 const STATUS_CONFIG = {
@@ -39,12 +40,27 @@ const STATUS_CONFIG = {
   cancelled: { label: 'Cancelado', color: 'bg-red-50 text-red-700', icon: XCircle },
 }
 
-export function RopaPage({ pedidos, clubId: _clubId }: Props) {
+export function RopaPage({ pedidos, players, clubId: _clubId }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [filter, setFilter] = useState<'all' | 'pending' | 'partial' | 'paid' | 'cancelled'>('all')
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState({ playerName: '', description: '', size: 'M', quantity: 1, price: 0, notes: '' })
+
+  // Player selector state for new order form
+  const [playerQuery, setPlayerQuery] = useState('')
+  const [selectedPlayer, setSelectedPlayer] = useState<PlayerOption | null>(null)
+  const [showPlayerDropdown, setShowPlayerDropdown] = useState(false)
+  const [useExternalPlayer, setUseExternalPlayer] = useState(false)
+  const filteredPlayers = players.filter(p => {
+    const q = playerQuery.toLowerCase()
+    return q.length >= 1 && (
+      p.first_name.toLowerCase().includes(q) ||
+      p.last_name.toLowerCase().includes(q) ||
+      `${p.first_name} ${p.last_name}`.toLowerCase().includes(q) ||
+      `${p.last_name} ${p.first_name}`.toLowerCase().includes(q)
+    )
+  }).slice(0, 8)
   // Pay-modal: ask payment method before registering to caja
   const [payTarget, setPayTarget] = useState<Order | null>(null)
   const [payMethod, setPayMethod] = useState<ClothingPaymentMethod>('cash')
@@ -66,13 +82,20 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
   ]
 
   function handleCreate() {
-    if (!form.playerName || !form.description) {
+    const playerName = useExternalPlayer
+      ? form.playerName.trim()
+      : selectedPlayer
+        ? `${selectedPlayer.first_name} ${selectedPlayer.last_name}`
+        : playerQuery.trim()
+
+    if (!playerName || !form.description) {
       toast.error('Completa los campos obligatorios')
       return
     }
     startTransition(async () => {
       const r = await createClothingOrder({
-        playerName: form.playerName,
+        playerName,
+        playerId: !useExternalPlayer ? (selectedPlayer?.id ?? null) : null,
         description: form.description,
         size: form.size,
         quantity: form.quantity,
@@ -83,6 +106,9 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
         toast.success('Pedido creado')
         setShowNew(false)
         setForm({ playerName: '', description: '', size: 'M', quantity: 1, price: 0, notes: '' })
+        setSelectedPlayer(null)
+        setPlayerQuery('')
+        setUseExternalPlayer(false)
         router.refresh()
       } else {
         toast.error(r.error ?? 'Error al crear el pedido')
@@ -410,15 +436,86 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
 
       {/* New order modal */}
       {showNew && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowNew(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setShowNew(false); setSelectedPlayer(null); setPlayerQuery(''); setUseExternalPlayer(false) }}>
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full" onClick={e => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-100">
               <h3 className="font-semibold text-gray-900">Nuevo pedido de ropa</h3>
             </div>
             <div className="p-6 space-y-4">
+              {/* Player selector */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Jugador</label>
-                <input value={form.playerName} onChange={e => setForm(f => ({ ...f, playerName: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nombre del jugador" />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700">Jugador</label>
+                  <button
+                    type="button"
+                    onClick={() => { setUseExternalPlayer(v => !v); setSelectedPlayer(null); setPlayerQuery('') }}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    {useExternalPlayer ? '← Seleccionar del club' : 'Externo / manual'}
+                  </button>
+                </div>
+
+                {useExternalPlayer ? (
+                  /* Texto libre para externos */
+                  <input
+                    value={form.playerName}
+                    onChange={e => setForm(f => ({ ...f, playerName: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Nombre completo"
+                  />
+                ) : (
+                  /* Buscador con dropdown */
+                  <div className="relative">
+                    {selectedPlayer ? (
+                      /* Jugador seleccionado — mostrar chip */
+                      <div className="flex items-center gap-2 border border-blue-300 bg-blue-50 rounded-lg px-3 py-2">
+                        <span className="text-sm font-medium text-blue-800 flex-1">
+                          {selectedPlayer.last_name}, {selectedPlayer.first_name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedPlayer(null); setPlayerQuery('') }}
+                          className="text-blue-400 hover:text-blue-700"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                          <input
+                            value={playerQuery}
+                            onChange={e => { setPlayerQuery(e.target.value); setShowPlayerDropdown(true) }}
+                            onFocus={() => setShowPlayerDropdown(true)}
+                            onBlur={() => setTimeout(() => setShowPlayerDropdown(false), 150)}
+                            className="w-full border border-gray-300 rounded-lg pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Buscar jugador del club…"
+                          />
+                        </div>
+                        {showPlayerDropdown && filteredPlayers.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                            {filteredPlayers.map(p => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onMouseDown={() => { setSelectedPlayer(p); setPlayerQuery(''); setShowPlayerDropdown(false) }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 text-gray-800"
+                              >
+                                <span className="font-medium">{p.last_name}</span>, {p.first_name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {showPlayerDropdown && playerQuery.length >= 1 && filteredPlayers.length === 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-sm text-gray-400">
+                            Sin resultados — usa &ldquo;Externo / manual&rdquo; si no está en el club
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Descripción del artículo</label>
