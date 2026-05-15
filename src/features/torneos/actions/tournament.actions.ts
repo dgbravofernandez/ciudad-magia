@@ -506,10 +506,8 @@ export async function markAttendeePaid(
     return { success: false, error: movementErr.message }
   }
 
-  revalidatePath(`/torneos/${tournamentId}`)
-  revalidatePath('/contabilidad/caja')
-
-  // Email de confirmación con justificante PDF — fire-and-forget con timeout de 15s
+  // Email de confirmación con justificante PDF — DEBE ir antes de revalidatePath
+  // (revalidatePath en Vercel puede cortar el trabajo asíncrono pendiente)
   const { data: playerWithTutor } = await sb
     .from('players')
     .select('tutor_email, team_id, teams(name)')
@@ -544,6 +542,9 @@ export async function markAttendeePaid(
   } else {
     console.warn('[torneo] email omitido — el jugador no tiene tutor_email configurado')
   }
+
+  revalidatePath(`/torneos/${tournamentId}`)
+  revalidatePath('/contabilidad/caja')
 
   return { success: true }
 }

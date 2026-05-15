@@ -186,11 +186,8 @@ export async function markClothingOrderPaid(
     return { success: false, error: movementErr.message }
   }
 
-  revalidatePath('/ropa')
-  revalidatePath('/contabilidad/caja')
-  revalidatePath('/contabilidad/pagos')
-
-  // Email de confirmación con justificante PDF — fire-and-forget con timeout de 15s
+  // Email de confirmación con justificante PDF — DEBE ir antes de revalidatePath
+  // (revalidatePath en Vercel puede cortar el trabajo asíncrono pendiente)
   if (order.player_id) {
     const { data: player } = await sb
       .from('players')
@@ -225,6 +222,10 @@ export async function markClothingOrderPaid(
       }
     }
   }
+
+  revalidatePath('/ropa')
+  revalidatePath('/contabilidad/caja')
+  revalidatePath('/contabilidad/pagos')
 
   return { success: true }
 }
