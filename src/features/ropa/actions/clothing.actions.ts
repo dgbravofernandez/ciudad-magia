@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
 import { assertNotLocked } from '@/lib/accounting/lock'
+import { sendPaymentReceiptEmail } from '@/lib/email/send-receipt'
 
 export interface CreateClothingOrderInput {
   playerName: string
@@ -169,6 +170,37 @@ export async function markClothingOrderPaid(
   revalidatePath('/ropa')
   revalidatePath('/contabilidad/caja')
   revalidatePath('/contabilidad/pagos')
+
+  // Email de confirmación con justificante PDF — fire-and-forget con timeout de 15s
+  if (order.player_id) {
+    const { data: player } = await sb
+      .from('players')
+      .select('tutor_email, team_id, teams(name)')
+      .eq('id', order.player_id)
+      .single()
+
+    const tutorEmail = player?.tutor_email ?? null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const teamName = (player?.teams as any)?.name ?? 'Ropa'
+
+    if (tutorEmail) {
+      const emailPromise = sendPaymentReceiptEmail({
+        tutorEmail,
+        playerName: playerLabel,
+        teamName,
+        amount: order.total_amount,
+        method: paymentMethod,
+        date: today,
+        concept: `Ropa${order.description ? ` — ${order.description}` : ''}`,
+        clubId,
+      })
+      Promise.race([
+        emailPromise,
+        new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
+      ]).catch(err => console.error('[ropa] email error:', err))
+    }
+  }
+
   return { success: true }
 }
 

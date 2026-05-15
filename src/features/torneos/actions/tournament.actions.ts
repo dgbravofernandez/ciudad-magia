@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
 import { assertNotLocked } from '@/lib/accounting/lock'
+import { sendPaymentReceiptEmail } from '@/lib/email/send-receipt'
 
 export type TournamentKind = 'local' | 'external'
 export type PayMethod = 'cash' | 'card' | 'transfer'
@@ -488,6 +489,35 @@ export async function markAttendeePaid(
 
   revalidatePath(`/torneos/${tournamentId}`)
   revalidatePath('/contabilidad/caja')
+
+  // Email de confirmación con justificante PDF — fire-and-forget con timeout de 15s
+  const { data: playerWithTutor } = await sb
+    .from('players')
+    .select('tutor_email, team_id, teams(name)')
+    .eq('id', attendee.player_id)
+    .single()
+
+  const tutorEmail = playerWithTutor?.tutor_email ?? null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const teamName = (playerWithTutor?.teams as any)?.name ?? tourneyName
+
+  if (tutorEmail) {
+    const emailPromise = sendPaymentReceiptEmail({
+      tutorEmail,
+      playerName: playerLabel,
+      teamName,
+      amount: attendee.amount_due,
+      method,
+      date: today,
+      concept: `Torneo: ${tourneyName}`,
+      clubId,
+    })
+    Promise.race([
+      emailPromise,
+      new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
+    ]).catch(err => console.error('[torneo] email error:', err))
+  }
+
   return { success: true }
 }
 

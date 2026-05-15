@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
+import { sendPaymentReceiptEmail } from '@/lib/email/send-receipt'
 
 const ADMIN_ROLES = ['admin', 'direccion']
 
@@ -261,7 +262,7 @@ export async function markChargePaid(
     const date = paymentDate ?? new Date().toISOString().slice(0, 10)
     const { data: charge, error: fetchErr } = await sb
       .from('activity_charges')
-      .select('activity_id, amount, participant_name, concept, paid')
+      .select('activity_id, amount, participant_name, concept, paid, player_id')
       .eq('id', chargeId)
       .single()
     if (fetchErr || !charge) return { success: false, error: fetchErr?.message ?? 'No existe' }
@@ -283,6 +284,39 @@ export async function markChargePaid(
         movement_date: date,
         registered_by: memberId || null,
       })
+    }
+
+    // Email de confirmación con justificante PDF (solo si hay jugador con tutor_email)
+    if (charge.player_id) {
+      const { data: player } = await sb
+        .from('players')
+        .select('tutor_email, first_name, last_name, team_id, teams(name)')
+        .eq('id', charge.player_id)
+        .single()
+
+      const tutorEmail = player?.tutor_email ?? null
+      const playerName = player
+        ? `${player.first_name ?? ''} ${player.last_name ?? ''}`.trim()
+        : (charge.participant_name ?? 'Participante')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const teamName = (player?.teams as any)?.name ?? 'Actividad'
+
+      if (tutorEmail) {
+        const emailPromise = sendPaymentReceiptEmail({
+          tutorEmail,
+          playerName,
+          teamName,
+          amount: charge.amount,
+          method: paymentMethod,
+          date,
+          concept: charge.concept ?? 'Actividad',
+          clubId,
+        })
+        Promise.race([
+          emailPromise,
+          new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
+        ]).catch(err => console.error('[actividades] email error:', err))
+      }
     }
 
     revalidatePath(`/contabilidad/actividades/${charge.activity_id}`)

@@ -5,8 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getClubId } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
-import { generateReceiptPDF } from '@/lib/pdf/generate-receipt'
-import { sendHtmlEmail } from '@/lib/email/send'
+import { sendPaymentReceiptEmail as sendReceiptEmail } from '@/lib/email/send-receipt'
 import { assertNotLocked } from '@/lib/accounting/lock'
 import { logger } from '@/lib/logger'
 
@@ -141,8 +140,9 @@ export async function registerPayment(data: {
   let emailSent = false
   if (data.tutorEmail && paymentId) {
     try {
-      const emailPromise = sendPaymentReceiptEmail({
+      const emailPromise = sendReceiptEmail({
         paymentId: paymentId!,
+        paymentTable: 'quota_payments',
         tutorEmail: data.tutorEmail,
         playerName: data.playerName,
         teamName: data.teamName,
@@ -528,84 +528,6 @@ export async function reopenCashClose(
   revalidatePath('/contabilidad/pagos')
   revalidatePath('/contabilidad/gastos')
   return { success: true }
-}
-
-async function sendPaymentReceiptEmail(params: {
-  paymentId: string
-  tutorEmail: string
-  playerName: string
-  teamName: string
-  amount: number
-  method: string
-  date: string
-  concept: string
-  clubId: string
-}) {
-  console.log('[receipt] Starting PDF generation for', params.playerName)
-
-  const receiptNumber = `REC-${params.paymentId.slice(0, 8).toUpperCase()}`
-
-  const pdfBuffer = await generateReceiptPDF({
-    playerName: params.playerName,
-    teamName: params.teamName,
-    amount: params.amount,
-    method: params.method,
-    date: params.date,
-    concept: params.concept,
-    receiptNumber,
-  })
-
-  console.log('[receipt] PDF generated:', pdfBuffer.length, 'bytes')
-
-  const formattedAmount = new Intl.NumberFormat('es-ES', {
-    style: 'currency',
-    currency: 'EUR',
-  }).format(params.amount)
-
-  const formattedDate = new Intl.DateTimeFormat('es-ES', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date(params.date))
-
-  console.log('[receipt] Sending email to', params.tutorEmail)
-
-  const result = await sendHtmlEmail({
-    to: params.tutorEmail,
-    subject: `Confirmacion de pago - ${params.playerName}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #1a1a1a;">Escuela de Futbol Ciudad de Getafe</h2>
-        <p>Estimada familia,</p>
-        <p>Le confirmamos que hemos recibido el pago correspondiente a <strong>${params.playerName}</strong> con los siguientes datos:</p>
-        <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
-          <tr><td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Concepto:</td><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">${params.concept}</td></tr>
-          <tr><td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Importe:</td><td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold; color: #16a34a;">${formattedAmount}</td></tr>
-          <tr><td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Fecha:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${formattedDate}</td></tr>
-          <tr><td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Equipo:</td><td style="padding: 8px; border-bottom: 1px solid #eee;">${params.teamName}</td></tr>
-        </table>
-        <p>Adjuntamos el justificante de pago en formato PDF para sus registros.</p>
-        <p>Muchas gracias por su confianza.</p>
-        <p style="margin-top: 20px; color: #666; font-size: 12px;">
-          Atentamente,<br/>
-          <strong>Escuela de Futbol Ciudad de Getafe</strong>
-        </p>
-      </div>
-    `,
-    attachments: [{
-      filename: `Recibo_${params.playerName.replace(/\s+/g, '_')}_${params.date}.pdf`,
-      content: pdfBuffer,
-      contentType: 'application/pdf',
-    }],
-  })
-
-  console.log('[receipt] Email result:', result)
-
-  if (result.sent) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
-    await sb.from('quota_payments').update({ email_sent: true }).eq('id', params.paymentId)
-  }
 }
 
 // ── updatePlayerTeam ─────────────────────────────────────────────────────────
