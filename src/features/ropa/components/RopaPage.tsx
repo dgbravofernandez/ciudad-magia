@@ -15,7 +15,8 @@ interface Order {
   player: Player | null
   description: string | null
   total_amount: number
-  payment_status: 'pending' | 'paid' | 'cancelled'
+  amount_paid: number
+  payment_status: 'pending' | 'partial' | 'paid' | 'cancelled'
   created_at: string
   clothing_order_items: OrderItem[]
   notes: string | null
@@ -33,6 +34,7 @@ interface Props { pedidos: Order[]; clubId: string }
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '6', '8', '10', '12', '14', '16'] as const
 const STATUS_CONFIG = {
   pending: { label: 'Pendiente', color: 'bg-yellow-50 text-yellow-700', icon: Clock },
+  partial: { label: 'Parcial', color: 'bg-blue-50 text-blue-700', icon: Clock },
   paid: { label: 'Pagado', color: 'bg-green-50 text-green-700', icon: CheckCircle },
   cancelled: { label: 'Cancelado', color: 'bg-red-50 text-red-700', icon: XCircle },
 }
@@ -40,12 +42,13 @@ const STATUS_CONFIG = {
 export function RopaPage({ pedidos, clubId: _clubId }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [filter, setFilter] = useState<'all' | 'pending' | 'paid' | 'cancelled'>('all')
+  const [filter, setFilter] = useState<'all' | 'pending' | 'partial' | 'paid' | 'cancelled'>('all')
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState({ playerName: '', description: '', size: 'M', quantity: 1, price: 0, notes: '' })
   // Pay-modal: ask payment method before registering to caja
   const [payTarget, setPayTarget] = useState<Order | null>(null)
   const [payMethod, setPayMethod] = useState<ClothingPaymentMethod>('cash')
+  const [payAmount, setPayAmount] = useState<number>(0)
   // Edit-modal
   const [editTarget, setEditTarget] = useState<Order | null>(null)
   const [editForm, setEditForm] = useState({ description: '', size: 'M', quantity: 1, price: 0, notes: '' })
@@ -90,13 +93,17 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
   function openPayModal(order: Order) {
     setPayTarget(order)
     setPayMethod('cash')
+    const remaining = Number(order.total_amount) - Number(order.amount_paid ?? 0)
+    setPayAmount(+remaining.toFixed(2))
   }
 
   function handleConfirmPay() {
     if (!payTarget) return
     const target = payTarget
+    const remaining = Number(target.total_amount) - Number(target.amount_paid ?? 0)
+    const amountToSend = Math.min(payAmount, remaining)
     startTransition(async () => {
-      const r = await markClothingOrderPaid(target.id, payMethod)
+      const r = await markClothingOrderPaid(target.id, payMethod, amountToSend < remaining ? amountToSend : undefined)
       if (r.success) {
         toast.success('Pago registrado en caja')
         setPayTarget(null)
@@ -195,9 +202,9 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
 
       {/* Filter */}
       <div className="flex gap-2 mb-4">
-        {(['all', 'pending', 'paid', 'cancelled'] as const).map(s => (
-          <button key={s} onClick={() => setFilter(s)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${filter === s ? 'bg-gray-900 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:border-gray-300'}`}>
-            {s === 'all' ? 'Todos' : STATUS_CONFIG[s].label}
+        {(['all', 'pending', 'partial', 'paid', 'cancelled'] as const).map(s => (
+          <button key={s} onClick={() => setFilter(s as typeof filter)} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${filter === s ? 'bg-gray-900 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:border-gray-300'}`}>
+            {s === 'all' ? 'Todos' : STATUS_CONFIG[s as keyof typeof STATUS_CONFIG].label}
           </button>
         ))}
       </div>
@@ -222,12 +229,19 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
               {filtered.map(p => {
                 const status = STATUS_CONFIG[p.payment_status]
                 const StatusIcon = status.icon
+                const remaining = Number(p.total_amount) - Number(p.amount_paid ?? 0)
+                const isPartial = p.payment_status === 'partial'
                 return (
                   <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{fullName(p.player, p.notes)}</td>
                     <td className="px-4 py-3 text-gray-500">{p.description ?? '-'}</td>
                     <td className="px-4 py-3 text-gray-500">{p.clothing_order_items?.[0]?.count ?? 0} artículos</td>
-                    <td className="px-4 py-3 font-semibold text-gray-900">{Number(p.total_amount).toFixed(2)} €</td>
+                    <td className="px-4 py-3 font-semibold text-gray-900">
+                      {isPartial
+                        ? <><span className="text-blue-600">{Number(p.amount_paid).toFixed(2)} €</span><span className="text-gray-400 font-normal"> / {Number(p.total_amount).toFixed(2)} €</span></>
+                        : <>{Number(p.total_amount).toFixed(2)} €</>
+                      }
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
                         <StatusIcon className="w-3 h-3" />{status.label}
@@ -236,13 +250,13 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
                     <td className="px-4 py-3 text-gray-500">{format(new Date(p.created_at), 'd MMM yyyy', { locale: es })}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        {p.payment_status === 'pending' && (
+                        {(p.payment_status === 'pending' || p.payment_status === 'partial') && (
                           <button
                             onClick={() => openPayModal(p)}
                             disabled={isPending}
                             className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded hover:bg-green-100 disabled:opacity-50"
                           >
-                            Marcar pagado
+                            {isPartial ? `Cobrar (${remaining.toFixed(2)} € pdte.)` : 'Cobrar'}
                           </button>
                         )}
                         {p.payment_status === 'paid' && (
@@ -331,39 +345,63 @@ export function RopaPage({ pedidos, clubId: _clubId }: Props) {
         </div>
       )}
 
-      {/* Pay modal — ask payment method, then register to caja */}
+      {/* Pay modal — ask payment method + amount, then register to caja */}
       {payTarget && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setPayTarget(null)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full" onClick={e => e.stopPropagation()}>
             <div className="p-6 border-b border-gray-100">
               <h3 className="font-semibold text-gray-900">Registrar pago</h3>
               <p className="text-sm text-gray-500 mt-1">
-                {fullName(payTarget.player, payTarget.notes)} · {Number(payTarget.total_amount).toFixed(2)} €
+                {fullName(payTarget.player, payTarget.notes)}
               </p>
+              {payTarget.payment_status === 'partial' && (
+                <p className="text-xs text-blue-600 mt-1 font-medium">
+                  Pagado: {Number(payTarget.amount_paid).toFixed(2)} € / Total: {Number(payTarget.total_amount).toFixed(2)} €
+                </p>
+              )}
             </div>
-            <div className="p-6 space-y-3">
-              <label className="block text-sm font-medium text-gray-700">Forma de pago</label>
-              <div className="grid grid-cols-3 gap-2">
-                {([
-                  { v: 'cash', label: 'Efectivo' },
-                  { v: 'card', label: 'Tarjeta' },
-                  { v: 'transfer', label: 'Transferencia' },
-                ] as const).map(m => (
-                  <button
-                    key={m.v}
-                    onClick={() => setPayMethod(m.v)}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all ${payMethod === m.v ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Importe a cobrar ahora (€)
+                </label>
+                <input
+                  type="number"
+                  min={0.01}
+                  step={0.01}
+                  inputMode="decimal"
+                  value={payAmount}
+                  onChange={e => setPayAmount(Number(e.target.value))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Pendiente: {(Number(payTarget.total_amount) - Number(payTarget.amount_paid ?? 0)).toFixed(2)} €
+                </p>
               </div>
-              <p className="text-xs text-gray-400 mt-2">Se creará un movimiento de ingreso en caja ligado a este pedido.</p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Forma de pago</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { v: 'cash', label: 'Efectivo' },
+                    { v: 'card', label: 'Tarjeta' },
+                    { v: 'transfer', label: 'Transferencia' },
+                  ] as const).map(m => (
+                    <button
+                      key={m.v}
+                      onClick={() => setPayMethod(m.v)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all ${payMethod === m.v ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">Se creará un movimiento de ingreso en caja ligado a este pedido.</p>
             </div>
             <div className="p-4 border-t border-gray-100 flex justify-end gap-2">
               <button onClick={() => setPayTarget(null)} disabled={isPending} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 disabled:opacity-50">Cancelar</button>
-              <button onClick={handleConfirmPay} disabled={isPending} className="px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50" style={{ backgroundColor: 'var(--color-primary)' }}>
-                {isPending ? 'Guardando...' : 'Confirmar pago'}
+              <button onClick={handleConfirmPay} disabled={isPending || payAmount <= 0} className="px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50" style={{ backgroundColor: 'var(--color-primary)' }}>
+                {isPending ? 'Guardando...' : `Confirmar ${payAmount > 0 ? payAmount.toFixed(2) + ' €' : ''}`}
               </button>
             </div>
           </div>

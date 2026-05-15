@@ -424,7 +424,8 @@ export async function updateAttendeeAmount(
 export async function markAttendeePaid(
   attendeeId: string,
   tournamentId: string,
-  method: PayMethod
+  method: PayMethod,
+  partialAmount?: number   // si se omite → paga el total pendiente
 ): Promise<{ success: boolean; error?: string }> {
   const check = await verifyTournamentOwnership(tournamentId)
   if (!check.ok) return { success: false, error: check.error }
@@ -436,12 +437,23 @@ export async function markAttendeePaid(
 
   const { data: attendee, error: fetchErr } = await sb
     .from('tournament_attendees')
-    .select('id, player_id, amount_due, payment_status, tournament_id')
+    .select('id, player_id, amount_due, amount_paid, payment_status, tournament_id')
     .eq('id', attendeeId)
     .single()
 
   if (fetchErr || !attendee) return { success: false, error: 'Asistente no encontrado' }
   if (attendee.payment_status === 'paid') return { success: false, error: 'Ya estaba pagado' }
+
+  const alreadyPaid = Number(attendee.amount_paid ?? 0)
+  const remaining   = Number(attendee.amount_due) - alreadyPaid
+  const payNow      = partialAmount !== undefined
+    ? Math.min(partialAmount, remaining)
+    : remaining
+
+  if (payNow <= 0) return { success: false, error: 'Sin importe pendiente' }
+
+  const newAmountPaid = alreadyPaid + payNow
+  const isFullyPaid   = newAmountPaid >= Number(attendee.amount_due) - 0.001
 
   const { data: player } = await sb
     .from('players').select('first_name, last_name').eq('id', attendee.player_id).single()
@@ -452,25 +464,27 @@ export async function markAttendeePaid(
   const tourneyName = torneo?.name ?? 'Torneo'
   const today = new Date().toISOString().slice(0, 10)
 
-  // 1. Update attendee status
+  // 1. Update attendee: status + amount_paid acumulado
   const { error: updateErr } = await sb
     .from('tournament_attendees')
     .update({
-      payment_status: 'paid',
+      payment_status: isFullyPaid ? 'paid' : 'partial',
       payment_method: method,
-      paid_at: new Date().toISOString(),
+      amount_paid: newAmountPaid,
+      ...(isFullyPaid ? { paid_at: new Date().toISOString() } : {}),
     })
     .eq('id', attendeeId)
 
   if (updateErr) return { success: false, error: updateErr.message }
 
-  // 2. Create cash_movement income, source='torneo'
+  // 2. Create cash_movement por el importe de ESTE pago (no el total)
+  const partialLabel = isFullyPaid ? '' : ` (parcial ${new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'}).format(payNow)})`
   const { error: movementErr } = await sb.from('cash_movements').insert({
     club_id: clubId,
     type: 'income',
-    amount: attendee.amount_due,
+    amount: payNow,
     payment_method: method,
-    description: `${tourneyName} — ${playerLabel}`,
+    description: `${tourneyName} — ${playerLabel}${partialLabel}`,
     movement_date: today,
     related_tournament_id: tournamentId,
     related_tournament_attendee_id: attendeeId,
@@ -482,7 +496,12 @@ export async function markAttendeePaid(
     // Rollback attendee status
     await sb
       .from('tournament_attendees')
-      .update({ payment_status: 'pending', payment_method: null, paid_at: null })
+      .update({
+        payment_status: alreadyPaid > 0 ? 'partial' : 'pending',
+        amount_paid: alreadyPaid,
+        payment_method: alreadyPaid > 0 ? method : null,
+        paid_at: null,
+      })
       .eq('id', attendeeId)
     return { success: false, error: movementErr.message }
   }
@@ -506,10 +525,10 @@ export async function markAttendeePaid(
       tutorEmail,
       playerName: playerLabel,
       teamName,
-      amount: attendee.amount_due,
+      amount: payNow,
       method,
       date: today,
-      concept: `Torneo: ${tourneyName}`,
+      concept: isFullyPaid ? `Torneo: ${tourneyName}` : `Torneo: ${tourneyName} (pago parcial)`,
       clubId,
     })
     Promise.race([

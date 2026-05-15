@@ -60,7 +60,8 @@ interface Attendee {
   id: string
   player_id: string
   amount_due: number
-  payment_status: 'pending' | 'paid' | 'cancelled'
+  amount_paid: number
+  payment_status: 'pending' | 'partial' | 'paid' | 'cancelled'
   payment_method: PayMethod | null
   paid_at: string | null
   player: Player
@@ -164,6 +165,7 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
   const [payItemMethod, setPayItemMethod] = useState<PayMethod>('transfer')
   const [payAttTarget, setPayAttTarget] = useState<Attendee | null>(null)
   const [payAttMethod, setPayAttMethod] = useState<PayMethod>('cash')
+  const [payAttAmount, setPayAttAmount] = useState<number>(0)  // importe a pagar ahora
 
   // Computed values
   const totalExpenses = useMemo(
@@ -283,11 +285,14 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
   function handlePayAttendee() {
     if (!payAttTarget) return
     const target = payAttTarget
+    const remaining = Number(target.amount_due) - Number(target.amount_paid ?? 0)
+    const amount = payAttAmount > 0 && payAttAmount < remaining ? payAttAmount : undefined
     startTransition(async () => {
-      const r = await markAttendeePaid(target.id, torneo.id, payAttMethod)
+      const r = await markAttendeePaid(target.id, torneo.id, payAttMethod, amount)
       if (r.success) {
-        toast.success('Pago registrado en caja')
+        toast.success(amount ? `Pago parcial de ${eur(amount)} registrado` : 'Pago completo registrado')
         setPayAttTarget(null)
+        setPayAttAmount(0)
         router.refresh()
       } else toast.error(r.error ?? 'Error')
     })
@@ -470,7 +475,10 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
             <tbody className="divide-y divide-gray-50">
               {attendees.map(a => {
                 const isPaid = a.payment_status === 'paid'
+                const isPartial = a.payment_status === 'partial'
                 const isCancelled = a.payment_status === 'cancelled'
+                const amountPaid = Number(a.amount_paid ?? 0)
+                const remaining = Number(a.amount_due) - amountPaid
                 return (
                   <tr key={a.id} className="hover:bg-gray-50">
                     <td className="px-3 py-2 font-medium text-gray-900">{a.player.first_name} {a.player.last_name}</td>
@@ -478,6 +486,11 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
                     <td className="px-3 py-2">
                       {isPaid || isCancelled ? (
                         <span className="font-semibold">{eur(a.amount_due)}</span>
+                      ) : isPartial ? (
+                        <span className="text-sm">
+                          <span className="font-semibold text-green-700">{eur(amountPaid)}</span>
+                          <span className="text-gray-400"> / {eur(a.amount_due)}</span>
+                        </span>
                       ) : (
                         <input
                           type="number"
@@ -496,18 +509,23 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
                     <td className="px-3 py-2">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
                         isPaid ? 'bg-green-50 text-green-700' :
+                        isPartial ? 'bg-blue-50 text-blue-700' :
                         isCancelled ? 'bg-gray-100 text-gray-500' :
                         'bg-yellow-50 text-yellow-700'
                       }`}>
-                        {isPaid ? 'Pagado' : isCancelled ? 'Cancelado' : 'Pendiente'}
+                        {isPaid ? 'Pagado' : isPartial ? `Parcial (${eur(remaining)} pdte.)` : isCancelled ? 'Cancelado' : 'Pendiente'}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-gray-500 text-xs">{a.payment_method ?? '—'}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">
-                        {a.payment_status === 'pending' && (
-                          <button onClick={() => { setPayAttTarget(a); setPayAttMethod('cash') }} disabled={isPending} className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded hover:bg-green-100">
-                            Cobrar
+                        {(a.payment_status === 'pending' || isPartial) && (
+                          <button
+                            onClick={() => { setPayAttTarget(a); setPayAttMethod('cash'); setPayAttAmount(remaining) }}
+                            disabled={isPending}
+                            className="text-xs px-2 py-1 bg-green-50 text-green-700 rounded hover:bg-green-100"
+                          >
+                            {isPartial ? `Cobrar (${eur(remaining)})` : 'Cobrar'}
                           </button>
                         )}
                         {isPaid && (
@@ -555,15 +573,34 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
       {payAttTarget && (
         <PayModal
           title="Cobrar a la familia"
-          subtitle={`${payAttTarget.player.first_name} ${payAttTarget.player.last_name} · ${eur(payAttTarget.amount_due)}`}
+          subtitle={`${payAttTarget.player.first_name} ${payAttTarget.player.last_name} · Total: ${eur(payAttTarget.amount_due)}${Number(payAttTarget.amount_paid ?? 0) > 0 ? ` · Ya pagado: ${eur(Number(payAttTarget.amount_paid))}` : ''}`}
           method={payAttMethod}
           setMethod={setPayAttMethod}
           defaultMethod="cash"
           hint="Efectivo/tarjeta → entra en cierre de caja. Transferencia → solo aparece en balance del torneo."
-          onCancel={() => setPayAttTarget(null)}
+          onCancel={() => { setPayAttTarget(null); setPayAttAmount(0) }}
           onConfirm={handlePayAttendee}
           pending={isPending}
-        />
+        >
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Importe a cobrar ahora
+            </label>
+            <input
+              type="number"
+              min={0.01}
+              step={0.01}
+              inputMode="decimal"
+              value={payAttAmount}
+              onChange={e => setPayAttAmount(Number(e.target.value))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              placeholder={`Pendiente: ${eur(Number(payAttTarget.amount_due) - Number(payAttTarget.amount_paid ?? 0))}`}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Deja vacío o pon el total para cobrar todo de una vez.
+            </p>
+          </div>
+        </PayModal>
       )}
 
       {/* Modal: Añadir jugadores desde equipos */}
@@ -732,7 +769,7 @@ function Field({ label, children, className = '' }: { label: string; children: R
 }
 
 function PayModal({
-  title, subtitle, method, setMethod, hint, onCancel, onConfirm, pending,
+  title, subtitle, method, setMethod, hint, onCancel, onConfirm, pending, children,
 }: {
   title: string
   subtitle: string
@@ -743,6 +780,7 @@ function PayModal({
   onCancel: () => void
   onConfirm: () => void
   pending: boolean
+  children?: React.ReactNode
 }) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onCancel}>
@@ -752,6 +790,7 @@ function PayModal({
           <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
         </div>
         <div className="p-6 space-y-3">
+          {children}
           <label className="block text-sm font-medium text-gray-700">Forma de pago</label>
           <div className="grid grid-cols-3 gap-2">
             {([

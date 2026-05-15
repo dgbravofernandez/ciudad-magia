@@ -101,7 +101,8 @@ export type ClothingPaymentMethod = 'cash' | 'card' | 'transfer'
 
 export async function markClothingOrderPaid(
   orderId: string,
-  paymentMethod: ClothingPaymentMethod
+  paymentMethod: ClothingPaymentMethod,
+  partialAmount?: number   // si se omite → paga el total pendiente
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = createAdminClient()
   const { clubId, memberId } = await getClubContext()
@@ -111,7 +112,7 @@ export async function markClothingOrderPaid(
   // Fetch order (verify club ownership + get data for cash_movement description)
   const { data: order, error: fetchErr } = await sb
     .from('clothing_orders')
-    .select('id, description, total_amount, player_id, notes, payment_status')
+    .select('id, description, total_amount, amount_paid, player_id, notes, payment_status')
     .eq('id', orderId)
     .eq('club_id', clubId)
     .single()
@@ -119,19 +120,21 @@ export async function markClothingOrderPaid(
   if (fetchErr || !order) return { success: false, error: fetchErr?.message ?? 'Pedido no encontrado' }
   if (order.payment_status === 'paid') return { success: false, error: 'Este pedido ya está pagado' }
 
+  const alreadyPaid = Number(order.amount_paid ?? 0)
+  const remaining   = Number(order.total_amount) - alreadyPaid
+  const payNow      = partialAmount !== undefined
+    ? Math.min(partialAmount, remaining)
+    : remaining
+
+  if (payNow <= 0) return { success: false, error: 'Sin importe pendiente' }
+
+  const newAmountPaid = alreadyPaid + payNow
+  const isFullyPaid   = newAmountPaid >= Number(order.total_amount) - 0.001
+
   const paidAt = new Date().toISOString()
   const today = paidAt.slice(0, 10)
 
-  // 1. Mark order as paid
-  const { error: updateErr } = await sb
-    .from('clothing_orders')
-    .update({ payment_status: 'paid', paid_at: paidAt })
-    .eq('id', orderId)
-    .eq('club_id', clubId)
-
-  if (updateErr) return { success: false, error: updateErr.message }
-
-  // 2. Build description — prefer real player name, fallback to manual name from notes
+  // 1. Build description — prefer real player name, fallback to manual name from notes
   let playerLabel = 'Jugador'
   if (order.player_id) {
     const { data: player } = await sb
@@ -145,13 +148,27 @@ export async function markClothingOrderPaid(
     if (match?.[1]) playerLabel = match[1].trim()
   }
 
-  // 3. Create cash_movement row (source='ropa')
+  // 2. Mark order as paid/partial
+  const { error: updateErr } = await sb
+    .from('clothing_orders')
+    .update({
+      payment_status: isFullyPaid ? 'paid' : 'partial',
+      amount_paid: newAmountPaid,
+      ...(isFullyPaid ? { paid_at: paidAt } : {}),
+    })
+    .eq('id', orderId)
+    .eq('club_id', clubId)
+
+  if (updateErr) return { success: false, error: updateErr.message }
+
+  // 3. Create cash_movement por el importe de ESTE pago (source='ropa')
+  const partialLabel = isFullyPaid ? '' : ' (parcial)'
   const { error: movementErr } = await sb.from('cash_movements').insert({
     club_id: clubId,
     type: 'income',
-    amount: order.total_amount,
+    amount: payNow,
     payment_method: paymentMethod,
-    description: `Ropa - ${playerLabel}${order.description ? ` (${order.description})` : ''}`,
+    description: `Ropa - ${playerLabel}${order.description ? ` (${order.description})` : ''}${partialLabel}`,
     movement_date: today,
     related_clothing_order_id: orderId,
     source: 'ropa',
@@ -159,10 +176,10 @@ export async function markClothingOrderPaid(
   })
 
   if (movementErr) {
-    // Roll back the paid status so we don't leave the order marked paid without an income row
+    // Roll back
     await sb
       .from('clothing_orders')
-      .update({ payment_status: 'pending', paid_at: null })
+      .update({ payment_status: alreadyPaid > 0 ? 'partial' : 'pending', amount_paid: alreadyPaid, paid_at: null })
       .eq('id', orderId)
     return { success: false, error: movementErr.message }
   }
@@ -188,10 +205,12 @@ export async function markClothingOrderPaid(
         tutorEmail,
         playerName: playerLabel,
         teamName,
-        amount: order.total_amount,
+        amount: payNow,
         method: paymentMethod,
         date: today,
-        concept: `Ropa${order.description ? ` — ${order.description}` : ''}`,
+        concept: isFullyPaid
+          ? `Ropa${order.description ? ` — ${order.description}` : ''}`
+          : `Ropa (pago parcial)${order.description ? ` — ${order.description}` : ''}`,
         clubId,
       })
       Promise.race([

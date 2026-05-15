@@ -64,6 +64,17 @@ function hexToRgbColor(hex: string) {
   }
 }
 
+// Luminancia relativa (fórmula WCAG simplificada) — 0=negro, 1=blanco
+function luminanceOf(hex: string): number {
+  try {
+    const h = hex.replace('#', '')
+    const r = parseInt(h.slice(0, 2), 16) / 255
+    const g = parseInt(h.slice(2, 4), 16) / 255
+    const b = parseInt(h.slice(4, 6), 16) / 255
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  } catch { return 0 }
+}
+
 // Ligeramente más claro que primaryColor para el header de tabla
 function lightenColor(hex: string) {
   try {
@@ -98,6 +109,19 @@ function subColor(hex: string) {
     return rgb(r, g, b)
   } catch {
     return rgb(0.70, 0.78, 0.92)
+  }
+}
+
+// Versión más oscura (70%) del color — para cabeceras de tabla cuando el primario es claro
+function darkOf(hex: string) {
+  try {
+    const h = hex.replace('#', '')
+    const r = Math.max(0, parseInt(h.slice(0, 2), 16) / 255 * 0.70)
+    const g = Math.max(0, parseInt(h.slice(2, 4), 16) / 255 * 0.70)
+    const b = Math.max(0, parseInt(h.slice(4, 6), 16) / 255 * 0.70)
+    return rgb(r, g, b)
+  } catch {
+    return rgb(0.12, 0.16, 0.30)
   }
 }
 
@@ -153,6 +177,21 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
   const COLOR_HDR   = lightenColor(primaryHex)
   const COLOR_NET   = netBg(primaryHex)
 
+  // ── Contraste adaptativo ─────────────────────────────────────────────────
+  // Si el color primario del club es claro (p.ej. amarillo), el texto blanco
+  // sobre ese fondo es ilegible. Detectamos con luminancia y usamos negro.
+  const primaryIsLight = luminanceOf(primaryHex) > 0.45
+  // Texto sobre fondo de color primario
+  const COLOR_ON_BRAND = primaryIsLight ? rgb(0.08, 0.08, 0.10) : COLOR_WHITE
+  // Subtítulos/secondary sobre fondo de color primario
+  const COLOR_ON_BRAND_SUB = primaryIsLight ? rgb(0.22, 0.22, 0.25) : rgb(0.80, 0.87, 0.95)
+  // Fondo de cabeceras de tabla: si primario es claro, usar versión oscura del color
+  const COLOR_HDR_BG = primaryIsLight ? darkOf(primaryHex) : COLOR_HDR
+  // Fondo del balance neto: si primario es claro, usar gris neutro (evitar pale-yellow)
+  const COLOR_NET_BG   = primaryIsLight ? rgb(0.94, 0.94, 0.96) : COLOR_NET
+  // Texto del label "BALANCE NETO" sobre ese fondo
+  const COLOR_NET_LABEL = primaryIsLight ? rgb(0.10, 0.10, 0.12) : COLOR_NAVY
+
   const doc  = await PDFDocument.create()
   const font = await doc.embedFont(StandardFonts.Helvetica)
   const bold = await doc.embedFont(StandardFonts.HelveticaBold)
@@ -181,7 +220,7 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
     // Cabecera compacta de continuación (zona color)
     page.drawRectangle({ x: 0, y: H - 28, width: W, height: 28, color: COLOR_NAVY })
     const cont = `${CLUB_NAME.toUpperCase()} — ARQUEO ${dateES(params.periodStart)} a ${dateES(params.periodEnd)} (cont.)`
-    page.drawText(cont, { x: ML, y: H - 18, size: 8, font: bold, color: COLOR_WHITE })
+    page.drawText(cont, { x: ML, y: H - 18, size: 8, font: bold, color: COLOR_ON_BRAND })
     y = H - 28 - 14
   }
 
@@ -229,18 +268,18 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
 
   // Título "ARQUEO DE CAJA" en zona navy — izquierda
   page.drawText('ARQUEO DE CAJA', {
-    x: ML, y: H - WHITE_H - 20, size: 20, font: bold, color: COLOR_WHITE,
+    x: ML, y: H - WHITE_H - 20, size: 20, font: bold, color: COLOR_ON_BRAND,
   })
 
   // Periodo y fecha de cierre en zona navy
   const periodoTxt = `Periodo: ${dateES(params.periodStart)} — ${dateES(params.periodEnd)}`
   page.drawText(periodoTxt, {
-    x: ML, y: H - WHITE_H - 40, size: 8, font, color: rgb(0.80, 0.87, 0.95),
+    x: ML, y: H - WHITE_H - 40, size: 8, font, color: COLOR_ON_BRAND_SUB,
   })
   const clTxt = `Cerrado: ${dateES(params.closedAt)}`
   const clW   = font.widthOfTextAtSize(clTxt, 8)
   page.drawText(clTxt, {
-    x: W - ML - clW, y: H - WHITE_H - 40, size: 8, font, color: rgb(0.80, 0.87, 0.95),
+    x: W - ML - clW, y: H - WHITE_H - 40, size: 8, font, color: COLOR_ON_BRAND_SUB,
   })
 
   y = H - HEADER_H - 22
@@ -277,7 +316,7 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
   function sectionTitle(title: string) {
     checkBreak(40)
     page.drawRectangle({ x: ML, y: y - 20, width: CW, height: 20, color: COLOR_NAVY })
-    page.drawText(title, { x: ML + 8, y: y - 13, size: 9, font: bold, color: COLOR_WHITE })
+    page.drawText(title, { x: ML + 8, y: y - 13, size: 9, font: bold, color: COLOR_ON_BRAND })
     y -= 20
   }
 
@@ -285,12 +324,12 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
   type CellDef = { text: string; x: number; align?: 'right'; bold?: boolean; color?: ReturnType<typeof rgb> }
 
   function tableHeader(cols: ColDef[]) {
-    page.drawRectangle({ x: ML, y: y - 17, width: CW, height: 17, color: COLOR_HDR })
+    page.drawRectangle({ x: ML, y: y - 17, width: CW, height: 17, color: COLOR_HDR_BG })
     for (const c of cols) {
       const tw = c.align === 'right' ? bold.widthOfTextAtSize(c.label, 7.5) : 0
       page.drawText(c.label, {
         x: c.align === 'right' ? c.x - tw : c.x,
-        y: y - 12, size: 7.5, font: bold, color: COLOR_WHITE,
+        y: y - 12, size: 7.5, font: bold, color: COLOR_ON_BRAND,
       })
     }
     y -= 17
@@ -430,10 +469,10 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
   // ── BALANCE NETO ──────────────────────────────────────────────────
   y -= 14
   checkBreak(50)
-  page.drawRectangle({ x: ML, y: y - 38, width: CW, height: 38, color: COLOR_NET })
+  page.drawRectangle({ x: ML, y: y - 38, width: CW, height: 38, color: COLOR_NET_BG })
   page.drawRectangle({ x: ML, y: y - 38, width: 4, height: 38, color: net >= 0 ? COLOR_GREEN : COLOR_RED })
   page.drawText('BALANCE NETO DEL PERIODO', {
-    x: ML + 14, y: y - 14, size: 9, font: bold, color: COLOR_NAVY,
+    x: ML + 14, y: y - 14, size: 9, font: bold, color: COLOR_NET_LABEL,
   })
   const netStr = eur(net)
   page.drawText(netStr, {

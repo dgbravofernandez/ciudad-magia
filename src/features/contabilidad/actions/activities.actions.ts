@@ -31,6 +31,7 @@ export interface ActivityCharge {
   participant_name: string | null
   concept: string | null
   amount: number
+  amount_paid: number
   paid: boolean
   payment_method: string | null
   payment_date: string | null
@@ -252,6 +253,7 @@ export async function addChargesBulk(input: {
 export async function markChargePaid(
   chargeId: string,
   paymentMethod: 'transfer' | 'cash' | 'card',
+  partialAmount?: number,  // si se omite → paga el total pendiente
   paymentDate?: string,
 ) {
   try {
@@ -262,32 +264,46 @@ export async function markChargePaid(
     const date = paymentDate ?? new Date().toISOString().slice(0, 10)
     const { data: charge, error: fetchErr } = await sb
       .from('activity_charges')
-      .select('activity_id, amount, participant_name, concept, paid, player_id')
+      .select('activity_id, amount, amount_paid, participant_name, concept, paid, player_id')
       .eq('id', chargeId)
       .single()
     if (fetchErr || !charge) return { success: false, error: fetchErr?.message ?? 'No existe' }
     if (charge.paid) return { success: false, error: 'Ya está pagada' }
 
+    const alreadyPaid = Number(charge.amount_paid ?? 0)
+    const remaining   = Number(charge.amount) - alreadyPaid
+    const payNow      = partialAmount !== undefined ? Math.min(partialAmount, remaining) : remaining
+    if (payNow <= 0) return { success: false, error: 'Sin importe pendiente' }
+
+    const newAmountPaid = alreadyPaid + payNow
+    const isFullyPaid   = newAmountPaid >= Number(charge.amount) - 0.001
+
     const { error } = await sb
       .from('activity_charges')
-      .update({ paid: true, payment_method: paymentMethod, payment_date: date })
+      .update({
+        paid: isFullyPaid,
+        amount_paid: newAmountPaid,
+        payment_method: paymentMethod,
+        payment_date: date,
+      })
       .eq('id', chargeId)
     if (error) return { success: false, error: error.message }
 
     if (paymentMethod === 'cash' || paymentMethod === 'card') {
+      const partialLabel = isFullyPaid ? '' : ' (parcial)'
       await sb.from('cash_movements').insert({
         club_id: clubId,
         type: 'income',
-        amount: charge.amount,
+        amount: payNow,
         payment_method: paymentMethod,
-        description: `Actividad · ${charge.concept ?? ''} ${charge.participant_name ?? ''}`.trim(),
+        description: `Actividad · ${charge.concept ?? ''} ${charge.participant_name ?? ''}${partialLabel}`.trim(),
         movement_date: date,
         registered_by: memberId || null,
       })
     }
 
-    // Email de confirmación con justificante PDF (solo si hay jugador con tutor_email)
-    if (charge.player_id) {
+    // Email de confirmación con justificante PDF (solo si pago completo y hay jugador con tutor_email)
+    if (isFullyPaid && charge.player_id) {
       const { data: player } = await sb
         .from('players')
         .select('tutor_email, first_name, last_name, team_id, teams(name)')
@@ -306,7 +322,7 @@ export async function markChargePaid(
           tutorEmail,
           playerName,
           teamName,
-          amount: charge.amount,
+          amount: payNow,
           method: paymentMethod,
           date,
           concept: charge.concept ?? 'Actividad',

@@ -48,7 +48,7 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10))
 
   // Modal para marcar cobro como pagado
-  const [payMethodModal, setPayMethodModal] = useState<{ charge: ActivityCharge; method: 'cash' | 'card' | 'transfer' } | null>(null)
+  const [payMethodModal, setPayMethodModal] = useState<{ charge: ActivityCharge; method: 'cash' | 'card' | 'transfer'; partialAmount: number } | null>(null)
 
   // Bulk add desde equipos
   const [showBulk, setShowBulk] = useState(false)
@@ -120,9 +120,10 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
     let income = 0, paid = 0, pending = 0, expense = 0
     for (const c of charges) {
       const a = Number(c.amount)
+      const ap = Number(c.amount_paid ?? 0)
       income += a
-      if (c.paid) paid += a
-      else pending += a
+      paid += ap
+      pending += a - ap
     }
     for (const e of expenses) expense += Number(e.amount)
     return { income, paid, pending, expense, balance: paid - expense }
@@ -170,17 +171,20 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
   }
 
   function handleMarkPaid(c: ActivityCharge) {
-    setPayMethodModal({ charge: c, method: 'cash' })
+    const remaining = Number(c.amount) - Number(c.amount_paid ?? 0)
+    setPayMethodModal({ charge: c, method: 'cash', partialAmount: +remaining.toFixed(2) })
   }
 
   function confirmMarkPaid() {
     if (!payMethodModal) return
-    const { charge, method: m } = payMethodModal
+    const { charge, method: m, partialAmount } = payMethodModal
+    const remaining = Number(charge.amount) - Number(charge.amount_paid ?? 0)
+    const amountToSend = Math.min(partialAmount, remaining)
     setPayMethodModal(null)
     startTransition(async () => {
-      const res = await markChargePaid(charge.id, m)
+      const res = await markChargePaid(charge.id, m, amountToSend < remaining ? amountToSend : undefined)
       if (res.success) {
-        toast.success('Marcado como pagado')
+        toast.success(amountToSend >= remaining ? 'Marcado como pagado' : 'Pago parcial registrado')
         router.refresh()
       } else toast.error(res.error ?? 'Error')
     })
@@ -371,7 +375,11 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
             {charges.length === 0 ? (
               <p className="p-6 text-center text-sm text-muted-foreground">Sin cobros todavía.</p>
             ) : (
-              charges.map((c) => (
+              charges.map((c) => {
+                const amountPaid = Number(c.amount_paid ?? 0)
+                const isPartial = !c.paid && amountPaid > 0
+                const remaining = Number(c.amount) - amountPaid
+                return (
                 <div key={c.id} className="p-3 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">
@@ -381,25 +389,34 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
                     <p className="text-xs text-muted-foreground">
                       {c.paid
                         ? `Pagado ${formatDate(c.payment_date ?? '')} · ${METHOD_LABELS[c.payment_method ?? ''] ?? ''}`
-                        : 'Pendiente'}
+                        : isPartial
+                          ? `Parcial: ${formatCurrency(amountPaid)} cobrado · ${formatCurrency(remaining)} pdte.`
+                          : 'Pendiente'}
                     </p>
                   </div>
-                  <p className="font-semibold">{formatCurrency(Number(c.amount))}</p>
+                  <p className="font-semibold">
+                    {isPartial
+                      ? <><span className="text-blue-600">{formatCurrency(amountPaid)}</span><span className="text-gray-400 font-normal text-xs"> / {formatCurrency(Number(c.amount))}</span></>
+                      : formatCurrency(Number(c.amount))
+                    }
+                  </p>
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full ${
                       c.paid
                         ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-amber-50 text-amber-700'
+                        : isPartial
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'bg-amber-50 text-amber-700'
                     }`}
                   >
-                    {c.paid ? 'Pagado' : 'Pendiente'}
+                    {c.paid ? 'Pagado' : isPartial ? 'Parcial' : 'Pendiente'}
                   </span>
                   {!c.paid && (
                     <button
                       onClick={() => handleMarkPaid(c)}
                       disabled={isPending}
                       className="text-emerald-600 hover:bg-emerald-50 p-1.5 rounded"
-                      title="Marcar pagado"
+                      title={isPartial ? `Cobrar (${formatCurrency(remaining)} pdte.)` : 'Marcar pagado'}
                     >
                       <Check className="w-4 h-4" />
                     </button>
@@ -413,7 +430,7 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
-              ))
+              )})
             )}
           </div>
         </>
@@ -489,12 +506,36 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
         </>
       )}
 
-      {/* Modal: Confirmar método de pago (reemplaza prompt()) */}
+      {/* Modal: Confirmar método de pago (con soporte pago parcial) */}
       {payMethodModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setPayMethodModal(null)}>
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-semibold text-gray-900 mb-1">Marcar como pagado</h3>
-            <p className="text-sm text-gray-500 mb-4">{payMethodModal.charge.participant_name ?? payMethodModal.charge.player_id}</p>
+            <h3 className="font-semibold text-gray-900 mb-1">Registrar cobro</h3>
+            <p className="text-sm text-gray-500 mb-1">
+              {payMethodModal.charge.participant_name
+                ? payMethodModal.charge.participant_name
+                : (payMethodModal.charge.player_id ? playerMap[payMethodModal.charge.player_id] ?? '—' : '—')}
+            </p>
+            {Number(payMethodModal.charge.amount_paid ?? 0) > 0 && (
+              <p className="text-xs text-blue-600 mb-3 font-medium">
+                Pagado: {formatCurrency(Number(payMethodModal.charge.amount_paid))} / Total: {formatCurrency(Number(payMethodModal.charge.amount))}
+              </p>
+            )}
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Importe a cobrar ahora (€)</label>
+              <input
+                type="number"
+                min={0.01}
+                step={0.01}
+                inputMode="decimal"
+                value={payMethodModal.partialAmount}
+                onChange={(e) => setPayMethodModal({ ...payMethodModal, partialAmount: Number(e.target.value) })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Pendiente: {formatCurrency(Number(payMethodModal.charge.amount) - Number(payMethodModal.charge.amount_paid ?? 0))}
+              </p>
+            </div>
             <p className="text-xs font-medium text-gray-600 mb-2">Método de pago</p>
             <div className="flex gap-2 mb-5">
               {(['cash', 'card', 'transfer'] as const).map((m) => (
@@ -509,7 +550,7 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
             </div>
             <div className="flex gap-2">
               <button onClick={() => setPayMethodModal(null)} className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600">Cancelar</button>
-              <button onClick={confirmMarkPaid} disabled={isPending} className="flex-1 py-2 rounded-lg bg-primary text-white text-sm font-medium disabled:opacity-50">Confirmar</button>
+              <button onClick={confirmMarkPaid} disabled={isPending || payMethodModal.partialAmount <= 0} className="flex-1 py-2 rounded-lg bg-primary text-white text-sm font-medium disabled:opacity-50">Confirmar</button>
             </div>
           </div>
         </div>
