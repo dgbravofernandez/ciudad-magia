@@ -63,69 +63,81 @@ export async function GET(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const movs = (movements ?? []) as any[]
 
-  // ── Enrich with player / team names ──────────────────────────────
-  const paymentIds = movs
-    .filter((m) => m.related_payment_id)
-    .map((m) => m.related_payment_id as string)
+  // ── Enrich with player / team names (cuotas + torneos + ropa) ────
+  // Collect player_ids from all 3 related tables
+  const paymentIds   = movs.filter((m) => m.related_payment_id).map((m) => m.related_payment_id as string)
+  const attendeeIds  = movs.filter((m) => m.related_tournament_attendee_id).map((m) => m.related_tournament_attendee_id as string)
+  const clothingIds  = movs.filter((m) => m.related_clothing_order_id).map((m) => m.related_clothing_order_id as string)
 
-  const detailMap: Record<string, { player_name: string; team_name: string }> = {}
+  // movement_id → player_id (and source-specific info)
+  const movPlayerId: Record<string, string> = {}     // related_id → player_id
 
   if (paymentIds.length > 0) {
-    const { data: paymentRows } = await sb
-      .from('quota_payments')
-      .select('id, player_id')
-      .in('id', paymentIds)
+    const { data } = await sb.from('quota_payments').select('id, player_id').in('id', paymentIds)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const r of (data ?? [])) if (r.player_id) movPlayerId[r.id] = r.player_id
+  }
+  if (attendeeIds.length > 0) {
+    const { data } = await sb.from('tournament_attendees').select('id, player_id').in('id', attendeeIds)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const r of (data ?? [])) if (r.player_id) movPlayerId[r.id] = r.player_id
+  }
+  if (clothingIds.length > 0) {
+    const { data } = await sb.from('clothing_orders').select('id, player_id').in('id', clothingIds)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const r of (data ?? [])) if (r.player_id) movPlayerId[r.id] = r.player_id
+  }
 
-    if (paymentRows && paymentRows.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const playerIds = [...new Set(paymentRows.map((p: any) => p.player_id as string))]
+  // Resolve all player_ids → {name, team}
+  const allPlayerIds = [...new Set(Object.values(movPlayerId))]
+  const playerMap: Record<string, { name: string; team: string }> = {}
 
-      const { data: playerRows } = await sb
-        .from('players')
-        .select('id, first_name, last_name, team_id')
-        .in('id', playerIds)
+  if (allPlayerIds.length > 0) {
+    const { data: playerRows } = await sb
+      .from('players')
+      .select('id, first_name, last_name, team_id')
+      .in('id', allPlayerIds)
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const teamIds = [...new Set((playerRows ?? []).filter((p: any) => p.team_id).map((p: any) => p.team_id as string))]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const teamIds = [...new Set((playerRows ?? []).filter((p: any) => p.team_id).map((p: any) => p.team_id as string))]
 
-      const { data: teamRows } = teamIds.length > 0
-        ? await sb.from('teams').select('id, name').in('id', teamIds)
-        : { data: [] }
+    const { data: teamRows } = teamIds.length > 0
+      ? await sb.from('teams').select('id, name').in('id', teamIds)
+      : { data: [] }
 
-      const teamMap: Record<string, string> = {}
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const t of (teamRows ?? [])) teamMap[t.id] = t.name
+    const teamMap: Record<string, string> = {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const t of (teamRows ?? [])) teamMap[t.id] = t.name
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const playerMap: Record<string, { name: string; team: string }> = {}
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const p of (playerRows ?? [])) {
-        playerMap[p.id] = {
-          name: `${p.first_name} ${p.last_name}`,
-          team: p.team_id ? (teamMap[p.team_id] ?? '') : '',
-        }
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const pr of paymentRows) {
-        detailMap[pr.id] = {
-          player_name: playerMap[pr.player_id]?.name ?? '',
-          team_name:   playerMap[pr.player_id]?.team ?? '',
-        }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const p of (playerRows ?? [])) {
+      playerMap[p.id] = {
+        name: `${p.first_name} ${p.last_name}`.trim(),
+        team: p.team_id ? (teamMap[p.team_id] ?? '') : '',
       }
     }
   }
 
-  const enriched: CashCloseMovement[] = movs.map((m) => ({
-    player_name:    m.related_payment_id ? (detailMap[m.related_payment_id]?.player_name ?? '') : '',
-    team_name:      m.related_payment_id ? (detailMap[m.related_payment_id]?.team_name   ?? '') : '',
-    amount:         m.amount,
-    payment_method: m.payment_method,
-    movement_date:  m.movement_date,
-    description:    m.description ?? '',
-    type:           m.type as 'income' | 'expense',
-    source:         m.source ?? null,
-  }))
+  function getNames(m: any): { player_name: string; team_name: string } {
+    const relatedId = m.related_payment_id ?? m.related_tournament_attendee_id ?? m.related_clothing_order_id
+    const playerId  = relatedId ? movPlayerId[relatedId] : null
+    if (playerId && playerMap[playerId]) return { player_name: playerMap[playerId].name, team_name: playerMap[playerId].team }
+    return { player_name: '', team_name: '' }
+  }
+
+  const enriched: CashCloseMovement[] = movs.map((m) => {
+    const { player_name, team_name } = getNames(m)
+    return {
+      player_name,
+      team_name,
+      amount:         m.amount,
+      payment_method: m.payment_method,
+      movement_date:  m.movement_date,
+      description:    m.description ?? '',
+      type:           m.type as 'income' | 'expense',
+      source:         m.source ?? null,
+    }
+  })
 
   // ── Generate PDF ─────────────────────────────────────────────────
   const pdfBuffer = await generateCashClosePDF({

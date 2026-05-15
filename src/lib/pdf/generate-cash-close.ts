@@ -370,9 +370,9 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
     // Columnas: TIPO | JUGADOR | EQUIPO | F.PAGO | FECHA | IMPORTE
     const xTipo = ML + 6
     const xN    = ML + 58
-    const xEq   = ML + 198
-    const xM    = ML + 318
-    const xD    = ML + 388
+    const xEq   = ML + 248
+    const xM    = ML + 338
+    const xD    = ML + 398
     const xA    = ML + CW - 6
 
     tableHeader([
@@ -390,8 +390,8 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
       incTotal += m.amount
       tableRow([
         { text: getSourceLabel(m),                                            x: xTipo, color: COLOR_NAVY, bold: true },
-        { text: trunc(m.player_name || m.description, 22),                   x: xN    },
-        { text: trunc(m.team_name || '—', 18),                               x: xEq   },
+        { text: trunc(m.player_name || m.description, 32),                   x: xN    },
+        { text: trunc(m.team_name || '—', 12),                               x: xEq   },
         { text: METHOD_LABELS[m.payment_method] ?? m.payment_method ?? '—',  x: xM    },
         { text: dateES(m.movement_date),                                      x: xD    },
         { text: eur(m.amount), x: xA, align: 'right', bold: true, color: COLOR_GREEN },
