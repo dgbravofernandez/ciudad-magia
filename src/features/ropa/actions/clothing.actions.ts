@@ -186,9 +186,11 @@ export async function markClothingOrderPaid(
     return { success: false, error: movementErr.message }
   }
 
+  console.log(`[ropa] DEBUG llegando a email block, player_id: ${order.player_id ?? 'NULL'}`)
+
   // Email de confirmación con justificante PDF — DEBE ir antes de revalidatePath
-  // (revalidatePath en Vercel puede cortar el trabajo asíncrono pendiente)
   if (order.player_id) {
+    console.log(`[ropa] DEBUG dentro de if(player_id), fetching player...`)
     const { data: player } = await sb
       .from('players')
       .select('tutor_email, team_id, teams(name)')
@@ -199,7 +201,10 @@ export async function markClothingOrderPaid(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const teamName = (player?.teams as any)?.name ?? 'Ropa'
 
+    console.log(`[ropa] DEBUG tutorEmail: ${tutorEmail ?? 'NULL'}, teamName: ${teamName}`)
+
     if (tutorEmail) {
+      console.log(`[ropa] DEBUG llamando a sendPaymentReceiptEmail...`)
       try {
         await Promise.race([
           sendPaymentReceiptEmail({
@@ -220,7 +225,11 @@ export async function markClothingOrderPaid(
       } catch (err) {
         console.error('[ropa] email error (pago ya registrado):', err)
       }
+    } else {
+      console.warn(`[ropa] DEBUG SIN tutorEmail — no se envía email`)
     }
+  } else {
+    console.warn(`[ropa] DEBUG SIN player_id — no se envía email`)
   }
 
   revalidatePath('/ropa')
