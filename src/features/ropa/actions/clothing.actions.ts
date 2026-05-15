@@ -202,22 +202,26 @@ export async function markClothingOrderPaid(
     const teamName = (player?.teams as any)?.name ?? 'Ropa'
 
     if (tutorEmail) {
-      const emailPromise = sendPaymentReceiptEmail({
-        tutorEmail,
-        playerName: playerLabel,
-        teamName,
-        amount: payNow,
-        method: paymentMethod,
-        date: today,
-        concept: isFullyPaid
-          ? `Ropa${order.description ? ` — ${order.description}` : ''}`
-          : `Ropa (pago parcial)${order.description ? ` — ${order.description}` : ''}`,
-        clubId,
-      })
-      Promise.race([
-        emailPromise,
-        new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
-      ]).catch(err => console.error('[ropa] email error:', err))
+      try {
+        await Promise.race([
+          sendPaymentReceiptEmail({
+            tutorEmail,
+            playerName: playerLabel,
+            teamName,
+            amount: payNow,
+            method: paymentMethod,
+            date: today,
+            concept: isFullyPaid
+              ? `Ropa${order.description ? ` — ${order.description}` : ''}`
+              : `Ropa (pago parcial)${order.description ? ` — ${order.description}` : ''}`,
+            clubId,
+          }),
+          new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
+        ])
+        console.log(`[ropa] email enviado a ${tutorEmail}`)
+      } catch (err) {
+        console.error('[ropa] email error (pago ya registrado):', err)
+      }
     }
   }
 

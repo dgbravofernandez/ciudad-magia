@@ -328,10 +328,15 @@ export async function markChargePaid(
           concept: charge.concept ?? 'Actividad',
           clubId,
         })
-        Promise.race([
-          emailPromise,
-          new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
-        ]).catch(err => console.error('[actividades] email error:', err))
+        try {
+          await Promise.race([
+            emailPromise,
+            new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
+          ])
+          console.log(`[actividades] email enviado a ${tutorEmail}`)
+        } catch (err) {
+          console.error('[actividades] email error (pago ya registrado):', err)
+        }
       }
     }
 

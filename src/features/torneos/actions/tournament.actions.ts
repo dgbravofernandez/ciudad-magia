@@ -523,20 +523,24 @@ export async function markAttendeePaid(
   console.log(`[torneo] pago registrado — jugador: ${playerLabel}, tutor_email: ${tutorEmail ?? 'NO TIENE'}, isFullyPaid: ${isFullyPaid}`)
 
   if (tutorEmail) {
-    const emailPromise = sendPaymentReceiptEmail({
-      tutorEmail,
-      playerName: playerLabel,
-      teamName,
-      amount: payNow,
-      method,
-      date: today,
-      concept: isFullyPaid ? `Torneo: ${tourneyName}` : `Torneo: ${tourneyName} (pago parcial)`,
-      clubId,
-    })
-    Promise.race([
-      emailPromise,
-      new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
-    ]).catch(err => console.error('[torneo] email error:', err))
+    try {
+      await Promise.race([
+        sendPaymentReceiptEmail({
+          tutorEmail,
+          playerName: playerLabel,
+          teamName,
+          amount: payNow,
+          method,
+          date: today,
+          concept: isFullyPaid ? `Torneo: ${tourneyName}` : `Torneo: ${tourneyName} (pago parcial)`,
+          clubId,
+        }),
+        new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000)),
+      ])
+      console.log(`[torneo] email enviado a ${tutorEmail}`)
+    } catch (err) {
+      console.error('[torneo] email error (pago ya registrado):', err)
+    }
   } else {
     console.warn('[torneo] email omitido — el jugador no tiene tutor_email configurado')
   }
