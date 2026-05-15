@@ -119,6 +119,7 @@ export async function markClothingOrderPaid(
     .single()
 
   if (fetchErr || !order) return { success: false, error: fetchErr?.message ?? 'Pedido no encontrado' }
+  console.log(`[ropa] markClothingOrderPaid — orderId: ${orderId}, status: ${order.payment_status}, player_id: ${order.player_id ?? 'SIN PLAYER'}`)
   if (order.payment_status === 'paid') return { success: false, error: 'Este pedido ya está pagado' }
 
   const alreadyPaid = Number(order.amount_paid ?? 0)
