@@ -122,12 +122,12 @@ export default async function PagosPage({
     .neq('status', 'low')
     .order('last_name')
 
-  // Teams
+  // Teams — activos para temporada actual; borradores (inactive) para próxima temporada
   const { data: teams } = await sb
     .from('teams')
     .select('id, name')
     .eq('club_id', clubId)
-    .eq('active', true)
+    .eq('active', !isNextSeason)
 
   const teamMap: Record<string, { id: string; name: string }> = {}
   for (const t of (teams ?? [])) {

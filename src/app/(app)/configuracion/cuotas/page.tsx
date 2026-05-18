@@ -29,9 +29,10 @@ export default async function CuotasPage() {
     }
   }
 
+  // Cargar TODOS los equipos (activos + borradores 26/27) para configurar cuotas por temporada
   const [settingsRes, teamsRes] = await Promise.all([
     sb.from('club_settings').select('*').eq('club_id', clubId).single(),
-    sb.from('teams').select('id, name').eq('club_id', clubId).eq('active', true).order('name'),
+    sb.from('teams').select('id, name, active').eq('club_id', clubId).order('name'),
   ])
 
   return (
