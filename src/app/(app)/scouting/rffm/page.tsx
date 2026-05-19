@@ -15,7 +15,7 @@ export default async function RffmPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
 
-  const SIGNAL_COLS = 'id,codjugador,nombre_jugador,nombre_equipo,nombre_competicion,nombre_grupo,goles,partidos_jugados,goles_por_partido,anio_nacimiento,division_level,valor_score,estado'
+  const SIGNAL_COLS = 'id,codjugador,nombre_jugador,nombre_equipo,nombre_competicion,nombre_grupo,cod_tipojuego,goles,partidos_jugados,goles_por_partido,anio_nacimiento,division_level,valor_score,estado'
 
   const [
     { data: signals },

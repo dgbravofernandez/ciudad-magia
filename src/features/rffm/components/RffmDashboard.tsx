@@ -58,6 +58,7 @@ interface Signal {
   nombre_equipo: string
   nombre_competicion: string
   nombre_grupo: string
+  cod_tipojuego: string | null   // '1'=F11, '2'=F7, '4'=Sala
   goles: number
   partidos_jugados: number
   goles_por_partido: number
@@ -310,10 +311,17 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
 
     if (filterEstado !== 'all' && s.estado !== filterEstado) return false
     if (filterTipo !== 'all') {
-      // F7 competitions usually have "F-7" or "F7" in name; F11 don't
-      const isF7 = nombreComp.includes('F-7') || nombreComp.includes('F7') || nombreComp.includes('FÚTBOL 7') || nombreComp.includes('FUTBOL 7')
-      if (filterTipo === '1' && !isF7) return false
-      if (filterTipo === '2' && isF7) return false
+      // Usar cod_tipojuego directo ('1'=F11, '2'=F7). Fallback: detección por nombre.
+      const tipoSignal = s.cod_tipojuego
+      if (tipoSignal) {
+        if (s.cod_tipojuego !== filterTipo) return false
+      } else {
+        // Fallback para señales antiguas sin cod_tipojuego — detección por nombre
+        const isF7 = nombreComp.includes('F-7') || nombreComp.includes('F 7') ||
+          nombreComp.includes('F7') || nombreComp.includes('FÚTBOL 7') || nombreComp.includes('FUTBOL 7')
+        if (filterTipo === '1' && isF7) return false   // '1' = F11 → excluir F7
+        if (filterTipo === '2' && !isF7) return false  // '2' = F7 → excluir F11
+      }
     }
     // Filtro de año:
     // - Si el filtro está en defaults abiertos (1990–año actual) dejamos pasar todo (incluyendo sin año)
@@ -776,8 +784,8 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
                 <label className="block text-xs font-medium text-gray-600 mb-1">Modalidad</label>
                 <select value={filterTipo} onChange={e => setFilterTipo(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
                   <option value="all">F7 + F11</option>
-                  <option value="1">Fútbol 7</option>
-                  <option value="2">Fútbol 11</option>
+                  <option value="1">Fútbol 11</option>
+                  <option value="2">Fútbol 7</option>
                 </select>
               </div>
               <div>
