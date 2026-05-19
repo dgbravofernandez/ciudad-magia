@@ -28,7 +28,8 @@ export async function runSync(
   await sb
     .from('rffm_sync_log')
     .update({
-      status: 'timeout',
+      // 'timeout' no está en el CHECK constraint → usar 'error'
+      status: 'error',
       error_detail: 'Función Vercel timeout (>60s). Estado marcado por cleanup automático.',
       finished_at: new Date().toISOString(),
     })
