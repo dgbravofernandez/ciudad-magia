@@ -123,11 +123,11 @@ export default async function PagosPage({
     .order('last_name')
 
   // Teams — activos para temporada actual; borradores (inactive) para próxima temporada
+  // Cargar todos los equipos (activos + borradores) — next_team_id puede apuntar a cualquiera
   const { data: teams } = await sb
     .from('teams')
     .select('id, name')
     .eq('club_id', clubId)
-    .eq('active', !isNextSeason)
 
   const teamMap: Record<string, { id: string; name: string }> = {}
   for (const t of (teams ?? [])) {
