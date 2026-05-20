@@ -22,6 +22,7 @@ import {
   Phone,
   Info,
   ExternalLink,
+  FileDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatDate } from '@/lib/utils/currency'
@@ -133,9 +134,12 @@ export function PaymentRegistration({
   const commentSaveInProgress = useRef(false)
 
   // Filtros y ordenación de pendientes
-  const [pendingTeamFilter, setPendingTeamFilter] = useState<string>('')
+  const [pendingTeamFilters, setPendingTeamFilters] = useState<Set<string>>(new Set())  // nombres de equipo
+  const [pendingConceptFilters, setPendingConceptFilters] = useState<Set<string>>(new Set())  // conceptos
   const [pendingSearch, setPendingSearch] = useState<string>('')
   const [pendingSort, setPendingSort] = useState<'name' | 'amount_desc' | 'amount_asc' | 'last_payment'>('amount_desc')
+  const [teamFilterOpen, setTeamFilterOpen] = useState(false)
+  const [conceptFilterOpen, setConceptFilterOpen] = useState(false)
 
   // Edición inline de equipo/importe en pendientes
   const [editingPendingId, setEditingPendingId] = useState<string | null>(null) // player.id
@@ -225,7 +229,7 @@ export function PaymentRegistration({
       }))
   }, [players, payments])
 
-  // Equipos disponibles para filtrar pendientes
+  // Equipos disponibles para filtrar pendientes (sólo equipos con pendientes)
   const pendingTeams = useMemo(() => {
     const teamSet = new Set<string>()
     for (const pl of pendingPlayers) {
@@ -234,11 +238,42 @@ export function PaymentRegistration({
     return Array.from(teamSet).sort()
   }, [pendingPlayers])
 
+  // Conceptos disponibles para filtrar
+  const pendingConcepts = useMemo(() => {
+    const set = new Set<string>()
+    for (const p of payments) {
+      if (p.status === 'pending' && p.concept) set.add(p.concept)
+    }
+    return Array.from(set).sort()
+  }, [payments])
+
+  // Mapa de jugador → conceptos pendientes (para filtrar por concepto)
+  const playerConceptsMap = useMemo(() => {
+    const m: Record<string, Set<string>> = {}
+    for (const p of payments) {
+      if (p.status === 'pending' && p.concept) {
+        if (!m[p.player_id]) m[p.player_id] = new Set()
+        m[p.player_id].add(p.concept)
+      }
+    }
+    return m
+  }, [payments])
+
   // Pendientes filtrados y ordenados
   const filteredPendingPlayers = useMemo(() => {
     let result = pendingPlayers
-    if (pendingTeamFilter) {
-      result = result.filter((pl) => pl.teams?.name === pendingTeamFilter)
+    if (pendingTeamFilters.size > 0) {
+      result = result.filter((pl) => pl.teams?.name && pendingTeamFilters.has(pl.teams.name))
+    }
+    if (pendingConceptFilters.size > 0) {
+      result = result.filter((pl) => {
+        const playerConcepts = playerConceptsMap[pl.id]
+        if (!playerConcepts) return false
+        for (const c of pendingConceptFilters) {
+          if (playerConcepts.has(c)) return true
+        }
+        return false
+      })
     }
     if (pendingSearch.trim()) {
       const q = pendingSearch.toLowerCase()
@@ -258,7 +293,7 @@ export function PaymentRegistration({
       // name
       return `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
     })
-  }, [pendingPlayers, pendingTeamFilter, pendingSearch, pendingSort])
+  }, [pendingPlayers, pendingTeamFilters, pendingConceptFilters, pendingSearch, pendingSort, playerConceptsMap])
 
   // Search results — only players with assigned team
   const searchResults = useMemo(() => {
@@ -443,6 +478,23 @@ export function PaymentRegistration({
         toast.error(r.error ?? `Sin envíos: ${summary}`)
       }
     })
+  }
+
+  function handleDownloadPendingPdf() {
+    // Mapear nombres de equipo seleccionados → IDs (la API espera IDs)
+    const teamIds: string[] = []
+    for (const teamName of pendingTeamFilters) {
+      const t = teams.find(t => t.name === teamName)
+      if (t) teamIds.push(t.id)
+    }
+    const params = new URLSearchParams()
+    if (season) params.set('season', season)
+    if (teamIds.length > 0) params.set('teams', teamIds.join(','))
+    if (pendingConceptFilters.size > 0) {
+      params.set('concepts', Array.from(pendingConceptFilters).join(','))
+    }
+    // Abrir en nueva pestaña — el navegador maneja la descarga
+    window.open(`/api/pdf/pending-payments?${params.toString()}`, '_blank')
   }
 
   function handleToggleSpecialCase(playerId: string, currentValue: boolean) {
@@ -866,19 +918,30 @@ export function PaymentRegistration({
         <div className="px-5 py-4 border-b space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <h3 className="font-semibold">Pagos pendientes ({filteredPendingPlayers.length}{filteredPendingPlayers.length !== pendingPlayers.length ? ` de ${pendingPlayers.length}` : ''})</h3>
-            {selectedPlayers.size > 0 && canRegisterPayments && (
+            <div className="flex items-center gap-2 flex-wrap">
               <button
-                disabled={isPending}
-                onClick={handleSendReminders}
-                className="btn-secondary gap-2 flex items-center text-sm"
+                type="button"
+                onClick={() => handleDownloadPendingPdf()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium transition-colors"
+                title="Descargar PDF con los pendientes filtrados"
               >
-                <Mail className="w-4 h-4" />
-                Enviar aviso ({selectedPlayers.size})
+                <FileDown className="w-4 h-4" />
+                PDF ({filteredPendingPlayers.length})
               </button>
-            )}
+              {selectedPlayers.size > 0 && canRegisterPayments && (
+                <button
+                  disabled={isPending}
+                  onClick={handleSendReminders}
+                  className="btn-secondary gap-2 flex items-center text-sm"
+                >
+                  <Mail className="w-4 h-4" />
+                  Enviar aviso ({selectedPlayers.size})
+                </button>
+              )}
+            </div>
           </div>
           {/* Filtros */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
             <input
               type="text"
               className="input text-sm py-1.5 px-3 w-44"
@@ -886,16 +949,128 @@ export function PaymentRegistration({
               value={pendingSearch}
               onChange={(e) => setPendingSearch(e.target.value)}
             />
-            <select
-              className="input text-sm py-1.5 px-3 w-44"
-              value={pendingTeamFilter}
-              onChange={(e) => setPendingTeamFilter(e.target.value)}
-            >
-              <option value="">Todos los equipos</option>
-              {pendingTeams.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+
+            {/* Multi-select equipos */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => { setTeamFilterOpen(o => !o); setConceptFilterOpen(false) }}
+                className="input text-sm py-1.5 px-3 w-52 text-left flex items-center justify-between hover:border-primary/40"
+              >
+                <span className="truncate">
+                  {pendingTeamFilters.size === 0
+                    ? 'Todos los equipos'
+                    : pendingTeamFilters.size === 1
+                      ? Array.from(pendingTeamFilters)[0]
+                      : `${pendingTeamFilters.size} equipos seleccionados`}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0 ml-1" />
+              </button>
+              {teamFilterOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setTeamFilterOpen(false)} />
+                  <div className="absolute z-20 mt-1 w-64 max-h-72 overflow-auto bg-background border rounded-md shadow-lg">
+                    <div className="sticky top-0 bg-background border-b px-3 py-2 flex items-center justify-between text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setPendingTeamFilters(new Set(pendingTeams))}
+                        className="text-primary hover:underline"
+                      >Seleccionar todos</button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingTeamFilters(new Set())}
+                        className="text-muted-foreground hover:underline"
+                      >Limpiar</button>
+                    </div>
+                    {pendingTeams.length === 0 ? (
+                      <p className="text-xs text-muted-foreground p-3">Sin equipos con pendientes</p>
+                    ) : (
+                      pendingTeams.map(t => {
+                        const checked = pendingTeamFilters.has(t)
+                        return (
+                          <label key={t} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/40 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                setPendingTeamFilters(prev => {
+                                  const next = new Set(prev)
+                                  if (checked) next.delete(t)
+                                  else next.add(t)
+                                  return next
+                                })
+                              }}
+                              className="rounded"
+                            />
+                            <span className="truncate">{t}</span>
+                          </label>
+                        )
+                      })
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Multi-select conceptos */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => { setConceptFilterOpen(o => !o); setTeamFilterOpen(false) }}
+                className="input text-sm py-1.5 px-3 w-52 text-left flex items-center justify-between hover:border-primary/40"
+                disabled={pendingConcepts.length === 0}
+              >
+                <span className="truncate">
+                  {pendingConceptFilters.size === 0
+                    ? `Todas las cuotas${pendingConcepts.length === 0 ? '' : ` (${pendingConcepts.length})`}`
+                    : pendingConceptFilters.size === 1
+                      ? Array.from(pendingConceptFilters)[0]
+                      : `${pendingConceptFilters.size} cuotas`}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0 ml-1" />
+              </button>
+              {conceptFilterOpen && pendingConcepts.length > 0 && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setConceptFilterOpen(false)} />
+                  <div className="absolute z-20 mt-1 w-72 max-h-72 overflow-auto bg-background border rounded-md shadow-lg">
+                    <div className="sticky top-0 bg-background border-b px-3 py-2 flex items-center justify-between text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setPendingConceptFilters(new Set(pendingConcepts))}
+                        className="text-primary hover:underline"
+                      >Seleccionar todos</button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingConceptFilters(new Set())}
+                        className="text-muted-foreground hover:underline"
+                      >Limpiar</button>
+                    </div>
+                    {pendingConcepts.map(c => {
+                      const checked = pendingConceptFilters.has(c)
+                      return (
+                        <label key={c} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/40 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              setPendingConceptFilters(prev => {
+                                const next = new Set(prev)
+                                if (checked) next.delete(c)
+                                else next.add(c)
+                                return next
+                              })
+                            }}
+                            className="rounded"
+                          />
+                          <span className="truncate">{c}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
             <select
               className="input text-sm py-1.5 px-3 w-44"
               value={pendingSort}
@@ -906,6 +1081,16 @@ export function PaymentRegistration({
               <option value="name">Nombre A→Z</option>
               <option value="last_payment">Último pago reciente</option>
             </select>
+
+            {(pendingTeamFilters.size > 0 || pendingConceptFilters.size > 0 || pendingSearch) && (
+              <button
+                type="button"
+                onClick={() => { setPendingTeamFilters(new Set()); setPendingConceptFilters(new Set()); setPendingSearch('') }}
+                className="text-xs text-muted-foreground hover:text-foreground underline"
+              >
+                Limpiar filtros
+              </button>
+            )}
           </div>
         </div>
         <div className="overflow-x-auto">

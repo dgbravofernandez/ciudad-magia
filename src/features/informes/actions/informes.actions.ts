@@ -528,40 +528,68 @@ export async function getPendingPayments(filters: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
 
-    let query = sb
+    // Aceptamos season en '2025-26' o '2025/26' — algunos sitios guardan con barra
+    const seasonAlt = filters.season.includes('/')
+      ? filters.season.replace('/', '-')
+      : filters.season.replace('-', '/')
+
+    // 1. Pagos pendientes — SIN join (los embedded joins de PostgREST fallan
+    //    silenciosamente con filtros sobre la tabla extranjera)
+    const { data: pendings, error: pErr } = await sb
       .from('quota_payments')
-      .select(`
-        amount_due, month, status,
-        players!inner(id, first_name, last_name, club_id, team_id, teams(name))
-      `)
-      .eq('players.club_id', clubId)
-      .eq('season', filters.season)
+      .select('player_id, amount_due, amount_paid, month, season')
+      .eq('club_id', clubId)
       .eq('status', 'pending')
+      .in('season', [filters.season, seasonAlt])
 
-    if (filters.teamId) {
-      query = query.eq('players.team_id', filters.teamId)
-    }
+    if (pErr) return { success: false, error: pErr.message }
+    if (!pendings || pendings.length === 0) return { success: true, data: [] }
 
-    const { data, error } = await query
-    if (error) return { success: false, error: error.message }
+    // 2. Cargar jugadores referenciados
+    const playerIds = Array.from(new Set(pendings.map((p: { player_id: string }) => p.player_id)))
+    const { data: players } = await sb
+      .from('players')
+      .select('id, first_name, last_name, team_id')
+      .eq('club_id', clubId)
+      .in('id', playerIds)
 
+    // 3. Cargar nombres de equipo (incluyendo inactivos por si next_team_id apunta a borrador)
+    const teamIds = Array.from(new Set((players ?? [])
+      .map((p: { team_id: string | null }) => p.team_id)
+      .filter((id: string | null) => id !== null)))
+    const { data: teams } = teamIds.length > 0
+      ? await sb.from('teams').select('id, name').eq('club_id', clubId).in('id', teamIds)
+      : { data: [] }
+
+    const teamMap = new Map<string, string>(
+      (teams ?? []).map((t: { id: string; name: string }) => [t.id, t.name])
+    )
+    const playerMap = new Map<string, { id: string; first_name: string; last_name: string; team_id: string | null }>(
+      (players ?? []).map((p: { id: string; first_name: string; last_name: string; team_id: string | null }) => [p.id, p])
+    )
+
+    // 4. Agregar por jugador, aplicando filtro de equipo
     const byPlayer = new Map<string, PendingPaymentRow>()
-    for (const row of (data ?? [])) {
-      const player = row.players
+    for (const row of pendings) {
+      const player = playerMap.get(row.player_id)
       if (!player) continue
-      const key = player.id
-      const existing = byPlayer.get(key)
-      // month es INTEGER (1-12) — convertir a etiqueta legible
-      const monthLabel = typeof row.month === 'number' ? (MONTH_LABEL[row.month] ?? String(row.month)) : (row.month ?? '—')
-      const amount = row.amount_due ?? 0
+      if (filters.teamId && player.team_id !== filters.teamId) continue
+
+      const monthLabel = typeof row.month === 'number'
+        ? (MONTH_LABEL[row.month] ?? String(row.month))
+        : (row.month ?? '—')
+      const amount = (Number(row.amount_due) || 0) - (Number(row.amount_paid) || 0)
+      if (amount <= 0) continue
+
+      const existing = byPlayer.get(player.id)
       if (existing) {
         existing.pending_months.push(monthLabel)
         existing.total_pending += amount
       } else {
-        byPlayer.set(key, {
+        byPlayer.set(player.id, {
           player_id: player.id,
           player_name: `${player.first_name} ${player.last_name}`,
-          team_name: player.teams?.name ?? '—',
+          team_name: player.team_id ? (teamMap.get(player.team_id) ?? '—') : '—',
           pending_months: [monthLabel],
           total_pending: amount,
         })
