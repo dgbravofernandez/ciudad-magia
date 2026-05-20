@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { LayoutList, AlertTriangle, User, CheckCircle2, Mail } from 'lucide-react'
-import { getSeasonRosters, type SeasonRostersResult, type TeamRoster } from '@/features/configuracion/actions/assignment-email.actions'
+import { useState, useEffect, useTransition } from 'react'
+import { toast } from 'sonner'
+import * as XLSX from 'xlsx'
+import { LayoutList, AlertTriangle, User, CheckCircle2, Mail, FileDown, Loader2 } from 'lucide-react'
+import { getSeasonRosters, exportNextSeasonAssignments, type SeasonRostersResult, type TeamRoster } from '@/features/configuracion/actions/assignment-email.actions'
 
 function RosterColumn({ label, rosters, showEmailStatus }: {
   label: string
@@ -71,6 +73,34 @@ export function SeasonRosters() {
   const [data, setData] = useState<SeasonRostersResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<'side-by-side' | 'next-only'>('side-by-side')
+  const [exporting, startExport] = useTransition()
+
+  function handleExportXLSX() {
+    startExport(async () => {
+      const res = await exportNextSeasonAssignments()
+      if (!res.success || !res.data) {
+        toast.error(res.error ?? 'Error al exportar')
+        return
+      }
+      if (res.data.rows.length === 0) {
+        toast.warning('No hay jugadores con equipo asignado para la próxima temporada')
+        return
+      }
+      // Generar XLSX con SheetJS
+      const ws = XLSX.utils.json_to_sheet(res.data.rows, {
+        header: ['nombre', 'equipo', 'dni'],
+      })
+      // Cabeceras en español
+      XLSX.utils.sheet_add_aoa(ws, [['Nombre', 'Equipo', 'DNI / NIE']], { origin: 'A1' })
+      // Ancho de columnas
+      ws['!cols'] = [{ wch: 32 }, { wch: 22 }, { wch: 14 }]
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, `Asignaciones ${res.data.nextSeason}`)
+      const safeSeason = res.data.nextSeason.replace('/', '-')
+      XLSX.writeFile(wb, `asignaciones-${safeSeason}.xlsx`)
+      toast.success(`Excel descargado: ${res.data.rows.length} jugador(es)`)
+    })
+  }
 
   useEffect(() => {
     getSeasonRosters().then(r => {
@@ -103,20 +133,33 @@ export function SeasonRosters() {
           <h2 className="font-semibold text-slate-900">Listado de plantillas</h2>
         </div>
 
-        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-          {(['side-by-side', 'next-only'] as const).map(v => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                view === v
-                  ? 'bg-white text-slate-900 font-medium shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {v === 'side-by-side' ? 'Lado a lado' : `Solo ${data.nextSeason}`}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={handleExportXLSX}
+            disabled={exporting}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50 transition-colors"
+            title={`Descargar Excel con jugadores asignados a ${data.nextSeason}`}
+          >
+            {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+            {exporting ? 'Generando…' : `Exportar Excel ${data.nextSeason}`}
+          </button>
+
+          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+            {(['side-by-side', 'next-only'] as const).map(v => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  view === v
+                    ? 'bg-white text-slate-900 font-medium shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {v === 'side-by-side' ? 'Lado a lado' : `Solo ${data.nextSeason}`}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

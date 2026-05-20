@@ -403,3 +403,68 @@ function buildDefaultBody(): string {
   <p style="text-align:center;font-size:0.85em;color:#888;">Un saludo,<br><strong>La Dirección — EF Ciudad de Getafe</strong></p>
 </div>`
 }
+
+// ─── Export XLSX de asignaciones próxima temporada ────────────────────────────
+
+export interface AssignmentRow {
+  nombre: string
+  equipo: string
+  dni: string
+}
+
+/**
+ * Devuelve los jugadores con next_team_id asignado para la próxima temporada,
+ * con su nombre completo, equipo y DNI/NIE. Listo para descargar como Excel.
+ */
+export async function exportNextSeasonAssignments(): Promise<{
+  success: boolean
+  error?: string
+  data?: { rows: AssignmentRow[]; nextSeason: string }
+}> {
+  try {
+    const { clubId } = await getClubContext()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+
+    // Temporada siguiente — derivada de club_settings
+    const { data: settings } = await sb
+      .from('club_settings')
+      .select('current_season')
+      .eq('club_id', clubId)
+      .single()
+    const currentSeason = settings?.current_season ?? '2025/26'
+    const nextSeason = bumpSeason(currentSeason)
+
+    // Cargar jugadores con next_team_id (activos, status != 'low')
+    const { data: players } = await sb
+      .from('players')
+      .select('first_name, last_name, dni, next_team_id')
+      .eq('club_id', clubId)
+      .neq('status', 'low')
+      .not('next_team_id', 'is', null)
+      .order('last_name')
+
+    // Cargar TODOS los equipos del club (next_team_id puede apuntar a cualquiera)
+    const { data: teams } = await sb
+      .from('teams')
+      .select('id, name')
+      .eq('club_id', clubId)
+
+    const teamMap: Record<string, string> = {}
+    for (const t of (teams ?? [])) {
+      teamMap[t.id] = t.name
+    }
+
+    const rows: AssignmentRow[] = (players ?? []).map((p: {
+      first_name: string; last_name: string; dni: string | null; next_team_id: string
+    }) => ({
+      nombre: `${p.last_name ?? ''}, ${p.first_name ?? ''}`.trim(),
+      equipo: teamMap[p.next_team_id] ?? 'Sin equipo',
+      dni: p.dni ?? '',
+    }))
+
+    return { success: true, data: { rows, nextSeason } }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
