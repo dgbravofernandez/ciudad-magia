@@ -6,8 +6,10 @@ import { getClubId } from '@/lib/supabase/get-club-id'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { sendPaymentReceiptEmail as sendReceiptEmail } from '@/lib/email/send-receipt'
+import { sendHtmlEmail } from '@/lib/email/send'
 import { assertNotLocked } from '@/lib/accounting/lock'
 import { logger } from '@/lib/logger'
+import { formatCurrency } from '@/lib/utils/currency'
 
 // Map Spanish UI labels to DB enum values
 const METHOD_MAP: Record<string, string> = {
@@ -320,27 +322,161 @@ export async function updateQuotaPaymentComment(paymentId: string, comment: stri
   return { success: true }
 }
 
+/**
+ * Recordatorio bulk de pagos pendientes — envía email a cada tutor con la
+ * deuda total + métodos de pago + aviso de plaza próxima temporada.
+ *
+ * Excluye automáticamente los jugadores cuyo pago pendiente está marcado
+ * como is_special_case=true (familias ya contactadas, casos especiales…).
+ *
+ * Devuelve detalle granular: sent, skipped, failed.
+ */
 export async function sendPendingReminders(playerIds: string[]) {
   const { sb, clubId, memberId } = await resolveClubAndMember()
 
-  const records = playerIds.map((playerId) => ({
-    club_id: clubId,
-    sent_by: memberId || null,
-    subject: 'Recordatorio de pago de cuota',
-    body_html: '<p>Estimado tutor, le recordamos que tiene una cuota pendiente de pago.</p>',
-    recipient_type: 'individual',
-    recipient_ids: [playerId],
-    template_id: null,
-    status: 'sent',
-    sent_at: new Date().toISOString(),
-  }))
+  if (playerIds.length === 0) {
+    return { success: false, error: 'No hay jugadores seleccionados' }
+  }
 
-  const { error } = await sb.from('communications').insert(records)
+  // 1. Cargar jugadores + total pendiente + flag caso especial
+  const { data: players } = await sb
+    .from('players')
+    .select('id, first_name, last_name, tutor_name, tutor_email')
+    .eq('club_id', clubId)
+    .in('id', playerIds)
 
-  if (error) return { success: false, error: error.message }
+  const { data: pendings } = await sb
+    .from('quota_payments')
+    .select('player_id, amount_due, amount_paid, is_special_case')
+    .eq('club_id', clubId)
+    .eq('status', 'pending')
+    .in('player_id', playerIds)
+
+  // Agrupar por jugador: total pendiente + marca de caso especial
+  const byPlayer: Record<string, { total: number; specialCase: boolean }> = {}
+  for (const p of (pendings ?? [])) {
+    if (!byPlayer[p.player_id]) byPlayer[p.player_id] = { total: 0, specialCase: false }
+    byPlayer[p.player_id].total += (Number(p.amount_due) - Number(p.amount_paid))
+    if (p.is_special_case) byPlayer[p.player_id].specialCase = true
+  }
+
+  // 2. Obtener nombre del club + email remitente para la plantilla
+  const { data: clubData } = await sb
+    .from('clubs').select('name').eq('id', clubId).single()
+  const clubName = clubData?.name ?? 'Club'
+
+  let sent = 0
+  let skippedSpecial = 0
+  let skippedNoEmail = 0
+  let skippedNoDebt = 0
+  let failed = 0
+  const errorList: string[] = []
+
+  // 3. Para cada jugador → enviar email
+  for (const player of (players ?? [])) {
+    const info = byPlayer[player.id]
+
+    if (info?.specialCase) { skippedSpecial++; continue }
+    if (!info || info.total <= 0) { skippedNoDebt++; continue }
+    if (!player.tutor_email) { skippedNoEmail++; continue }
+
+    const tutorName = (player.tutor_name ?? '').trim() || 'familia'
+    const playerName = `${player.first_name} ${player.last_name}`.trim()
+    const debtStr = formatCurrency(info.total)
+
+    const html = buildReminderHtml({
+      tutorName, playerName, debtStr, clubName,
+    })
+
+    try {
+      const sendPromise = sendHtmlEmail({
+        to: player.tutor_email,
+        subject: `Cuota pendiente — ${playerName}`,
+        html,
+      })
+      const timeout = new Promise<void>((_, rej) =>
+        setTimeout(() => rej(new Error('timeout')), 15000)
+      )
+      await Promise.race([sendPromise, timeout])
+      sent++
+
+      // Registrar el envío en communications
+      await sb.from('communications').insert({
+        club_id: clubId,
+        sent_by: memberId || null,
+        subject: `Cuota pendiente — ${playerName}`,
+        body_html: html,
+        recipient_type: 'individual',
+        recipient_ids: [player.id],
+        template_id: null,
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+      })
+    } catch (e) {
+      failed++
+      errorList.push(`${playerName}: ${(e as Error).message}`)
+    }
+  }
 
   revalidatePath('/contabilidad/pagos')
-  return { success: true, count: playerIds.length }
+  return {
+    success: failed === 0,
+    sent,
+    skippedSpecial,
+    skippedNoEmail,
+    skippedNoDebt,
+    failed,
+    errors: errorList.slice(0, 5),  // limit
+  }
+}
+
+function buildReminderHtml(opts: {
+  tutorName: string; playerName: string; debtStr: string; clubName: string
+}) {
+  return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;border:3px solid #ffcc00;border-radius:12px;color:#333;">
+  <h2 style="color:#000;text-align:center;margin-bottom:4px;">Recordatorio de pago — Cuota pendiente</h2>
+  <p style="text-align:center;font-size:0.9em;color:#666;">${opts.clubName}</p>
+  <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
+  <p>Hola <strong>${opts.tutorName}</strong>,</p>
+  <p>Os escribimos para recordaros que <strong>${opts.playerName}</strong> tiene cuotas pendientes de pago por un importe total de:</p>
+  <div style="background:#fffbe6;border:2px solid #ffcc00;border-radius:8px;padding:14px;text-align:center;margin:16px 0;">
+    <p style="margin:0;font-size:1.4em;font-weight:bold;color:#b76e00;">${opts.debtStr}</p>
+  </div>
+  <p style="font-weight:bold;color:#b30000;">Para tener derecho a plaza la próxima temporada es necesario haber abonado todas las cuotas pendientes de la temporada actual.</p>
+  <p>Podéis realizar el pago por cualquiera de estas vías:</p>
+  <ul style="line-height:1.7;">
+    <li><strong>Transferencia bancaria</strong> — solicítanos el IBAN respondiendo a este correo.</li>
+    <li><strong>Bizum</strong> — al número facilitado por el club.</li>
+    <li><strong>Efectivo</strong> — en oficinas del club, horario de tarde.</li>
+    <li><strong>Tarjeta</strong> — en oficinas del club.</li>
+  </ul>
+  <p>Si ya habéis efectuado el pago o existe alguna circunstancia que debamos conocer, contestad a este correo y revisamos.</p>
+  <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
+  <p style="text-align:center;font-size:0.85em;color:#888;">Un saludo,<br><strong>La Dirección — ${opts.clubName}</strong></p>
+</div>`
+}
+
+/**
+ * Marcar / desmarcar un pago pendiente como "caso especial" → excluido del
+ * recordatorio bulk. Aplica a TODOS los pagos pendientes del jugador
+ * (no solo al firstPendingPaymentId), para que el flag funcione aunque
+ * la deuda esté repartida en varios meses.
+ */
+export async function toggleQuotaSpecialCase(playerId: string, value: boolean) {
+  try {
+    const { sb, clubId } = await resolveClubAndMember()
+    const { error } = await sb
+      .from('quota_payments')
+      .update({ is_special_case: value })
+      .eq('club_id', clubId)
+      .eq('player_id', playerId)
+      .eq('status', 'pending')
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/contabilidad/pagos')
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
 }
 
 export async function addExpense(formData: FormData) {

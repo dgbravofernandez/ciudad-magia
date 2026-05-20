@@ -19,6 +19,9 @@ import {
   Trash2,
   X,
   Check,
+  Phone,
+  Info,
+  ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatDate } from '@/lib/utils/currency'
@@ -31,7 +34,9 @@ import {
   updateQuotaPaymentComment,
   updatePlayerTeam,
   updatePendingPaymentAmount,
+  toggleQuotaSpecialCase,
 } from '@/features/contabilidad/actions/accounting.actions'
+import Link from 'next/link'
 
 interface PlayerRow {
   id: string
@@ -40,6 +45,7 @@ interface PlayerRow {
   dni: string | null
   tutor_email: string | null
   tutor_name: string | null
+  tutor_phone?: string | null
   teams: { id: string; name: string } | null
 }
 
@@ -56,6 +62,7 @@ interface Payment {
   created_at: string
   concept: string | null
   email_sent?: boolean | null
+  is_special_case?: boolean | null
 }
 
 interface Props {
@@ -181,6 +188,7 @@ export function PaymentRegistration({
       lastPayment: string | null
       firstPendingPaymentId: string | null
       adminComment: string | null
+      specialCase: boolean
     }> = {}
     for (const p of payments) {
       if (p.status === 'pending') {
@@ -190,9 +198,11 @@ export function PaymentRegistration({
             lastPayment: null,
             firstPendingPaymentId: p.id,
             adminComment: p.admin_comment ?? null,
+            specialCase: false,
           }
         }
         pendingByPlayer[p.player_id].amount += p.amount_due - p.amount_paid
+        if (p.is_special_case) pendingByPlayer[p.player_id].specialCase = true
       }
     }
     for (const p of payments) {
@@ -211,6 +221,7 @@ export function PaymentRegistration({
         lastPayment: pendingByPlayer[pl.id].lastPayment,
         firstPendingPaymentId: pendingByPlayer[pl.id].firstPendingPaymentId,
         adminComment: pendingByPlayer[pl.id].adminComment,
+        specialCase: pendingByPlayer[pl.id].specialCase,
       }))
   }, [players, payments])
 
@@ -409,13 +420,39 @@ export function PaymentRegistration({
     const ids = Array.from(selectedPlayers)
     if (ids.length === 0) return
 
+    if (!confirm(`Enviar recordatorio de pago a ${ids.length} familia(s)? Los marcados como "Caso especial" se omiten automáticamente.`)) {
+      return
+    }
+
     startTransition(async () => {
-      const result = await sendPendingReminders(ids)
-      if (result.success) {
-        toast.success(`Aviso de pago enviado a ${result.count} jugador(es)`)
+      const r = await sendPendingReminders(ids)
+      const parts: string[] = []
+      if (r.sent && r.sent > 0) parts.push(`${r.sent} enviado(s)`)
+      if (r.skippedSpecial && r.skippedSpecial > 0) parts.push(`${r.skippedSpecial} caso especial`)
+      if (r.skippedNoEmail && r.skippedNoEmail > 0) parts.push(`${r.skippedNoEmail} sin email`)
+      if (r.skippedNoDebt && r.skippedNoDebt > 0) parts.push(`${r.skippedNoDebt} sin deuda`)
+      if (r.failed && r.failed > 0) parts.push(`${r.failed} fallidos`)
+      const summary = parts.join(' · ') || 'Sin envíos'
+
+      if (r.success) {
+        toast.success(`Recordatorios: ${summary}`)
         setSelectedPlayers(new Set())
+      } else if (r.sent && r.sent > 0) {
+        toast.warning(`Recordatorios parciales: ${summary}`)
       } else {
-        toast.error(result.error ?? 'Error al enviar avisos')
+        toast.error(r.error ?? `Sin envíos: ${summary}`)
+      }
+    })
+  }
+
+  function handleToggleSpecialCase(playerId: string, currentValue: boolean) {
+    startTransition(async () => {
+      const res = await toggleQuotaSpecialCase(playerId, !currentValue)
+      if (res.success) {
+        toast.success(currentValue ? 'Desmarcado caso especial' : 'Marcado como caso especial')
+        router.refresh()
+      } else {
+        toast.error(res.error ?? 'Error al cambiar el estado')
       }
     })
   }
@@ -890,7 +927,12 @@ export function PaymentRegistration({
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Equipo</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Pendiente</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Ultimo pago</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Email tutor</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Contacto</th>
+                {canRegisterPayments && (
+                  <th className="text-center px-2 py-3 font-medium text-muted-foreground" title="Caso especial: no se envía recordatorio bulk">
+                    Esp.
+                  </th>
+                )}
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Comentario</th>
                 {canRegisterPayments && <th className="w-10 px-2 py-3"></th>}
               </tr>
@@ -900,23 +942,93 @@ export function PaymentRegistration({
                 const isEditingRow = editingPendingId === player.id
                 return (
                   <React.Fragment key={player.id}>
-                    <tr className="border-b hover:bg-muted/20 transition-colors">
+                    <tr className={cn(
+                      'border-b hover:bg-muted/20 transition-colors',
+                      player.specialCase && 'bg-amber-50/50 opacity-80'
+                    )}>
                       {canRegisterPayments && (
                         <td className="px-4 py-3">
-                          <button onClick={() => toggleSelectPlayer(player.id)}>
+                          <button
+                            onClick={() => toggleSelectPlayer(player.id)}
+                            disabled={player.specialCase}
+                            title={player.specialCase ? 'Caso especial — excluido del bulk' : ''}
+                          >
                             {selectedPlayers.has(player.id) ? (
                               <CheckSquare className="w-4 h-4 text-primary" />
                             ) : (
-                              <Square className="w-4 h-4 text-muted-foreground" />
+                              <Square className={cn(
+                                'w-4 h-4',
+                                player.specialCase ? 'text-muted-foreground/30' : 'text-muted-foreground'
+                              )} />
                             )}
                           </button>
                         </td>
                       )}
-                      <td className="px-4 py-3 font-medium">{player.first_name} {player.last_name}</td>
+                      <td className="px-4 py-3 font-medium">
+                        <Link
+                          href={`/jugadores/${player.id}`}
+                          className="hover:text-primary hover:underline inline-flex items-center gap-1"
+                          title="Ver ficha del jugador"
+                        >
+                          {player.first_name} {player.last_name}
+                          <ExternalLink className="w-3 h-3 opacity-40" />
+                        </Link>
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">{player.teams?.name ?? <span className="text-amber-600 text-xs font-medium">Sin equipo</span>}</td>
                       <td className="px-4 py-3 text-red-600 font-semibold">{formatCurrency(player.pendingAmount)}</td>
                       <td className="px-4 py-3 text-muted-foreground">{player.lastPayment ? formatDate(player.lastPayment) : '—'}</td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs">{player.tutor_email ?? '—'}</td>
+                      <td className="px-4 py-3 text-xs">
+                        <div className="space-y-0.5">
+                          {player.tutor_name && (
+                            <div className="text-foreground font-medium truncate max-w-[160px]" title={player.tutor_name}>
+                              {player.tutor_name}
+                            </div>
+                          )}
+                          {player.tutor_email ? (
+                            <a
+                              href={`mailto:${player.tutor_email}`}
+                              className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 truncate max-w-[180px]"
+                              title={player.tutor_email}
+                            >
+                              <Mail className="w-3 h-3 shrink-0" />
+                              <span className="truncate">{player.tutor_email}</span>
+                            </a>
+                          ) : (
+                            <span className="text-muted-foreground/60">Sin email</span>
+                          )}
+                          {player.tutor_phone && (
+                            <a
+                              href={`tel:${player.tutor_phone}`}
+                              className="text-muted-foreground hover:text-primary inline-flex items-center gap-1"
+                              title="Llamar"
+                            >
+                              <Phone className="w-3 h-3 shrink-0" />
+                              {player.tutor_phone}
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                      {canRegisterPayments && (
+                        <td className="px-2 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSpecialCase(player.id, player.specialCase)}
+                            disabled={isPending}
+                            className={cn(
+                              'inline-flex items-center justify-center w-6 h-6 rounded transition-colors',
+                              player.specialCase
+                                ? 'bg-amber-500 text-white hover:bg-amber-600'
+                                : 'border border-muted-foreground/30 text-muted-foreground/40 hover:border-amber-500 hover:text-amber-500'
+                            )}
+                            title={player.specialCase
+                              ? 'Caso especial — clic para desmarcar y permitir bulk reminder'
+                              : 'Marcar como caso especial (no se envía recordatorio bulk)'}
+                            aria-label={player.specialCase ? 'Caso especial activo' : 'Marcar caso especial'}
+                          >
+                            <Info className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
                       <td className="px-4 py-2 min-w-[180px]">
                         {player.firstPendingPaymentId && (
                           editingCommentId === player.firstPendingPaymentId ? (
@@ -972,7 +1084,7 @@ export function PaymentRegistration({
                     {/* Fila de edición expandida */}
                     {isEditingRow && (
                       <tr className="border-b bg-blue-50/50">
-                        <td colSpan={canRegisterPayments ? 8 : 7} className="px-4 py-3">
+                        <td colSpan={canRegisterPayments ? 9 : 7} className="px-4 py-3">
                           <div className="flex flex-wrap items-end gap-3">
                             {/* Selector de equipo */}
                             <div className="space-y-1">
@@ -1032,7 +1144,7 @@ export function PaymentRegistration({
               })}
               {filteredPendingPlayers.length === 0 && (
                 <tr>
-                  <td colSpan={canRegisterPayments ? 8 : 7} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={canRegisterPayments ? 9 : 7} className="px-4 py-12 text-center text-muted-foreground">
                     {pendingPlayers.length === 0 ? 'No hay pagos pendientes' : 'Ningún resultado para los filtros aplicados'}
                   </td>
                 </tr>
