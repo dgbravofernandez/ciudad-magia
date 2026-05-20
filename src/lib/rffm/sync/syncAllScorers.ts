@@ -60,6 +60,7 @@ export async function syncAllScorers(
         nombre_equipo: s.nombre_equipo,
         codigo_equipo: s.codigo_equipo,
         cod_temporada: codTemporada,
+        cod_tipojuego: codTipojuego,
         cod_competicion: codCompeticion,
         cod_grupo: codGrupo,
         nombre_competicion: nombreCompeticion,
