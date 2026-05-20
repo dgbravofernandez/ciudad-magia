@@ -433,26 +433,76 @@ export async function sendPendingReminders(playerIds: string[]) {
 function buildReminderHtml(opts: {
   tutorName: string; playerName: string; debtStr: string; clubName: string
 }) {
-  return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;border:3px solid #ffcc00;border-radius:12px;color:#333;">
-  <h2 style="color:#000;text-align:center;margin-bottom:4px;">Recordatorio de pago — Cuota pendiente</h2>
-  <p style="text-align:center;font-size:0.9em;color:#666;">${opts.clubName}</p>
-  <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
-  <p>Hola <strong>${opts.tutorName}</strong>,</p>
-  <p>Os escribimos para recordaros que <strong>${opts.playerName}</strong> tiene cuotas pendientes de pago por un importe total de:</p>
-  <div style="background:#fffbe6;border:2px solid #ffcc00;border-radius:8px;padding:14px;text-align:center;margin:16px 0;">
-    <p style="margin:0;font-size:1.4em;font-weight:bold;color:#b76e00;">${opts.debtStr}</p>
+  return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;">
+
+  <!-- Cabecera -->
+  <div style="background:#1a1a1a;padding:24px 32px;text-align:center;">
+    <p style="color:#ffcc00;font-size:20px;font-weight:bold;margin:0;letter-spacing:1px;">E.F. CIUDAD DE GETAFE</p>
+    <p style="color:#ffffff;font-size:12px;margin:4px 0 0;letter-spacing:2px;text-transform:uppercase;">Recordatorio de pago de cuotas</p>
   </div>
-  <p style="font-weight:bold;color:#b30000;">Para tener derecho a plaza la próxima temporada es necesario haber abonado todas las cuotas pendientes de la temporada actual.</p>
-  <p>Podéis realizar el pago por cualquiera de estas vías:</p>
-  <ul style="line-height:1.7;">
-    <li><strong>Transferencia bancaria</strong> — solicítanos el IBAN respondiendo a este correo.</li>
-    <li><strong>Bizum</strong> — al número facilitado por el club.</li>
-    <li><strong>Efectivo</strong> — en oficinas del club, horario de tarde.</li>
-    <li><strong>Tarjeta</strong> — en oficinas del club.</li>
-  </ul>
-  <p>Si ya habéis efectuado el pago o existe alguna circunstancia que debamos conocer, contestad a este correo y revisamos.</p>
-  <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
-  <p style="text-align:center;font-size:0.85em;color:#888;">Un saludo,<br><strong>La Dirección — ${opts.clubName}</strong></p>
+
+  <!-- Franja amarilla -->
+  <div style="background:#ffcc00;height:4px;"></div>
+
+  <!-- Cuerpo -->
+  <div style="padding:32px;">
+
+    <p style="font-size:15px;color:#333;margin:0 0 16px;">Estimado/a <strong>${opts.tutorName}</strong>,</p>
+
+    <p style="font-size:15px;color:#333;line-height:1.7;margin:0 0 16px;">
+      Le escribimos para recordarle que <strong>${opts.playerName}</strong> tiene <strong>cuotas pendientes</strong> de pago correspondientes a la temporada actual.
+    </p>
+
+    <!-- Importe pendiente destacado -->
+    <div style="background:#fffbe6;border-left:4px solid #ffcc00;border-radius:6px;padding:18px 20px;margin:24px 0;">
+      <p style="margin:0 0 8px;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">Importe pendiente</p>
+      <p style="margin:0;font-size:26px;font-weight:bold;color:#b76e00;">${opts.debtStr}</p>
+    </div>
+
+    <!-- Aviso plaza próxima temporada -->
+    <div style="background:#fff3e0;border-left:4px solid #e05c00;border-radius:6px;padding:14px 18px;margin:0 0 24px;">
+      <p style="margin:0;font-size:14px;color:#7a3a00;line-height:1.5;">
+        ⚠️ <strong>Importante:</strong> para tener derecho a plaza la próxima temporada es necesario haber abonado todas las cuotas pendientes de la temporada actual.
+      </p>
+    </div>
+
+    <!-- Formas de pago -->
+    <div style="background:#f9f9f9;border:1px solid #e5e5e5;border-radius:8px;padding:20px;margin:20px 0;">
+      <p style="margin:0 0 14px;font-size:13px;font-weight:bold;color:#555;text-transform:uppercase;letter-spacing:1px;">Formas de pago</p>
+
+      <p style="margin:0 0 6px;font-size:14px;font-weight:bold;color:#1a1a1a;">🏦 Transferencia bancaria</p>
+      <table style="width:100%;font-size:14px;color:#333;border-collapse:collapse;margin-bottom:16px;">
+        <tr><td style="padding:3px 0;color:#888;width:130px;">Titular</td><td><strong>CLUB DEPORTIVO ELEMENTAL E.F. CIUDAD DE GETAFE</strong></td></tr>
+        <tr><td style="padding:3px 0;color:#888;">Banco</td><td>Caja Rural Jaén</td></tr>
+        <tr><td style="padding:3px 0;color:#888;">IBAN</td><td><strong>ES58 3067 0163 1028 0449 8729</strong></td></tr>
+      </table>
+      <p style="margin:0 0 16px;font-size:13px;color:#e05c00;background:#fff3e0;padding:8px 12px;border-radius:4px;">
+        ⚠️ <strong>Importante:</strong> Indique en el concepto el nombre completo del jugador/a para identificar correctamente el pago.
+      </p>
+
+      <p style="margin:0 0 6px;font-size:14px;font-weight:bold;color:#1a1a1a;">🏢 En la oficina del club</p>
+      <p style="margin:0;font-size:14px;color:#333;">También puede abonar la deuda en efectivo o con tarjeta directamente en nuestras instalaciones.</p>
+    </div>
+
+    <p style="font-size:15px;color:#333;line-height:1.7;margin:0 0 8px;">
+      Si ya ha efectuado el pago o existe alguna circunstancia que debamos conocer, le rogamos que conteste a este correo para revisar el caso.
+    </p>
+    <p style="margin:0 0 24px;">
+      <a href="mailto:info@efciudaddegetafe.com" style="color:#ffcc00;font-weight:bold;text-decoration:none;font-size:15px;">📧 info@efciudaddegetafe.com</a>
+    </p>
+
+    <p style="font-size:15px;color:#333;line-height:1.7;margin:0;">
+      Gracias por su atención.
+    </p>
+
+  </div>
+
+  <!-- Pie -->
+  <div style="background:#1a1a1a;padding:18px 32px;text-align:center;">
+    <p style="color:#ffcc00;font-size:13px;font-weight:bold;margin:0 0 4px;">E.F. Ciudad de Getafe</p>
+    <p style="color:#888;font-size:12px;margin:0;">info@efciudaddegetafe.com</p>
+  </div>
+
 </div>`
 }
 
