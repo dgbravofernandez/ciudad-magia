@@ -94,9 +94,10 @@ export function SeasonRosters() {
       XLSX.utils.sheet_add_aoa(ws, [['Nombre', 'Equipo', 'DNI / NIE']], { origin: 'A1' })
       // Ancho de columnas
       ws['!cols'] = [{ wch: 32 }, { wch: 22 }, { wch: 14 }]
+      // Sheet name no admite : \ / ? * [ ] — saneamos
+      const safeSeason = res.data.nextSeason.replace(/[/\\?*[\]:]/g, '-')
       const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, `Asignaciones ${res.data.nextSeason}`)
-      const safeSeason = res.data.nextSeason.replace('/', '-')
+      XLSX.utils.book_append_sheet(wb, ws, `Asignaciones ${safeSeason}`)
       XLSX.writeFile(wb, `asignaciones-${safeSeason}.xlsx`)
       toast.success(`Excel descargado: ${res.data.rows.length} jugador(es)`)
     })
