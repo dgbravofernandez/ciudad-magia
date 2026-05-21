@@ -138,6 +138,7 @@ export function PaymentRegistration({
   const [pendingConceptFilters, setPendingConceptFilters] = useState<Set<string>>(new Set())  // conceptos
   const [pendingSearch, setPendingSearch] = useState<string>('')
   const [pendingSort, setPendingSort] = useState<'name' | 'amount_desc' | 'amount_asc' | 'last_payment'>('amount_desc')
+  const [filterComment, setFilterComment] = useState<'' | 'with' | 'without'>('')
   const [teamFilterOpen, setTeamFilterOpen] = useState(false)
   const [conceptFilterOpen, setConceptFilterOpen] = useState(false)
 
@@ -281,6 +282,11 @@ export function PaymentRegistration({
         `${pl.first_name} ${pl.last_name}`.toLowerCase().includes(q)
       )
     }
+    if (filterComment === 'with') {
+      result = result.filter((pl) => pl.adminComment && pl.adminComment.trim() !== '')
+    } else if (filterComment === 'without') {
+      result = result.filter((pl) => !pl.adminComment || pl.adminComment.trim() === '')
+    }
     return [...result].sort((a, b) => {
       if (pendingSort === 'amount_desc') return b.pendingAmount - a.pendingAmount
       if (pendingSort === 'amount_asc') return a.pendingAmount - b.pendingAmount
@@ -293,7 +299,7 @@ export function PaymentRegistration({
       // name
       return `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
     })
-  }, [pendingPlayers, pendingTeamFilters, pendingConceptFilters, pendingSearch, pendingSort, playerConceptsMap])
+  }, [pendingPlayers, pendingTeamFilters, pendingConceptFilters, pendingSearch, pendingSort, filterComment, playerConceptsMap])
 
   // Search results — only players with assigned team
   const searchResults = useMemo(() => {
@@ -1082,10 +1088,37 @@ export function PaymentRegistration({
               <option value="last_payment">Último pago reciente</option>
             </select>
 
-            {(pendingTeamFilters.size > 0 || pendingConceptFilters.size > 0 || pendingSearch) && (
+            {/* Filtro comentarios */}
+            <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
               <button
                 type="button"
-                onClick={() => { setPendingTeamFilters(new Set()); setPendingConceptFilters(new Set()); setPendingSearch('') }}
+                onClick={() => setFilterComment('')}
+                className={`px-2 py-1 text-xs rounded-md transition-colors ${filterComment === '' ? 'bg-white text-slate-900 font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                Todos
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterComment(filterComment === 'with' ? '' : 'with')}
+                className={`px-2 py-1 text-xs rounded-md transition-colors ${filterComment === 'with' ? 'bg-white text-primary font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                title="Solo con comentario"
+              >
+                💬 Con comentario
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterComment(filterComment === 'without' ? '' : 'without')}
+                className={`px-2 py-1 text-xs rounded-md transition-colors ${filterComment === 'without' ? 'bg-white text-slate-700 font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                title="Solo sin comentario"
+              >
+                Sin comentario
+              </button>
+            </div>
+
+            {(pendingTeamFilters.size > 0 || pendingConceptFilters.size > 0 || pendingSearch || filterComment) && (
+              <button
+                type="button"
+                onClick={() => { setPendingTeamFilters(new Set()); setPendingConceptFilters(new Set()); setPendingSearch(''); setFilterComment('') }}
                 className="text-xs text-muted-foreground hover:text-foreground underline"
               >
                 Limpiar filtros
