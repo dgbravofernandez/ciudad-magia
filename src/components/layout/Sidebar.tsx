@@ -20,6 +20,7 @@ import {
   Menu,
   X,
   Loader2,
+  KeyRound,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
@@ -331,6 +332,14 @@ export function Sidebar() {
               <p className="text-white text-xs font-medium truncate">{member.full_name}</p>
               <p className="text-slate-400 text-xs truncate">{primaryRoleLabel}</p>
             </div>
+            <Link
+              href="/cambiar-password"
+              aria-label="Cambiar contraseña"
+              title="Cambiar contraseña"
+              className="text-slate-400 hover:text-white lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
+            >
+              <KeyRound className="w-4 h-4" aria-hidden="true" />
+            </Link>
             <button
               onClick={handleLogout}
               aria-label="Cerrar sesión"

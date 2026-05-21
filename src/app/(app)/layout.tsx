@@ -63,6 +63,11 @@ export default async function AppLayout({
     redirect('/login?error=no_club')
   }
 
+  // Forzar cambio de contraseña en el primer login (cuenta creada por admin)
+  if (member.must_change_password) {
+    redirect('/cambiar-password')
+  }
+
   return (
     <ClubProvider value={{ club, settings }}>
       <UserProvider member={member} roles={roles}>

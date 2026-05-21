@@ -67,6 +67,7 @@ export async function createMember(
         email: input.email.trim().toLowerCase(),
         phone: input.phone ?? null,
         active: true,
+        must_change_password: true,  // fuerza cambio en primer login
       })
       .select('id')
       .single()
@@ -228,6 +229,10 @@ export async function resetMemberPassword(
     })
     if (error) return { success: false, error: error.message }
 
+    // Forzar cambio de contraseña tras un reset administrativo
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb as any).from('club_members').update({ must_change_password: true }).eq('id', memberId)
+
     if (sendEmail && m.email) {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://ciudadmagia.app'
       await sendHtmlEmail({
@@ -284,6 +289,133 @@ export async function deleteMember(
 
     revalidatePath('/configuracion/roles')
     return { success: true }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+/**
+ * Crea una cuenta de acceso (Supabase Auth) para un club_member EXISTENTE
+ * que todavía no la tiene. Contraseña temporal aleatoria + email + flag de
+ * cambio obligatorio. No toca roles (se gestionan aparte).
+ */
+export async function createAccountForMember(
+  memberId: string,
+): Promise<{ success: boolean; error?: string; tempPassword?: string; skipped?: boolean; reason?: string }> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    requireAdmin(roles)
+    const sb = createAdminClient()
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: m } = await (sb as any)
+      .from('club_members')
+      .select('id, club_id, user_id, email, full_name')
+      .eq('id', memberId)
+      .single()
+    if (!m || m.club_id !== clubId) return { success: false, error: 'Miembro no encontrado' }
+    if (m.user_id) return { success: true, skipped: true, reason: 'Ya tiene cuenta' }
+    if (!m.email?.trim()) return { success: false, error: 'El miembro no tiene email; añádelo primero' }
+
+    const tempPassword = randomPassword(14)
+
+    // 1) Crear usuario auth
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: authData, error: authErr } = await (sb as any).auth.admin.createUser({
+      email: m.email.trim().toLowerCase(),
+      password: tempPassword,
+      email_confirm: true,
+      user_metadata: { full_name: m.full_name },
+    })
+    if (authErr) {
+      // Email ya existe en auth: intentar vincular el user_id existente
+      if (/already.*registered|exists/i.test(authErr.message)) {
+        return { success: false, error: `El email ${m.email} ya está registrado en Auth. Revisa duplicados.` }
+      }
+      return { success: false, error: authErr.message }
+    }
+    const userId = authData.user.id
+
+    // 2) Vincular user_id + flag de cambio
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: updErr } = await (sb as any)
+      .from('club_members')
+      .update({ user_id: userId, must_change_password: true })
+      .eq('id', memberId)
+    if (updErr) {
+      // rollback auth
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb as any).auth.admin.deleteUser(userId)
+      return { success: false, error: updErr.message }
+    }
+
+    // 3) Email con credenciales
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://ciudad-magia-qj91.vercel.app'
+    try {
+      await sendHtmlEmail({
+        to: m.email.trim(),
+        subject: 'Acceso al CRM — E.F. Ciudad de Getafe',
+        html: `
+          <p>Hola <b>${m.full_name}</b>,</p>
+          <p>Te hemos creado un acceso al CRM del club. Tus credenciales:</p>
+          <ul>
+            <li><b>Email:</b> ${m.email}</li>
+            <li><b>Contraseña temporal:</b> <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px">${tempPassword}</code></li>
+          </ul>
+          <p>Entra en <a href="${appUrl}/login">${appUrl}/login</a>. Te pediremos que cambies la contraseña en el primer inicio de sesión.</p>
+          <p>Un saludo,<br/>Dirección</p>
+        `,
+      })
+    } catch { /* email no fatal */ }
+
+    revalidatePath('/configuracion/roles')
+    revalidatePath('/entrenadores/staff')
+    return { success: true, tempPassword }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+/**
+ * Crea cuentas de acceso en bloque para TODOS los club_members activos del
+ * club que tengan email pero no user_id. Devuelve un resumen.
+ */
+export async function bulkCreateAccountsForMembers(): Promise<{
+  success: boolean
+  error?: string
+  created?: number
+  skippedNoEmail?: number
+  failed?: number
+  errors?: string[]
+}> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    requireAdmin(roles)
+    const sb = createAdminClient()
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: members } = await (sb as any)
+      .from('club_members')
+      .select('id, email, user_id')
+      .eq('club_id', clubId)
+      .eq('active', true)
+      .is('user_id', null)
+
+    let created = 0
+    let skippedNoEmail = 0
+    let failed = 0
+    const errors: string[] = []
+
+    for (const m of (members ?? [])) {
+      if (!m.email?.trim()) { skippedNoEmail++; continue }
+      const res = await createAccountForMember(m.id)
+      if (res.success && !res.skipped) created++
+      else if (!res.success) { failed++; if (res.error) errors.push(res.error) }
+    }
+
+    revalidatePath('/configuracion/roles')
+    revalidatePath('/entrenadores/staff')
+    return { success: failed === 0, created, skippedNoEmail, failed, errors: errors.slice(0, 5) }
   } catch (e) {
     return { success: false, error: (e as Error).message }
   }

@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { UserPlus, Pencil, Trash2, KeyRound, UserCheck, UserX, Copy } from 'lucide-react'
+import { UserPlus, Pencil, Trash2, KeyRound, UserCheck, UserX, Copy, ShieldCheck, ShieldX, Users } from 'lucide-react'
 import { ROLES, ROLE_LABELS, type Role } from '@/types/roles'
 import {
   createMember,
@@ -12,6 +12,8 @@ import {
   setMemberActive,
   resetMemberPassword,
   deleteMember,
+  createAccountForMember,
+  bulkCreateAccountsForMembers,
 } from '@/features/configuracion/actions/members.actions'
 
 interface MemberRole {
@@ -52,6 +54,44 @@ export function MembersPage({ members, teams }: { members: Member[]; teams: Team
       )
     })
   }, [members, search, showInactive])
+
+  // Miembros activos con email pero sin cuenta de acceso
+  const missingAccountCount = useMemo(
+    () => members.filter((m) => m.active && !m.user_id && (m.email ?? '').trim()).length,
+    [members],
+  )
+
+  function handleCreateAccount(m: Member) {
+    if (!m.email) { toast.error('Añade un email al miembro antes de crear el acceso'); return }
+    if (!confirm(`Crear acceso para ${m.full_name}?\n\nSe enviará un email a ${m.email} con una contraseña temporal. Se le pedirá cambiarla al entrar.`)) return
+    startTransition(async () => {
+      const res = await createAccountForMember(m.id)
+      if (res.success) {
+        if (res.skipped) toast.info('Ya tenía cuenta')
+        else {
+          toast.success(`Acceso creado. Email enviado a ${m.email}`)
+          if (res.tempPassword) navigator.clipboard?.writeText(res.tempPassword).catch(() => {})
+        }
+        router.refresh()
+      } else toast.error(res.error ?? 'Error')
+    })
+  }
+
+  function handleBulkCreate() {
+    if (missingAccountCount === 0) { toast.info('Todos los miembros con email ya tienen acceso'); return }
+    if (!confirm(`Crear cuentas de acceso para los ${missingAccountCount} miembros que aún no tienen?\n\nA cada uno se le enviará un email con su contraseña temporal.`)) return
+    startTransition(async () => {
+      const res = await bulkCreateAccountsForMembers()
+      const parts: string[] = []
+      if (res.created) parts.push(`${res.created} creadas`)
+      if (res.skippedNoEmail) parts.push(`${res.skippedNoEmail} sin email`)
+      if (res.failed) parts.push(`${res.failed} fallidas`)
+      const summary = parts.join(' · ') || 'Sin cambios'
+      if (res.success) toast.success(`Cuentas: ${summary}`)
+      else toast.warning(`Cuentas (con errores): ${summary}`)
+      router.refresh()
+    })
+  }
 
   function handleResetPassword(m: Member) {
     if (!confirm(`Restablecer contraseña de ${m.full_name}? Le llegará un email con la nueva contraseña.`)) return
@@ -96,10 +136,23 @@ export function MembersPage({ members, teams }: { members: Member[]; teams: Team
             Gestiona quién entra al CRM, sus roles y contraseñas sin tocar Supabase.
           </p>
         </div>
-        <button onClick={() => setNewOpen(true)} className="btn-primary gap-2 flex items-center text-sm">
-          <UserPlus className="w-4 h-4" />
-          Añadir miembro
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {missingAccountCount > 0 && (
+            <button
+              onClick={handleBulkCreate}
+              disabled={isPending}
+              className="gap-2 flex items-center text-sm px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50 transition-colors"
+              title="Crear cuentas de acceso para todos los miembros que aún no tienen"
+            >
+              <Users className="w-4 h-4" />
+              Crear {missingAccountCount} accesos pendientes
+            </button>
+          )}
+          <button onClick={() => setNewOpen(true)} className="btn-primary gap-2 flex items-center text-sm">
+            <UserPlus className="w-4 h-4" />
+            Añadir miembro
+          </button>
+        </div>
       </div>
 
       <div className="card p-4 flex gap-3 items-center">
@@ -124,6 +177,7 @@ export function MembersPage({ members, teams }: { members: Member[]; teams: Team
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Email</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Roles</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Equipo</th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground">Acceso</th>
                 <th className="text-center px-4 py-3 font-medium text-muted-foreground">Estado</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -146,6 +200,17 @@ export function MembersPage({ members, teams }: { members: Member[]; teams: Team
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{teamName ?? '—'}</td>
                     <td className="px-4 py-3 text-center">
+                      {m.user_id ? (
+                        <span className="inline-flex items-center gap-1 text-green-600 text-xs font-medium" title="Tiene cuenta de acceso">
+                          <ShieldCheck className="w-3.5 h-3.5" /> Sí
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-amber-600 text-xs font-medium" title="Sin cuenta de acceso">
+                          <ShieldX className="w-3.5 h-3.5" /> No
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
                       {m.active ? (
                         <span className="text-green-600 text-xs font-medium">Activo</span>
                       ) : (
@@ -162,7 +227,7 @@ export function MembersPage({ members, teams }: { members: Member[]; teams: Team
                         >
                           <Pencil className="w-4 h-4" />
                         </button>
-                        {m.user_id && (
+                        {m.user_id ? (
                           <button
                             onClick={() => handleResetPassword(m)}
                             disabled={isPending}
@@ -170,6 +235,15 @@ export function MembersPage({ members, teams }: { members: Member[]; teams: Team
                             title="Restablecer contraseña"
                           >
                             <KeyRound className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleCreateAccount(m)}
+                            disabled={isPending || !m.email}
+                            className="p-1.5 rounded hover:bg-emerald-50 text-gray-500 hover:text-emerald-600 disabled:opacity-40"
+                            title={m.email ? 'Crear acceso (enviar email con contraseña)' : 'Necesita email para crear acceso'}
+                          >
+                            <ShieldCheck className="w-4 h-4" />
                           </button>
                         )}
                         <button
@@ -195,7 +269,7 @@ export function MembersPage({ members, teams }: { members: Member[]; teams: Team
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
                     No hay miembros que coincidan
                   </td>
                 </tr>
