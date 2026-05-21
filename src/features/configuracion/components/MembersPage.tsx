@@ -19,7 +19,6 @@ import {
 interface MemberRole {
   role: Role
   team_id: string | null
-  teams?: { name: string } | null
 }
 
 interface Member {
@@ -185,7 +184,8 @@ export function MembersPage({ members, teams }: { members: Member[]; teams: Team
             <tbody>
               {filtered.map((m) => {
                 const uniqueRoles = Array.from(new Set(m.club_member_roles.map((r) => r.role)))
-                const teamName = m.club_member_roles.find((r) => r.teams)?.teams?.name
+                const teamId = m.club_member_roles.find((r) => r.team_id)?.team_id
+                const teamName = teamId ? teams.find((t) => t.id === teamId)?.name : undefined
                 return (
                   <tr key={m.id} className={`border-b last:border-0 ${!m.active ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3 font-medium">{m.full_name}</td>

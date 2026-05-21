@@ -11,24 +11,25 @@ export default async function RolesPage() {
   const headersList = await headers()
   const clubId = headersList.get('x-club-id')!
 
-  const sb = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
 
-  const [{ data: members }, { data: teams }] = await Promise.all([
+  const [{ data: members, error: membersErr }, { data: teams }] = await Promise.all([
     sb
       .from('club_members')
-      .select(`
-        id, full_name, email, phone, active, created_at, user_id,
-        club_member_roles(role, team_id, teams(name))
-      `)
+      .select('id, full_name, email, phone, active, created_at, user_id, club_member_roles(role, team_id)')
       .eq('club_id', clubId)
       .order('full_name'),
     sb
       .from('teams')
       .select('id, name')
       .eq('club_id', clubId)
-      .eq('active', true)
       .order('name'),
   ])
+
+  if (membersErr) {
+    console.error('[RolesPage] Error loading members:', membersErr)
+  }
 
   return (
     <div className="flex flex-col h-full">
