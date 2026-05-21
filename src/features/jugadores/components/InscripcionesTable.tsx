@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
-import { Search, Send, CheckCircle2, XCircle, Clock, ChevronDown, UserX, RefreshCw, RotateCcw, Download, ArrowUpDown, Copy, Link2, FileText } from 'lucide-react'
+import { Search, Send, CheckCircle2, XCircle, Clock, ChevronDown, UserX, RefreshCw, RotateCcw, Download, ArrowUpDown, Copy, Link2, FileText, Mail, MailCheck, MailX } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import type { Player } from '@/types/database.types'
 import {
@@ -87,6 +87,8 @@ export function InscripcionesTable({
   const [search, setSearch] = useState('')
   const [filterTeam, setFilterTeam] = useState('')
   const [filterStatus, setFilterStatus] = useState<'' | InscriptionStatus>('')
+  const [filterEmailSent, setFilterEmailSent] = useState<'' | 'sent' | 'not_sent'>('')
+  const [filterNextTeams, setFilterNextTeams] = useState<Set<string>>(new Set())
   const [sortDate, setSortDate] = useState<'newest' | 'oldest' | ''>('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [syncing, setSyncing] = useState(false)
@@ -112,13 +114,27 @@ export function InscripcionesTable({
     const result = players.filter(p => {
       const name = `${p.first_name} ${p.last_name}`.toLowerCase()
       const status = getStatus(p)
+      const nextTeamId = p.next_team_id ?? p.next_team?.id ?? null
+
+      // Next team multi-select filter
+      let passNextTeam = true
+      if (filterNextTeams.size > 0) {
+        if (nextTeamId === null) {
+          passNextTeam = filterNextTeams.has('none')
+        } else {
+          passNextTeam = filterNextTeams.has(nextTeamId)
+        }
+      }
+
       return (
         (!search ||
           name.includes(search.toLowerCase()) ||
           p.tutor_name?.toLowerCase().includes(search.toLowerCase()) ||
           p.tutor_email?.toLowerCase().includes(search.toLowerCase())) &&
         (!filterTeam || p.team_id === filterTeam) &&
-        (!filterStatus || status === filterStatus)
+        (!filterStatus || status === filterStatus) &&
+        (!filterEmailSent || (filterEmailSent === 'sent' ? p.email_team_assignment_sent === true : !p.email_team_assignment_sent)) &&
+        passNextTeam
       )
     })
     if (sortDate) {
@@ -129,7 +145,7 @@ export function InscripcionesTable({
       })
     }
     return result
-  }, [players, search, filterTeam, filterStatus, sortDate])
+  }, [players, search, filterTeam, filterStatus, filterEmailSent, filterNextTeams, sortDate])
 
   const selectableIds = useMemo(
     () => filtered.filter(p => getStatus(p) !== 'dismissed').map(p => p.id),
@@ -474,6 +490,51 @@ export function InscripcionesTable({
           <option value="newest">Más recientes primero</option>
           <option value="oldest">Más antiguos primero</option>
         </select>
+
+        {/* Email asignación filter */}
+        <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+          <button
+            onClick={() => setFilterEmailSent('')}
+            className={cn(
+              'px-2 py-1 text-xs rounded-md transition-colors flex items-center gap-1',
+              filterEmailSent === '' ? 'bg-white text-slate-900 font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            )}
+            title="Todos"
+          >
+            <Mail className="w-3.5 h-3.5" />
+            Todos
+          </button>
+          <button
+            onClick={() => setFilterEmailSent(filterEmailSent === 'sent' ? '' : 'sent')}
+            className={cn(
+              'px-2 py-1 text-xs rounded-md transition-colors flex items-center gap-1',
+              filterEmailSent === 'sent' ? 'bg-white text-emerald-700 font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            )}
+            title="Solo con email de asignación enviado"
+          >
+            <MailCheck className="w-3.5 h-3.5" />
+            Enviado
+          </button>
+          <button
+            onClick={() => setFilterEmailSent(filterEmailSent === 'not_sent' ? '' : 'not_sent')}
+            className={cn(
+              'px-2 py-1 text-xs rounded-md transition-colors flex items-center gap-1',
+              filterEmailSent === 'not_sent' ? 'bg-white text-amber-700 font-medium shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            )}
+            title="Solo sin email de asignación enviado"
+          >
+            <MailX className="w-3.5 h-3.5" />
+            Sin enviar
+          </button>
+        </div>
+
+        {/* Next team multi-select */}
+        <NextTeamMultiSelect
+          draftTeams={draftTeams ?? teams}
+          selected={filterNextTeams}
+          onChange={setFilterNextTeams}
+        />
+
         {selected.size > 0 && (
           <div className="flex flex-wrap gap-2 ml-auto">
             <button
@@ -885,6 +946,105 @@ export function InscripcionesTable({
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── NextTeamMultiSelect ──────────────────────────────────────────────────────
+
+function NextTeamMultiSelect({
+  draftTeams,
+  selected,
+  onChange,
+}: {
+  draftTeams: { id: string; name: string; season?: string }[]
+  selected: Set<string>
+  onChange: (next: Set<string>) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    if (open) document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  function toggle(id: string) {
+    const next = new Set(selected)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    onChange(next)
+  }
+
+  function clear() { onChange(new Set()) }
+
+  const label = selected.size === 0
+    ? 'Equipo 26/27'
+    : selected.size === 1
+      ? selected.has('none') ? 'Sin equipo (26/27)' : (draftTeams.find(t => t.id === [...selected][0])?.name ?? '1 equipo')
+      : `${selected.size} equipos`
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={cn(
+          'input w-auto flex items-center gap-2 text-sm cursor-pointer',
+          selected.size > 0 && 'border-primary/60 bg-primary/5 text-primary font-medium'
+        )}
+      >
+        <span className="truncate max-w-36">{label}</span>
+        {selected.size > 0 && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={e => { e.stopPropagation(); clear() }}
+            onKeyDown={e => e.key === 'Enter' && (e.stopPropagation(), clear())}
+            className="ml-auto text-muted-foreground hover:text-destructive shrink-0"
+            title="Limpiar filtro"
+          >
+            <XCircle className="w-3.5 h-3.5" />
+          </span>
+        )}
+        <ChevronDown className={cn('w-3.5 h-3.5 shrink-0 transition-transform', open && 'rotate-180')} />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg border shadow-lg min-w-52 max-h-72 overflow-y-auto p-1">
+          <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+            <input
+              type="checkbox"
+              checked={selected.has('none')}
+              onChange={() => toggle('none')}
+              className="cursor-pointer"
+            />
+            <span className="italic text-muted-foreground">Sin equipo</span>
+          </label>
+          {draftTeams.length > 0 && (
+            <div className="border-t my-1" />
+          )}
+          {draftTeams.map(t => (
+            <label key={t.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+              <input
+                type="checkbox"
+                checked={selected.has(t.id)}
+                onChange={() => toggle(t.id)}
+                className="cursor-pointer"
+              />
+              <span className="truncate">{t.name}</span>
+              {'season' in t && t.season && (
+                <span className="text-xs text-muted-foreground ml-auto shrink-0">
+                  {(t.season as string).replace('20', '').replace('/', '/')}
+                </span>
+              )}
+            </label>
+          ))}
         </div>
       )}
     </div>
