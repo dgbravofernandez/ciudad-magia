@@ -379,6 +379,7 @@ export interface InscriptionSyncPreview {
     wants_to_continue: boolean | null
     tutor_email: string | null
     sheet_email: string | null
+    dni?: string | null   // DNI obtenido de formulario de docs
   }>
   unmatched: number
   unmatchedDetails: UnmatchedRow[]
@@ -469,7 +470,7 @@ export async function previewInscriptionSync(
     if (!players?.length) return { matches: [], unmatched: 0, unmatchedDetails: [], error: 'no_players' }
 
     // Build a map: player_id → accumulated update
-    type Update = { forms_link: string | null; wants_to_continue: boolean | null; sheet_email: string | null; player_name: string; tutor_email: string | null }
+    type Update = { forms_link: string | null; wants_to_continue: boolean | null; sheet_email: string | null; player_name: string; tutor_email: string | null; dni: string | null }
     const updateMap = new Map<string, Update>()
     let unmatched = 0
     const unmatchedDetails: UnmatchedRow[] = []
@@ -505,6 +506,7 @@ export async function previewInscriptionSync(
         forms_link: formLink || existing?.forms_link || null,
         wants_to_continue: parseRespuesta(respuestaRaw) ?? existing?.wants_to_continue ?? null,
         sheet_email: (!player.tutor_email && sheetEmail) ? sheetEmail : (existing?.sheet_email ?? null),
+        dni: existing?.dni ?? null,
       })
     }
 
@@ -517,9 +519,10 @@ export async function previewInscriptionSync(
       if (formRows.length < 2) continue
       const nombreCol = detectNombreCol(formRows)
 
-      // Try to detect response column and DNI column from header
+      // Try to detect response, DNI, and email columns from header
       let responseCol = -1
       let dniCol = -1
+      let emailCol = -1
       if (formRows[0]) {
         const header = formRows[0].map(h => norm(h))
         for (let i = 0; i < header.length; i++) {
@@ -528,11 +531,12 @@ export async function previewInscriptionSync(
             h.includes('continuar') || h.includes('seguir') || h.includes('renovar') ||
             h.includes('temporada') || h.includes('deseas') || h.includes('quieres') ||
             h.includes('respuesta') || h.includes('decision')
-          ) {
-            responseCol = i
-          }
+          ) { responseCol = i }
           if (h.includes('dni') || h.includes('nie') || h.includes('nif') || h.includes('pasaporte') || h.includes('documento')) {
             dniCol = i
+          }
+          if ((h.includes('email') || h.includes('correo') || h.includes('mail')) && i !== nombreCol) {
+            emailCol = i
           }
         }
       }
@@ -543,6 +547,7 @@ export async function previewInscriptionSync(
         if (!nameRaw) continue
 
         const dniRaw = dniCol >= 0 ? (row[dniCol] ?? '').trim() : undefined
+        const emailRaw = emailCol >= 0 ? (row[emailCol] ?? '').trim() : ''
 
         let respuestaRaw = ''
         if (responseCol >= 0) {
@@ -550,7 +555,7 @@ export async function previewInscriptionSync(
         } else {
           // Fallback: scan all columns for response keywords
           for (let c = 0; c < row.length; c++) {
-            if (c === nombreCol) continue
+            if (c === nombreCol || c === dniCol || c === emailCol) continue
             const v = norm(row[c] ?? '')
             if (
               v.includes('continuar') || v.includes('seguir') || v.includes('baja') ||
@@ -563,7 +568,10 @@ export async function previewInscriptionSync(
           }
         }
 
-        if (!respuestaRaw) continue
+        // IMPORTANTE: para formularios de docs (nuevos jugadores), NO hay respuestaRaw
+        // pero sí puede haber DNI o email → procesamos la fila igualmente
+        const hasUsefulData = !!respuestaRaw || !!(dniRaw?.trim()) || !!emailRaw
+        if (!hasUsefulData) continue
 
         const player = matchPlayer(nameRaw, players as PlayerRow[], dniRaw)
         if (!player) {
@@ -572,7 +580,7 @@ export async function previewInscriptionSync(
             source,
             rowIndex: r,
             nameRaw,
-            email: null,
+            email: emailRaw || null,
             formLink: null,
             respuestaRaw: respuestaRaw.trim(),
             respuestaParsed: parseRespuesta(respuestaRaw),
@@ -580,16 +588,21 @@ export async function previewInscriptionSync(
           continue
         }
 
-        const wantsToContinue = parseRespuesta(respuestaRaw)
-        if (wantsToContinue === null) continue
-
+        const wantsToContinue = respuestaRaw ? parseRespuesta(respuestaRaw) : null
         const existing = updateMap.get(player.id)
+
+        // Solo actualizar DNI si el jugador no lo tiene ya
+        const newDni = dniRaw?.trim() && !player.dni ? dniRaw.trim() : (existing?.dni ?? null)
+        // Solo actualizar email si el jugador no lo tiene y viene del form
+        const newEmail = !player.tutor_email && emailRaw ? emailRaw : (existing?.sheet_email ?? null)
+
         updateMap.set(player.id, {
           player_name: existing?.player_name ?? `${player.first_name} ${player.last_name}`,
           tutor_email: player.tutor_email,
           forms_link: existing?.forms_link ?? null,
-          wants_to_continue: wantsToContinue,
-          sheet_email: existing?.sheet_email ?? null,
+          wants_to_continue: wantsToContinue ?? existing?.wants_to_continue ?? null,
+          sheet_email: newEmail,
+          dni: newDni,
         })
       }
     }
@@ -601,7 +614,9 @@ export async function previewInscriptionSync(
       const newFormsLink = (u.forms_link && u.forms_link !== p.forms_link) ? u.forms_link : null
       const newWants = (u.wants_to_continue !== null && u.wants_to_continue !== p.wants_to_continue) ? u.wants_to_continue : null
       const newEmail = u.sheet_email || null
-      if (!newFormsLink && newWants === null && !newEmail) continue
+      // DNI del form: solo si el jugador no lo tenía ya
+      const newDni = (u.dni && !p.dni) ? u.dni : null
+      if (!newFormsLink && newWants === null && !newEmail && !newDni) continue
       matches.push({
         player_id,
         player_name: u.player_name,
@@ -609,6 +624,7 @@ export async function previewInscriptionSync(
         wants_to_continue: newWants,
         tutor_email: u.tutor_email,
         sheet_email: newEmail,
+        dni: newDni,
       })
     }
 
@@ -738,6 +754,7 @@ export async function applyInscriptionSync(
         if (m.forms_link) updateData.forms_link = m.forms_link
         if (m.wants_to_continue !== null) updateData.wants_to_continue = m.wants_to_continue
         if (m.sheet_email) updateData.tutor_email = m.sheet_email
+        if (m.dni) updateData.dni = m.dni
 
         if (Object.keys(updateData).length === 0) continue
 
