@@ -254,6 +254,7 @@ export function PlayerForm({
               type="url"
               placeholder="https://forms.gle/..."
               className="input w-full"
+              defaultValue="https://docs.google.com/forms/d/e/1FAIpQLSe6f_oYxywNu4uL160w9m1ufkIJBCJghQc8rTtjxDNhAbjXWA/viewform"
             />
             <p className="text-xs text-muted-foreground mt-1">
               Google Forms donde el tutor sube DNI, foto, certificado médico y justificante de reserva.
