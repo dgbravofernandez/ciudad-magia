@@ -301,25 +301,31 @@ export async function sendNewPlayerAssignmentEmail(
       html = html.replaceAll(key, val)
     }
 
-    // 7. Imagen de cuotas
+    // 7. Bloque de documentación — se inserta DESPUÉS del recuadro del equipo (antes del resto)
+    if (player.forms_link) {
+      const docsBlock = `<div style="margin:16px 0;padding:16px;background:#fff7ed;border:2px solid #f97316;border-radius:8px;text-align:center;">
+  <p style="margin:0 0 10px;font-weight:bold;color:#c2410c;font-size:1em;">📋 Tramitación de ficha</p>
+  <p style="margin:0 0 14px;font-size:0.9em;color:#374151;">
+    Para poder tramitar la ficha correctamente, es necesario que rellenéis el siguiente formulario:
+  </p>
+  <a href="${player.forms_link}" style="display:inline-block;background:#f97316;color:#fff;padding:11px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:0.95em;">
+    Rellenar formulario →
+  </a>
+</div>`
+      // Intentar insertar después del recuadro del equipo (cierre del div amarillo)
+      const insertAfter = '</div>\n  <p>Para confirmar la plaza'
+      if (html.includes(insertAfter)) {
+        html = html.replace(insertAfter, `</div>\n${docsBlock}\n  <p>Para confirmar la plaza`)
+      } else {
+        // fallback: antes del cierre del body / al final
+        html = html.includes('</body>') ? html.replace('</body>', `${docsBlock}</body>`) : html + docsBlock
+      }
+    }
+
+    // 8. Imagen de cuotas al final
     if (feesImageUrl) {
       const imgTag = `<div style="text-align:center;margin:20px 0;"><img src="${feesImageUrl}" alt="Cuotas" style="max-width:100%;border-radius:8px;" /></div>`
       html = html.includes('</body>') ? html.replace('</body>', `${imgTag}</body>`) : html + imgTag
-    }
-
-    // 8. Bloque de documentación si hay forms_link
-    if (player.forms_link) {
-      const docsBlock = `
-<div style="margin:20px 0;padding:16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;">
-  <p style="margin:0 0 8px;font-weight:bold;color:#0369a1;">📋 Documentación requerida</p>
-  <p style="margin:0 0 12px;font-size:0.9em;color:#374151;">
-    Para completar la inscripción, necesitamos que enviéis la documentación del jugador (DNI/NIE, foto, certificado médico y justificante de pago de reserva) a través del siguiente formulario:
-  </p>
-  <a href="${player.forms_link}" style="display:inline-block;background:#0369a1;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:0.9em;">
-    Enviar documentación →
-  </a>
-</div>`
-      html = html.includes('</body>') ? html.replace('</body>', `${docsBlock}</body>`) : html + docsBlock
     }
 
     // 9. Enviar

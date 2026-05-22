@@ -424,9 +424,10 @@ export async function createPlayer(formData: FormData) {
 
   if (error) return { success: false, error: error.message }
 
-  // Optionally email the tutor the documents-request message right away
+  // Email de documentación — solo si NO se envía también el de asignación
+  // (el de asignación ya incluye el bloque de docs, mandar los dos sería duplicado)
   let docsEmailSent = false
-  if (sendDocsRequest && player?.id && player?.tutor_email) {
+  if (sendDocsRequest && !sendTeamAssignment && player?.id && player?.tutor_email) {
     try {
       const r = await sendEmail(player.id, 'request_docs')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -437,7 +438,7 @@ export async function createPlayer(formData: FormData) {
     }
   }
 
-  // Optionally email the team assignment (for new external players)
+  // Email de asignación de equipo (incluye bloque de docs si hay forms_link)
   let assignmentEmailSent = false
   if (sendTeamAssignment && player?.id && player?.team_id && player?.tutor_email) {
     try {
