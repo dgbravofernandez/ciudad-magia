@@ -392,9 +392,31 @@ type PlayerRow = {
   tutor_email: string | null
   forms_link: string | null
   wants_to_continue: boolean | null
+  dni: string | null
 }
 
-function matchPlayer(nameRaw: string, players: PlayerRow[]): PlayerRow | null {
+/**
+ * Busca el mejor match para una fila del sheet.
+ * Prioridad: DNI/NIE exacto > nombre exacto completo > fuzzy nombre (≥0.4).
+ */
+function matchPlayer(nameRaw: string, players: PlayerRow[], dniRaw?: string): PlayerRow | null {
+  // 1. DNI exacto (case-insensitive, sin espacios) — match definitivo
+  if (dniRaw?.trim()) {
+    const dniNorm = dniRaw.trim().toUpperCase().replace(/\s/g, '')
+    const byDni = players.find(p => p.dni && p.dni.trim().toUpperCase().replace(/\s/g, '') === dniNorm)
+    if (byDni) return byDni
+  }
+
+  // 2. Nombre exacto normalizado (nombre + apellido o apellido + nombre)
+  const normName = norm(nameRaw)
+  const exactByName = players.find(p => {
+    const full = norm(`${p.first_name} ${p.last_name}`)
+    const rev  = norm(`${p.last_name} ${p.first_name}`)
+    return full === normName || rev === normName
+  })
+  if (exactByName) return exactByName
+
+  // 3. Fuzzy por nombre (umbral 0.4)
   let best: PlayerRow | null = null
   let bestScore = 0
   for (const p of players) {
@@ -438,7 +460,7 @@ export async function previewInscriptionSync(
 
     const { data: players } = await supabase
       .from('players')
-      .select('id, first_name, last_name, tutor_email, forms_link, wants_to_continue')
+      .select('id, first_name, last_name, tutor_email, forms_link, wants_to_continue, dni')
       .eq('club_id', clubId)
       // Include all non-low players (status NULL or not 'low')
       .or('status.is.null,status.neq.low')
@@ -495,8 +517,9 @@ export async function previewInscriptionSync(
       if (formRows.length < 2) continue
       const nombreCol = detectNombreCol(formRows)
 
-      // Try to detect response column from header
+      // Try to detect response column and DNI column from header
       let responseCol = -1
+      let dniCol = -1
       if (formRows[0]) {
         const header = formRows[0].map(h => norm(h))
         for (let i = 0; i < header.length; i++) {
@@ -507,7 +530,9 @@ export async function previewInscriptionSync(
             h.includes('respuesta') || h.includes('decision')
           ) {
             responseCol = i
-            break
+          }
+          if (h.includes('dni') || h.includes('nie') || h.includes('nif') || h.includes('pasaporte') || h.includes('documento')) {
+            dniCol = i
           }
         }
       }
@@ -516,6 +541,8 @@ export async function previewInscriptionSync(
         const row = formRows[r]
         const nameRaw = (row[nombreCol] ?? '').trim()
         if (!nameRaw) continue
+
+        const dniRaw = dniCol >= 0 ? (row[dniCol] ?? '').trim() : undefined
 
         let respuestaRaw = ''
         if (responseCol >= 0) {
@@ -538,7 +565,7 @@ export async function previewInscriptionSync(
 
         if (!respuestaRaw) continue
 
-        const player = matchPlayer(nameRaw, players as PlayerRow[])
+        const player = matchPlayer(nameRaw, players as PlayerRow[], dniRaw)
         if (!player) {
           unmatched++
           unmatchedDetails.push({

@@ -213,6 +213,138 @@ export async function sendTeamAssignmentEmail(
   }
 }
 
+// ─── Email de asignación para jugador NUEVO externo (usa team_id) ────────────
+/**
+ * Igual que sendTeamAssignmentEmail pero para jugadores recién inscritos que
+ * ya tienen team_id (temporada actual). Añade al final del email un bloque con
+ * el enlace al formulario de documentación si el jugador lo tiene.
+ */
+export async function sendNewPlayerAssignmentEmail(
+  playerId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+
+    // 1. Jugador
+    const { data: player, error: pErr } = await sb
+      .from('players')
+      .select('id, first_name, last_name, tutor_name, tutor_email, team_id, forms_link')
+      .eq('id', playerId)
+      .eq('club_id', clubId)
+      .single()
+
+    if (pErr || !player) return { success: false, error: 'Jugador no encontrado' }
+    if (!player.tutor_email) return { success: false, error: 'El jugador no tiene email de tutor' }
+    if (!player.team_id) return { success: false, error: 'El jugador no tiene equipo asignado' }
+
+    // 2. Equipo
+    const { data: team } = await sb
+      .from('teams')
+      .select('id, name, season')
+      .eq('id', player.team_id)
+      .single()
+
+    if (!team) return { success: false, error: 'Equipo no encontrado' }
+
+    // 3. Entrenador
+    const { data: coachRows } = await sb
+      .from('team_coaches')
+      .select('club_members(full_name)')
+      .eq('team_id', player.team_id)
+      .limit(1)
+
+    const entrenadorNombre: string = coachRows?.[0]?.club_members?.full_name ?? 'Por confirmar'
+
+    // 4. Importe de reserva
+    let importeReserva = ''
+    try {
+      const seasonSlash = team.season
+      const seasonDash  = team.season.replace('/', '-')
+      let fee = await resolveFee(seasonSlash, team.id, 'Reserva')
+      if (fee === null) fee = await resolveFee(seasonDash, team.id, 'Reserva')
+      if (fee !== null) importeReserva = `${fee.toFixed(2)} €`
+    } catch { /* cuota puede no existir */ }
+
+    // 5. Config del club
+    const { data: settings } = await sb
+      .from('club_settings')
+      .select('fees_image_url, assignment_email_subject, assignment_email_body, reservation_deadline')
+      .eq('club_id', clubId)
+      .single()
+
+    const subject = settings?.assignment_email_subject || `Bienvenido/a — Equipo asignado temporada ${team.season}`
+    const bodyTemplate = settings?.assignment_email_body || buildDefaultBody()
+    const deadlineRaw = settings?.reservation_deadline as string | null
+    const fechaLimite = deadlineRaw ? formatDate(deadlineRaw) : 'próximamente'
+    const feesImageUrl = settings?.fees_image_url as string | null
+
+    // 6. Tokens
+    const playerName = `${player.first_name} ${player.last_name}`.trim()
+    const tutorName = player.tutor_name || playerName
+    const tokens: Record<string, string> = {
+      '{jugador_nombre}': playerName,
+      '{tutor_nombre}': tutorName,
+      '{equipo}': team.name,
+      '{entrenador_nombre}': entrenadorNombre,
+      '{importe_reserva}': importeReserva || '—',
+      '{fecha_limite}': fechaLimite,
+      '{temporada}': team.season,
+    }
+
+    let html = bodyTemplate
+    for (const [key, val] of Object.entries(tokens)) {
+      html = html.replaceAll(key, val)
+    }
+
+    // 7. Imagen de cuotas
+    if (feesImageUrl) {
+      const imgTag = `<div style="text-align:center;margin:20px 0;"><img src="${feesImageUrl}" alt="Cuotas" style="max-width:100%;border-radius:8px;" /></div>`
+      html = html.includes('</body>') ? html.replace('</body>', `${imgTag}</body>`) : html + imgTag
+    }
+
+    // 8. Bloque de documentación si hay forms_link
+    if (player.forms_link) {
+      const docsBlock = `
+<div style="margin:20px 0;padding:16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;">
+  <p style="margin:0 0 8px;font-weight:bold;color:#0369a1;">📋 Documentación requerida</p>
+  <p style="margin:0 0 12px;font-size:0.9em;color:#374151;">
+    Para completar la inscripción, necesitamos que enviéis la documentación del jugador (DNI/NIE, foto, certificado médico y justificante de pago de reserva) a través del siguiente formulario:
+  </p>
+  <a href="${player.forms_link}" style="display:inline-block;background:#0369a1;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:0.9em;">
+    Enviar documentación →
+  </a>
+</div>`
+      html = html.includes('</body>') ? html.replace('</body>', `${docsBlock}</body>`) : html + docsBlock
+    }
+
+    // 9. Enviar
+    const { sent, error: sendErr } = await sendHtmlEmail({ to: player.tutor_email, subject, html })
+    if (!sent) return { success: false, error: sendErr ?? 'Error al enviar el email' }
+
+    // 10. Log
+    await sb.from('communications').insert({
+      club_id: clubId,
+      player_id: playerId,
+      subject,
+      body: html,
+      type: 'individual',
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+    })
+
+    revalidatePath('/jugadores')
+    revalidatePath('/jugadores/inscripciones')
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
 // ─── Asignaciones actuales de entrenadores en equipos borrador ───────────────
 
 export async function getDraftCoachAssignments(

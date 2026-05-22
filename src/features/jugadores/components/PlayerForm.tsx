@@ -267,7 +267,19 @@ export function PlayerForm({
               defaultChecked
             />
             <span>
-              <strong>Enviar email al tutor</strong> solicitando la documentación (DNI, foto, certificado médico, justificante de reserva) al crear el jugador.
+              <strong>Enviar email de documentación</strong> — solicitar DNI, foto, certificado médico y justificante de reserva.
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              name="send_team_assignment"
+              className="mt-0.5"
+            />
+            <span>
+              <strong>Enviar email de asignación de equipo</strong> — usa la plantilla configurada en Planificación.
+              Si hay enlace de documentación arriba, se incluirá en el email.
+              <span className="block text-xs text-muted-foreground mt-0.5">Solo disponible si el jugador tiene equipo y email de tutor.</span>
             </span>
           </label>
         </div>

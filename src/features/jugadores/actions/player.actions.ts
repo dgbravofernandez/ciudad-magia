@@ -398,6 +398,7 @@ export async function createPlayer(formData: FormData) {
   const clubId = await getClubId()
 
   const sendDocsRequest = formData.get('send_docs_request') === 'on'
+  const sendTeamAssignment = formData.get('send_team_assignment') === 'on'
   const formsLink = (formData.get('forms_link') as string)?.trim() || null
 
   const data = {
@@ -436,8 +437,20 @@ export async function createPlayer(formData: FormData) {
     }
   }
 
+  // Optionally email the team assignment (for new external players)
+  let assignmentEmailSent = false
+  if (sendTeamAssignment && player?.id && player?.team_id && player?.tutor_email) {
+    try {
+      const { sendNewPlayerAssignmentEmail } = await import('@/features/configuracion/actions/assignment-email.actions')
+      const r = await sendNewPlayerAssignmentEmail(player.id)
+      assignmentEmailSent = r.success
+    } catch {
+      // non-fatal
+    }
+  }
+
   revalidatePath('/jugadores')
-  return { success: true, player, docsEmailSent }
+  return { success: true, player, docsEmailSent, assignmentEmailSent }
 }
 
 export async function updatePlayer(playerId: string, formData: FormData) {
