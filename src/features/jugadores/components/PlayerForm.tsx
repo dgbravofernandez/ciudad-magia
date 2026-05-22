@@ -18,9 +18,11 @@ const STATUSES = [
 export function PlayerForm({
   player,
   teams,
+  nextSeason,
 }: {
   player?: Player
   teams: { id: string; name: string }[]
+  nextSeason?: string
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -219,11 +221,27 @@ export function PlayerForm({
         <h3 className="font-semibold text-base">Equipo y estado</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label">Equipo</label>
-            <select name="team_id" className="input w-full" defaultValue={player?.team_id ?? ''}>
-              <option value="">Sin equipo</option>
-              {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+            {/* Nuevos jugadores → next_team_id (son de la próxima temporada)
+                Edición → team_id (equipo de la temporada actual) */}
+            {isEditing ? (
+              <>
+                <label className="label">Equipo (temporada actual)</label>
+                <select name="team_id" className="input w-full" defaultValue={player?.team_id ?? ''}>
+                  <option value="">Sin equipo</option>
+                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </>
+            ) : (
+              <>
+                <label className="label">
+                  Equipo {nextSeason ? <span className="text-muted-foreground text-xs ml-1">(temporada {nextSeason})</span> : ''}
+                </label>
+                <select name="next_team_id" className="input w-full" defaultValue=''>
+                  <option value="">Sin equipo</option>
+                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </>
+            )}
           </div>
           {isEditing && (
             <div>

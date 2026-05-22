@@ -7,6 +7,17 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Jugadores' }
 
+function bumpSeason(season: string): string {
+  const m = season.match(/^(\d{4})\/(\d{2})$/)
+  if (m) {
+    const y1 = parseInt(m[1]) + 1
+    const y2short = parseInt(m[2])
+    const y2full = y2short >= 90 ? 1900 + y2short : 2000 + y2short
+    return `${y1}/${String(y2full + 1).slice(-2)}`
+  }
+  return season
+}
+
 export default async function JugadoresPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
@@ -40,14 +51,23 @@ export default async function JugadoresPage() {
     clubId = anyClub?.id ?? ''
   }
 
-  // Query players — simple select without nested joins to avoid PostgREST issues
+  // Temporadas
+  const { data: settings } = await sb
+    .from('club_settings')
+    .select('current_season')
+    .eq('club_id', clubId)
+    .single()
+  const currentSeason: string = settings?.current_season ?? '2025/26'
+  const nextSeason = bumpSeason(currentSeason)
+
+  // Query players
   const { data: players, error: playersError } = await sb
     .from('players')
     .select('*')
     .eq('club_id', clubId)
     .order('last_name')
 
-  // Fetch teams separately
+  // Equipos temporada actual (activos)
   const { data: teams } = await sb
     .from('teams')
     .select('id, name')
@@ -55,14 +75,27 @@ export default async function JugadoresPage() {
     .eq('active', true)
     .order('name')
 
-  // Build team map and enrich players with team info
+  // Equipos próxima temporada (borrador)
+  const { data: nextTeams } = await sb
+    .from('teams')
+    .select('id, name')
+    .eq('club_id', clubId)
+    .eq('season', nextSeason)
+    .order('name')
+
+  // Mapas de equipos
   const teamMap: Record<string, { id: string; name: string }> = {}
-  for (const t of (teams ?? [])) {
-    teamMap[t.id] = t
-  }
+  for (const t of (teams ?? [])) teamMap[t.id] = t
+
+  const nextTeamMap: Record<string, { id: string; name: string }> = {}
+  for (const t of (nextTeams ?? [])) nextTeamMap[t.id] = t
+
+  // Enriquecer jugadores con info de ambos equipos
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const enrichedPlayers = (players ?? []).map((p: any) => ({
     ...p,
     teams: p.team_id ? teamMap[p.team_id] ?? null : null,
+    nextTeam: p.next_team_id ? nextTeamMap[p.next_team_id] ?? null : null,
   }))
 
   // Sanctions
@@ -78,9 +111,9 @@ export default async function JugadoresPage() {
     if (remaining > 0) activeSanctions[s.player_id] = remaining
   }
 
-  // Debug: show diagnostic info when no players found
+  // Debug info solo cuando no hay jugadores
   const debugInfo = (players ?? []).length === 0
-    ? `[DEBUG] clubId="${clubId}", header="${headersList.get('x-club-id') ?? 'null'}", error="${playersError?.message ?? 'none'}", env=${process.env.NEXT_PUBLIC_SUPABASE_URL?.slice(0, 30)}`
+    ? `[DEBUG] clubId="${clubId}", header="${headersList.get('x-club-id') ?? 'null'}", error="${playersError?.message ?? 'none'}"`
     : null
 
   return (
@@ -92,7 +125,14 @@ export default async function JugadoresPage() {
             {debugInfo}
           </div>
         )}
-        <PlayerList players={enrichedPlayers} teams={teams ?? []} activeSanctions={activeSanctions} />
+        <PlayerList
+          players={enrichedPlayers}
+          teams={teams ?? []}
+          nextTeams={nextTeams ?? []}
+          currentSeason={currentSeason}
+          nextSeason={nextSeason}
+          activeSanctions={activeSanctions}
+        />
       </div>
     </div>
   )

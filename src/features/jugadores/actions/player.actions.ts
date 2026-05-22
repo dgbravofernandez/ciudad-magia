@@ -413,7 +413,10 @@ export async function createPlayer(formData: FormData) {
     tutor_phone: (formData.get('tutor_phone') as string) || null,
     position: (formData.get('position') as string) || null,
     dominant_foot: (formData.get('dominant_foot') as string) || null,
-    team_id: (formData.get('team_id') as string) || null,
+    // Jugadores nuevos se crean para la próxima temporada → next_team_id
+    // team_id queda null hasta la activación de temporada
+    team_id: null,
+    next_team_id: (formData.get('next_team_id') as string) || null,
     dorsal_number: formData.get('dorsal_number') ? parseInt(formData.get('dorsal_number') as string) : null,
     forms_link: formsLink,
     status: 'active',
@@ -440,7 +443,7 @@ export async function createPlayer(formData: FormData) {
 
   // Email de asignación de equipo (incluye bloque de docs si hay forms_link)
   let assignmentEmailSent = false
-  if (sendTeamAssignment && player?.id && player?.team_id && player?.tutor_email) {
+  if (sendTeamAssignment && player?.id && player?.next_team_id && player?.tutor_email) {
     try {
       const { sendNewPlayerAssignmentEmail } = await import('@/features/configuracion/actions/assignment-email.actions')
       const r = await sendNewPlayerAssignmentEmail(player.id)

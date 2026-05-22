@@ -233,20 +233,20 @@ export async function sendNewPlayerAssignmentEmail(
     // 1. Jugador
     const { data: player, error: pErr } = await sb
       .from('players')
-      .select('id, first_name, last_name, tutor_name, tutor_email, team_id, forms_link')
+      .select('id, first_name, last_name, tutor_name, tutor_email, next_team_id, forms_link')
       .eq('id', playerId)
       .eq('club_id', clubId)
       .single()
 
     if (pErr || !player) return { success: false, error: 'Jugador no encontrado' }
     if (!player.tutor_email) return { success: false, error: 'El jugador no tiene email de tutor' }
-    if (!player.team_id) return { success: false, error: 'El jugador no tiene equipo asignado' }
+    if (!player.next_team_id) return { success: false, error: 'El jugador no tiene equipo asignado para la próxima temporada' }
 
     // 2. Equipo
     const { data: team } = await sb
       .from('teams')
       .select('id, name, season')
-      .eq('id', player.team_id)
+      .eq('id', player.next_team_id)
       .single()
 
     if (!team) return { success: false, error: 'Equipo no encontrado' }
@@ -255,12 +255,12 @@ export async function sendNewPlayerAssignmentEmail(
     const { data: coachRows } = await sb
       .from('team_coaches')
       .select('club_members(full_name)')
-      .eq('team_id', player.team_id)
+      .eq('team_id', player.next_team_id)
       .limit(1)
 
     const entrenadorNombre: string = coachRows?.[0]?.club_members?.full_name ?? 'Por confirmar'
 
-    // 4. Importe de reserva
+    // 4. Importe de reserva (para next_team_id)
     let importeReserva = ''
     try {
       const seasonSlash = team.season

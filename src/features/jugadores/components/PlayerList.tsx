@@ -26,6 +26,7 @@ const POSITIONS = ['Portero', 'Defensa', 'Centrocampista', 'Delantero']
 
 interface PlayerWithTeam extends Player {
   teams?: { id: string; name: string; categories?: { name: string } | null } | null
+  nextTeam?: { id: string; name: string } | null
 }
 
 function calcAge(birthDate: string | null): number | null {
@@ -138,10 +139,16 @@ function downloadCsv(rows: Record<string, unknown>[], filename: string) {
 export function PlayerList({
   players,
   teams,
+  nextTeams = [],
+  currentSeason = '2025/26',
+  nextSeason = '2026/27',
   activeSanctions = {},
 }: {
   players: PlayerWithTeam[]
   teams: { id: string; name: string }[]
+  nextTeams?: { id: string; name: string }[]
+  currentSeason?: string
+  nextSeason?: string
   activeSanctions?: Record<string, number>
 }) {
   const [search, setSearch] = useState('')
@@ -150,6 +157,11 @@ export function PlayerList({
   const [filterPositions, setFilterPositions] = useState<string[]>([])
   const [filterYears, setFilterYears] = useState<string[]>([])
   const [view, setView] = useState<'cards' | 'table'>('cards')
+  const [selectedSeason, setSelectedSeason] = useState<string>(currentSeason)
+
+  const isNextSeason = selectedSeason === nextSeason
+  // Equipos activos según la temporada seleccionada
+  const activeTeams = isNextSeason ? nextTeams : teams
 
   // Extract unique birth years from players
   const birthYears = useMemo(() => {
@@ -161,11 +173,18 @@ export function PlayerList({
 
   const filtered = useMemo(() => {
     return players.filter((p) => {
+      // Vista 26/27 → solo jugadores con next_team_id (confirmados próxima temporada)
+      if (isNextSeason && !p.next_team_id) return false
+
       const fullName = `${p.first_name} ${p.last_name}`.toLowerCase()
       const matchSearch = !search || fullName.includes(search.toLowerCase()) ||
         p.dni?.toLowerCase().includes(search.toLowerCase()) ||
         p.tutor_name?.toLowerCase().includes(search.toLowerCase())
-      const matchTeam = filterTeams.length === 0 || (p.team_id !== null && filterTeams.includes(p.team_id))
+
+      // Filtro de equipo según la temporada
+      const relevantTeamId = isNextSeason ? p.next_team_id : p.team_id
+      const matchTeam = filterTeams.length === 0 || (relevantTeamId !== null && filterTeams.includes(relevantTeamId))
+
       const matchStatus = filterStatuses.length === 0 || filterStatuses.includes(p.status)
       const matchPos = filterPositions.length === 0 || (p.position !== null && filterPositions.includes(p.position))
       const matchYear = filterYears.length === 0 || (
@@ -175,7 +194,7 @@ export function PlayerList({
       )
       return matchSearch && matchTeam && matchStatus && matchPos && matchYear
     })
-  }, [players, search, filterTeams, filterStatuses, filterPositions, filterYears])
+  }, [players, search, filterTeams, filterStatuses, filterPositions, filterYears, isNextSeason])
 
   const activeFilters = filterTeams.length + filterStatuses.length + filterPositions.length + filterYears.length
 
@@ -186,24 +205,34 @@ export function PlayerList({
         <div>
           <h2 className="text-xl font-semibold">Libro Maestro de Jugadores</h2>
           <p className="text-sm text-muted-foreground">
-            {filtered.length} jugadores
+            {filtered.length} jugadores{isNextSeason ? ` confirmados ${nextSeason}` : ''}
             {activeFilters > 0 && <span className="text-primary"> (filtrado)</span>}
           </p>
         </div>
         <div className="flex gap-2 items-center">
+          {/* Selector de temporada */}
+          <select
+            value={selectedSeason}
+            onChange={e => { setSelectedSeason(e.target.value); setFilterTeams([]) }}
+            className="input text-sm font-medium"
+          >
+            <option value={currentSeason}>Temporada {currentSeason}</option>
+            <option value={nextSeason}>Temporada {nextSeason}</option>
+          </select>
+
           <button
             onClick={() => downloadCsv(filtered.map(p => ({
               Nombre: p.first_name,
               Apellidos: p.last_name,
               DNI: p.dni ?? '',
-              Equipo: p.teams?.name ?? '',
+              Equipo: isNextSeason ? (p.nextTeam?.name ?? '') : (p.teams?.name ?? ''),
               Posición: p.position ?? '',
               Edad: calcAge(p.birth_date) ?? '',
               'Año nac.': p.birth_date ? new Date(p.birth_date).getFullYear() : '',
               Estado: STATUS_LABELS[p.status] ?? p.status,
               'Email tutor': p.tutor_email ?? '',
               'Tel. tutor': p.tutor_phone ?? '',
-            })), `jugadores_${new Date().toISOString().slice(0, 10)}.csv`)}
+            })), `jugadores_${selectedSeason.replace('/', '-')}_${new Date().toISOString().slice(0, 10)}.csv`)}
             className="btn-secondary gap-2 flex items-center text-sm"
             title="Exportar lista filtrada a CSV"
           >
@@ -232,7 +261,7 @@ export function PlayerList({
         </div>
 
         <MultiSelectDropdown
-          options={teams.map(t => ({ value: t.id, label: t.name }))}
+          options={activeTeams.map(t => ({ value: t.id, label: t.name }))}
           selected={filterTeams}
           onChange={setFilterTeams}
           placeholder="Todos los equipos"
@@ -293,7 +322,12 @@ export function PlayerList({
       {view === 'cards' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map((player) => (
-            <PlayerCard key={player.id} player={player} sanctionedMatches={activeSanctions[player.id]} />
+            <PlayerCard
+              key={player.id}
+              player={player}
+              sanctionedMatches={activeSanctions[player.id]}
+              displayTeam={isNextSeason ? player.nextTeam : player.teams}
+            />
           ))}
         </div>
       ) : (
@@ -303,7 +337,9 @@ export function PlayerList({
               <thead>
                 <tr className="border-b bg-muted/50">
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Jugador</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Equipo</th>
+                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                    Equipo {isNextSeason ? <span className="text-xs text-primary">({nextSeason})</span> : ''}
+                  </th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Posición</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Edad</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Estado</th>
@@ -314,6 +350,7 @@ export function PlayerList({
               <tbody>
                 {filtered.map((player) => {
                   const age = calcAge(player.birth_date)
+                  const teamName = isNextSeason ? (player.nextTeam?.name ?? '—') : (player.teams?.name ?? '—')
                   return (
                     <tr key={player.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3">
@@ -323,7 +360,7 @@ export function PlayerList({
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {player.teams?.name ?? '—'}
+                        {teamName}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{player.position ?? '—'}</td>
                       <td className="px-4 py-3 text-muted-foreground">
@@ -389,7 +426,15 @@ function PlayerAvatar({ player, size = 'md' }: { player: PlayerWithTeam; size?: 
   return initials
 }
 
-function PlayerCard({ player, sanctionedMatches }: { player: PlayerWithTeam; sanctionedMatches?: number }) {
+function PlayerCard({
+  player,
+  sanctionedMatches,
+  displayTeam,
+}: {
+  player: PlayerWithTeam
+  sanctionedMatches?: number
+  displayTeam?: { id: string; name: string } | null
+}) {
   const age = calcAge(player.birth_date)
   return (
     <Link href={`/jugadores/${player.id}`}>
@@ -408,7 +453,7 @@ function PlayerCard({ player, sanctionedMatches }: { player: PlayerWithTeam; san
               {player.first_name} {player.last_name}
             </p>
             <p className="text-xs text-muted-foreground truncate">
-              {player.teams?.name ?? 'Sin equipo'}
+              {displayTeam?.name ?? player.teams?.name ?? 'Sin equipo'}
             </p>
             {age !== null && (
               <p className="text-xs text-muted-foreground">{age} años</p>
