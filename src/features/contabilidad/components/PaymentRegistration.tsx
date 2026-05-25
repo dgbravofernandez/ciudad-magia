@@ -461,6 +461,14 @@ export function PaymentRegistration({
     const ids = Array.from(selectedPlayers)
     if (ids.length === 0) return
 
+    if (ids.length > 20) {
+      toast.warning(
+        `Máximo 20 emails por envío para evitar que la cuenta sea marcada como spam. Tienes ${ids.length} seleccionados — selecciona 20 o menos.`,
+        { duration: 6000 }
+      )
+      return
+    }
+
     if (!confirm(`Enviar recordatorio de pago a ${ids.length} familia(s)? Los marcados como "Caso especial" se omiten automáticamente.`)) {
       return
     }

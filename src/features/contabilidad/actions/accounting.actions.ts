@@ -331,11 +331,25 @@ export async function updateQuotaPaymentComment(paymentId: string, comment: stri
  *
  * Devuelve detalle granular: sent, skipped, failed.
  */
+const EMAIL_BATCH_CAP = 20
+const EMAIL_DELAY_MS = 3000   // 3s entre emails — evita detección de spam por Gmail
+
+function sleep(ms: number) {
+  return new Promise<void>(resolve => setTimeout(resolve, ms))
+}
+
 export async function sendPendingReminders(playerIds: string[]) {
   const { sb, clubId, memberId } = await resolveClubAndMember()
 
   if (playerIds.length === 0) {
     return { success: false, error: 'No hay jugadores seleccionados' }
+  }
+
+  if (playerIds.length > EMAIL_BATCH_CAP) {
+    return {
+      success: false,
+      error: `Máximo ${EMAIL_BATCH_CAP} emails por envío para evitar ser marcado como spam. Selecciona menos jugadores.`,
+    }
   }
 
   // 1. Cargar jugadores + total pendiente + flag caso especial
@@ -388,14 +402,31 @@ export async function sendPendingReminders(playerIds: string[]) {
       tutorName, playerName, debtStr, clubName,
     })
 
+    // Versión plain text para reducir spam score (Gmail penaliza emails solo-HTML)
+    const text = [
+      `Estimada ${tutorName},`,
+      '',
+      `Le informamos que ${playerName} tiene una cuota pendiente de ${debtStr} con ${clubName}.`,
+      '',
+      'MÉTODOS DE PAGO:',
+      `  · Transferencia bancaria: ES58 3067 0163 1028 0449 8729 (${clubName})`,
+      '  · En las oficinas del club',
+      '',
+      'Por favor, realice el pago a la mayor brevedad posible.',
+      '',
+      `Un saludo,`,
+      clubName,
+    ].join('\n')
+
     try {
       const sendPromise = sendHtmlEmail({
         to: player.tutor_email,
         subject: `Cuota pendiente — ${playerName}`,
         html,
+        text,
       })
       const timeout = new Promise<void>((_, rej) =>
-        setTimeout(() => rej(new Error('timeout')), 15000)
+        setTimeout(() => rej(new Error('timeout')), 20000)
       )
       await Promise.race([sendPromise, timeout])
       sent++
@@ -412,6 +443,11 @@ export async function sendPendingReminders(playerIds: string[]) {
         status: 'sent',
         sent_at: new Date().toISOString(),
       })
+
+      // Delay anti-spam entre emails (evita detección de envío masivo)
+      if (sent < (players ?? []).length) {
+        await sleep(EMAIL_DELAY_MS)
+      }
     } catch (e) {
       failed++
       errorList.push(`${playerName}: ${(e as Error).message}`)

@@ -69,6 +69,7 @@ export interface EmailPayload {
   to: string
   subject: string
   html: string
+  text?: string          // versión plain text (reduce spam score)
   replyTo?: string
   attachments?: EmailAttachment[]
 }
@@ -98,7 +99,14 @@ export async function sendHtmlEmail(payload: EmailPayload): Promise<{ sent: bool
       bcc: bcc && bcc !== payload.to ? bcc : undefined,
       subject: payload.subject,
       html: payload.html,
+      text: payload.text,
       replyTo,
+      // Headers anti-spam requeridos por Gmail para envíos masivos
+      headers: {
+        'List-Unsubscribe': `<mailto:${opt.fromAddress}?subject=Unsubscribe>`,
+        'Precedence': 'bulk',
+        'X-Mailer': 'CiudadMagiaCRM/1.0',
+      },
       attachments: payload.attachments?.map(a => ({
         filename: a.filename,
         content: a.content,
