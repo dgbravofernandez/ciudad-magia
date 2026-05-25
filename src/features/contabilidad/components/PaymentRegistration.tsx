@@ -461,35 +461,63 @@ export function PaymentRegistration({
     const ids = Array.from(selectedPlayers)
     if (ids.length === 0) return
 
-    if (ids.length > 20) {
-      toast.warning(
-        `Máximo 20 emails por envío para evitar que la cuenta sea marcada como spam. Tienes ${ids.length} seleccionados — selecciona 20 o menos.`,
-        { duration: 6000 }
-      )
-      return
-    }
+    const BATCH_SIZE = 15
+    const totalBatches = Math.ceil(ids.length / BATCH_SIZE)
+    const plural = ids.length === 1 ? 'familia' : 'familias'
+    const batchMsg = totalBatches > 1 ? ` en ${totalBatches} lotes automáticos` : ''
 
-    if (!confirm(`Enviar recordatorio de pago a ${ids.length} familia(s)? Los marcados como "Caso especial" se omiten automáticamente.`)) {
+    if (!confirm(`Enviar recordatorio de pago a ${ids.length} ${plural}?${batchMsg}\n\nLos marcados como "Caso especial" se omiten automáticamente.`)) {
       return
     }
 
     startTransition(async () => {
-      const r = await sendPendingReminders(ids)
+      let totalSent = 0
+      let totalSkippedSpecial = 0
+      let totalSkippedNoEmail = 0
+      let totalSkippedNoDebt = 0
+      let totalFailed = 0
+
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        const batch = ids.slice(i, i + BATCH_SIZE)
+        const batchNum = Math.floor(i / BATCH_SIZE) + 1
+
+        if (totalBatches > 1) {
+          toast.loading(`Enviando lote ${batchNum}/${totalBatches}…`, { id: 'reminder-progress' })
+        }
+
+        const r = await sendPendingReminders(batch)
+
+        if (!r.success && !r.sent) {
+          toast.dismiss('reminder-progress')
+          toast.error(r.error ?? 'Error al enviar')
+          return
+        }
+
+        totalSent += r.sent ?? 0
+        totalSkippedSpecial += r.skippedSpecial ?? 0
+        totalSkippedNoEmail += r.skippedNoEmail ?? 0
+        totalSkippedNoDebt += r.skippedNoDebt ?? 0
+        totalFailed += r.failed ?? 0
+      }
+
+      toast.dismiss('reminder-progress')
+
       const parts: string[] = []
-      if (r.sent && r.sent > 0) parts.push(`${r.sent} enviado(s)`)
-      if (r.skippedSpecial && r.skippedSpecial > 0) parts.push(`${r.skippedSpecial} caso especial`)
-      if (r.skippedNoEmail && r.skippedNoEmail > 0) parts.push(`${r.skippedNoEmail} sin email`)
-      if (r.skippedNoDebt && r.skippedNoDebt > 0) parts.push(`${r.skippedNoDebt} sin deuda`)
-      if (r.failed && r.failed > 0) parts.push(`${r.failed} fallidos`)
+      if (totalSent > 0) parts.push(`${totalSent} enviado(s)`)
+      if (totalSkippedSpecial > 0) parts.push(`${totalSkippedSpecial} caso especial`)
+      if (totalSkippedNoEmail > 0) parts.push(`${totalSkippedNoEmail} sin email`)
+      if (totalSkippedNoDebt > 0) parts.push(`${totalSkippedNoDebt} sin deuda`)
+      if (totalFailed > 0) parts.push(`${totalFailed} fallidos`)
       const summary = parts.join(' · ') || 'Sin envíos'
 
-      if (r.success) {
-        toast.success(`Recordatorios: ${summary}`)
+      if (totalFailed === 0 && totalSent > 0) {
+        toast.success(`Recordatorios enviados: ${summary}`)
         setSelectedPlayers(new Set())
-      } else if (r.sent && r.sent > 0) {
+      } else if (totalSent > 0) {
         toast.warning(`Recordatorios parciales: ${summary}`)
+        setSelectedPlayers(new Set())
       } else {
-        toast.error(r.error ?? `Sin envíos: ${summary}`)
+        toast.error(`Sin envíos: ${summary}`)
       }
     })
   }

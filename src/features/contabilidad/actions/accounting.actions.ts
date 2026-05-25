@@ -331,8 +331,8 @@ export async function updateQuotaPaymentComment(paymentId: string, comment: stri
  *
  * Devuelve detalle granular: sent, skipped, failed.
  */
-const EMAIL_BATCH_CAP = 20
-const EMAIL_DELAY_MS = 3000   // 3s entre emails — evita detección de spam por Gmail
+const EMAIL_BATCH_CAP = 15    // máx por llamada (15×2s=30s, dentro del timeout de Vercel)
+const EMAIL_DELAY_MS = 2000   // 2s entre emails — evita detección de spam por Gmail
 
 function sleep(ms: number) {
   return new Promise<void>(resolve => setTimeout(resolve, ms))
@@ -348,7 +348,7 @@ export async function sendPendingReminders(playerIds: string[]) {
   if (playerIds.length > EMAIL_BATCH_CAP) {
     return {
       success: false,
-      error: `Máximo ${EMAIL_BATCH_CAP} emails por envío para evitar ser marcado como spam. Selecciona menos jugadores.`,
+      error: `Máximo ${EMAIL_BATCH_CAP} jugadores por lote (límite de tiempo del servidor). Usa el envío por lotes desde la UI.`,
     }
   }
 
