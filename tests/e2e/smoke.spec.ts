@@ -171,6 +171,59 @@ test.describe('Flujos autenticados', () => {
     await expect(page.locator('body')).not.toContainText('Unhandled Runtime Error')
   })
 
+  // ── Flujo crítico: formulario "Nuevo jugador" ───────────────────────────────
+  test('nuevo jugador: formulario renderiza con los campos requeridos', async ({ page }) => {
+    await page.goto(`${BASE}/jugadores/nuevo`)
+    await page.waitForLoadState('networkidle')
+    await expect(page.locator('body')).not.toContainText('Error interno')
+    await expect(page.locator('body')).not.toContainText('500')
+
+    // El formulario debe tener inputs de nombre, apellidos y un botón de envío
+    const inputs = page.locator('input[type="text"], input:not([type])')
+    await expect(inputs.first()).toBeVisible({ timeout: 5_000 })
+    await expect(page.locator('button[type="submit"], button:has-text("Guardar"), button:has-text("Crear")').first())
+      .toBeVisible({ timeout: 5_000 })
+  })
+
+  // ── Flujo crítico: panel de pagos interactivo ────────────────────────────────
+  test('contabilidad/pagos: botón "Registrar pago" abre un formulario con campo importe', async ({ page }) => {
+    await page.goto(`${BASE}/contabilidad/pagos`)
+    await page.waitForLoadState('networkidle')
+    await expect(page.locator('body')).not.toContainText('Error interno')
+
+    // Buscar cualquier botón de "Registrar pago"
+    const registerBtn = page.getByRole('button', { name: /registrar pago/i }).first()
+    const btnVisible = await registerBtn.isVisible({ timeout: 3_000 }).catch(() => false)
+
+    if (!btnVisible) {
+      // Si no hay jugadores con deuda en este entorno, el test pasa trivialmente
+      test.skip(true, 'No hay jugadores con pago pendiente para testear el flujo de registro')
+      return
+    }
+
+    await registerBtn.click()
+
+    // El diálogo/panel debe tener un input de importe
+    const amountInput = page.locator('input[name="amount"], input[type="number"], input[inputmode="decimal"]').first()
+    await expect(amountInput).toBeVisible({ timeout: 5_000 })
+
+    // Cerrar sin enviar (Escape o botón cancelar)
+    await page.keyboard.press('Escape')
+  })
+
+  // ── Flujo crítico: cron con token válido devuelve 200 ───────────────────────
+  test('cron sync-sheets con CRON_SECRET correcto devuelve 200', async ({ request }) => {
+    const cronSecret = process.env.TEST_CRON_SECRET
+    if (!cronSecret) {
+      test.skip(true, 'TEST_CRON_SECRET no configurado — test de cron autenticado omitido')
+      return
+    }
+    const res = await request.get(`${BASE}/api/cron/sync-sheets`, {
+      headers: { Authorization: `Bearer ${cronSecret}` },
+    })
+    expect(res.status()).toBe(200)
+  })
+
   test('baja por requisitos: botón muestra confirmación inline (no confirm())', async ({ page }) => {
     await page.goto(`${BASE}/jugadores/inscripciones`)
     await page.waitForLoadState('networkidle')

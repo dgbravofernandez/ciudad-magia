@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatCurrency, formatDate, getMonthName } from '@/lib/utils/currency'
+import { formatCurrency, formatDate, formatDateTime, getMonthName } from '@/lib/utils/currency'
 
 describe('formatCurrency', () => {
   it('formatea euros correctamente', () => {
@@ -46,6 +46,29 @@ describe('formatDate', () => {
   it('acepta objeto Date', () => {
     const result = formatDate(new Date(2025, 0, 1))
     expect(result).toContain('2025')
+  })
+})
+
+describe('formatDateTime', () => {
+  it('acepta string ISO con hora y devuelve fecha + hora', () => {
+    const result = formatDateTime('2025-06-15T10:30:00')
+    expect(result).toContain('15')
+    expect(result).toContain('06')
+    expect(result).toContain('2025')
+    // Debe incluir la hora
+    expect(result).toContain('10')
+    expect(result).toContain('30')
+  })
+
+  it('acepta objeto Date', () => {
+    const result = formatDateTime(new Date(2025, 5, 15, 14, 0))
+    expect(result).toContain('2025')
+    expect(result).toContain('14')
+    expect(result).toContain('00')
+  })
+
+  it('devuelve string no vacío', () => {
+    expect(formatDateTime('2025-01-01T00:00:00').length).toBeGreaterThan(0)
   })
 })
 

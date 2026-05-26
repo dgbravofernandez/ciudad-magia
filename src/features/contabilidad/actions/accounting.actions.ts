@@ -11,19 +11,6 @@ import { assertNotLocked } from '@/lib/accounting/lock'
 import { logger } from '@/lib/logger'
 import { formatCurrency } from '@/lib/utils/currency'
 
-// Map Spanish UI labels to DB enum values
-const METHOD_MAP: Record<string, string> = {
-  efectivo: 'cash',
-  tarjeta: 'card',
-  transferencia: 'transfer',
-  cash: 'cash',
-  card: 'card',
-  transfer: 'transfer',
-}
-
-function toDbMethod(method: string): string {
-  return METHOD_MAP[method] ?? method
-}
 
 async function resolveClubAndMember() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -331,7 +318,7 @@ export async function updateQuotaPaymentComment(paymentId: string, comment: stri
  *
  * Devuelve detalle granular: sent, skipped, failed.
  */
-import { EMAIL_BATCH_CAP, CLUB_IBAN } from '@/lib/contabilidad/constants'
+import { EMAIL_BATCH_CAP, CLUB_IBAN, toDbMethod } from '@/lib/contabilidad/constants'
 const EMAIL_DELAY_MS = 2000   // 2s entre emails — evita detección de spam por Gmail
 
 function sleep(ms: number) {
