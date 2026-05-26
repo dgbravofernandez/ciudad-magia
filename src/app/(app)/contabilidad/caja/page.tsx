@@ -40,7 +40,7 @@ export default async function CajaPage() {
   // Get the last cash close to determine period start
   const { data: lastClose } = await sb
     .from('cash_closes')
-    .select('period_end')
+    .select('period_end, created_at')
     .eq('club_id', clubId)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -49,10 +49,17 @@ export default async function CajaPage() {
   const now = new Date()
   // Period starts from day after last close, or first of month if no closes
   let periodStart: string
+  let lastCloseAt: string | null = null
   if (lastClose?.period_end) {
     const lastEnd = new Date(lastClose.period_end)
     lastEnd.setDate(lastEnd.getDate() + 1)
     periodStart = lastEnd.toISOString().slice(0, 10)
+    // Timestamp exacto del cierre anterior (para display)
+    if (lastClose.created_at) {
+      const closeTs = new Date(lastClose.created_at)
+      closeTs.setMinutes(closeTs.getMinutes() + 1)
+      lastCloseAt = closeTs.toISOString()
+    }
   } else {
     periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
   }
@@ -193,6 +200,7 @@ export default async function CajaPage() {
           movementDetails={movementDetails}
           activityDetails={activityDetails}
           cashRegisterFloat={cashRegisterFloat}
+          lastCloseAt={lastCloseAt}
         />
       </div>
     </div>

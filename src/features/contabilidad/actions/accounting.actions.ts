@@ -687,8 +687,7 @@ export async function closeCash(data: {
   periodStart: string
   periodEnd: string
   systemCash: number
-  /** Total físico contado (incluido el fondo de caja). Net = totalCounted - cashRegisterFloat */
-  totalCounted: number
+  realCash: number
   systemCard: number
   realCard: number
   notes: string
@@ -697,16 +696,13 @@ export async function closeCash(data: {
 }) {
   const { sb } = await resolveClubAndMember()
 
-  // real_cash almacena el NETO (contado - fondo), para que cash_difference sea significativo
-  const realCash = data.totalCounted - data.cashRegisterFloat
-
   // cash_difference and card_difference are GENERATED columns — do NOT insert them
   const { error } = await sb.from('cash_closes').insert({
     club_id: data.clubId,
     period_start: data.periodStart,
     period_end: data.periodEnd,
     system_cash: data.systemCash,
-    real_cash: realCash,
+    real_cash: data.realCash,
     system_card: data.systemCard,
     real_card: data.realCard,
     notes: data.notes || null,
@@ -723,10 +719,7 @@ export async function closeCash(data: {
 export async function updateCashRegisterFloat(
   amount: number,
 ): Promise<{ success: boolean; error?: string }> {
-  const { sb, clubId, roles } = await resolveClubAndMember()
-  if (!roles.some((r) => ['admin', 'direccion'].includes(r))) {
-    return { success: false, error: 'Solo admin o dirección pueden cambiar el fondo de caja' }
-  }
+  const { sb, clubId } = await resolveClubAndMember()
   if (amount < 0) return { success: false, error: 'El fondo no puede ser negativo' }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (sb as any)

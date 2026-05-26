@@ -7,7 +7,7 @@ import {
   Unlock, Pencil, Trash2, X, FileDown, Wallet, ChevronDown, ChevronUp, Save,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
-import { formatCurrency, formatDate } from '@/lib/utils/currency'
+import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils/currency'
 import {
   closeCash,
   reopenCashClose,
@@ -88,6 +88,7 @@ interface Props {
   systemCard: number
   periodStart: string
   periodEnd: string
+  lastCloseAt: string | null
   closes: CashClose[]
   movements: Movement[]
   movementDetails: MovementDetail[]
@@ -102,6 +103,7 @@ export function CashRegisterPage({
   systemCard,
   periodStart,
   periodEnd,
+  lastCloseAt,
   closes,
   movements,
   movementDetails,
@@ -109,12 +111,12 @@ export function CashRegisterPage({
   cashRegisterFloat: initialFloat,
 }: Props) {
   const router = useRouter()
-  const [totalCounted, setTotalCounted] = useState('')
-  const [realCard, setRealCard]         = useState('')
-  const [notes, setNotes]               = useState('')
-  const [isPending, startTransition]    = useTransition()
+  const [realCash, setRealCash]      = useState('')
+  const [realCard, setRealCard]      = useState('')
+  const [notes, setNotes]            = useState('')
+  const [isPending, startTransition] = useTransition()
 
-  // Fondo de caja (cambio)
+  // Fondo de caja (cambio) — solo informativo
   const [floatValue, setFloatValue]     = useState(initialFloat.toFixed(2))
   const [editingFloat, setEditingFloat] = useState(false)
 
@@ -183,15 +185,14 @@ export function CashRegisterPage({
     })
   }
 
-  const totalCountedNum = parseFloat(totalCounted) || 0
-  const floatNum        = parseFloat(floatValue) || 0
-  const netCash         = totalCountedNum - floatNum   // lo que cuadra contra el sistema
-  const realCardNum     = parseFloat(realCard) || 0
-  const diffCash        = netCash - systemCash
-  const diffCard        = realCardNum - systemCard
-  const cashBalanced    = Math.abs(diffCash) < 0.01
-  const cardBalanced    = Math.abs(diffCard) < 0.01
-  const fullyBalanced   = cashBalanced && cardBalanced
+  const realCashNum  = parseFloat(realCash) || 0
+  const floatNum     = parseFloat(floatValue) || 0
+  const realCardNum  = parseFloat(realCard) || 0
+  const diffCash     = realCashNum - systemCash
+  const diffCard     = realCardNum - systemCard
+  const cashBalanced = Math.abs(diffCash) < 0.01
+  const cardBalanced = Math.abs(diffCard) < 0.01
+  const fullyBalanced = cashBalanced && cardBalanced
 
   // Build detail map for enriching movements (quota payments)
   const detailMap: Record<string, MovementDetail> = {}
@@ -223,17 +224,17 @@ export function CashRegisterPage({
         periodStart,
         periodEnd,
         systemCash,
-        totalCounted: totalCountedNum,
+        realCash: realCashNum,
         systemCard,
-        realCard:  realCardNum,
+        realCard: realCardNum,
         notes,
-        closedBy:  memberId,
+        closedBy: memberId,
         cashRegisterFloat: floatNum,
       })
 
       if (result.success) {
         toast.success('Caja cerrada correctamente')
-        setTotalCounted('')
+        setRealCash('')
         setRealCard('')
         setNotes('')
         router.refresh()
@@ -320,8 +321,12 @@ export function CashRegisterPage({
           )}
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          Desde <strong>{formatDate(periodStart)}</strong> hasta <strong>{formatDate(periodEnd)}</strong>
-          {closes.length > 0 && <span className="ml-1">(desde el último cierre)</span>}
+          Desde{' '}
+          <strong>
+            {lastCloseAt ? formatDateTime(lastCloseAt) : formatDate(periodStart)}
+          </strong>
+          {' '}hasta{' '}
+          <strong>{formatDateTime(new Date().toISOString())}</strong>
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div className="bg-green-50 rounded-lg p-3 text-center">
@@ -507,61 +512,55 @@ export function CashRegisterPage({
           </div>
         </div>
 
-        {/* Fondo de caja (cambio) */}
-        <div className="border rounded-lg p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Wallet className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Fondo de caja (cambio fijo)</span>
-            </div>
-            {!editingFloat ? (
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold">{formatCurrency(floatNum)}</span>
-                <button
-                  type="button"
-                  onClick={() => setEditingFloat(true)}
-                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
-                  title="Editar fondo de caja"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  step="0.01"
-                  inputMode="decimal"
-                  min="0"
-                  className="input w-28 text-sm"
-                  value={floatValue}
-                  onChange={(e) => setFloatValue(e.target.value)}
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveFloat}
-                  disabled={isPending}
-                  className="p-1.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                  title="Guardar"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setFloatValue(initialFloat.toFixed(2)); setEditingFloat(false) }}
-                  className="p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors"
-                  title="Cancelar"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
+        {/* Fondo de caja (cambio) — solo informativo */}
+        <div className="flex items-center justify-between bg-muted/30 rounded-lg px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Wallet className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Cambio en caja</span>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Importe fijo que queda en caja para el cambio del siguiente periodo.
-            Se resta automáticamente del total contado al calcular el efectivo neto.
-          </p>
+          {!editingFloat ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold">{formatCurrency(floatNum)}</span>
+              <button
+                type="button"
+                onClick={() => setEditingFloat(true)}
+                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                title="Editar cambio"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                min="0"
+                className="input w-28 text-sm"
+                value={floatValue}
+                onChange={(e) => setFloatValue(e.target.value)}
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={handleSaveFloat}
+                disabled={isPending}
+                className="p-1.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                title="Guardar"
+              >
+                <Save className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFloatValue(initialFloat.toFixed(2)); setEditingFloat(false) }}
+                className="p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors"
+                title="Cancelar"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Real counts */}
@@ -575,25 +574,13 @@ export function CashRegisterPage({
               min="0"
               className="input w-full"
               placeholder={`Sistema: ${formatCurrency(systemCash)}`}
-              value={totalCounted}
-              onChange={(e) => setTotalCounted(e.target.value)}
+              value={realCash}
+              onChange={(e) => setRealCash(e.target.value)}
             />
-            {totalCounted && (
-              <div className="space-y-1 mt-1">
-                {floatNum > 0 && (
-                  <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/40 rounded px-2 py-1">
-                    <span>— Fondo de caja</span>
-                    <span>- {formatCurrency(floatNum)}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between text-xs font-medium bg-muted/40 rounded px-2 py-1">
-                  <span>Efectivo neto del periodo</span>
-                  <span>{formatCurrency(netCash)}</span>
-                </div>
-                <div className={cn('flex items-center gap-1.5 text-sm', cashBalanced ? 'text-green-600' : 'text-red-600')}>
-                  {cashBalanced ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-                  {cashBalanced ? 'Cuadre ✓' : `Descuadre: ${formatCurrency(Math.abs(diffCash))}`}
-                </div>
+            {realCash && (
+              <div className={cn('flex items-center gap-1.5 text-sm mt-1', cashBalanced ? 'text-green-600' : 'text-red-600')}>
+                {cashBalanced ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                {cashBalanced ? 'Cuadre ✓' : `Descuadre: ${formatCurrency(Math.abs(diffCash))}`}
               </div>
             )}
           </div>
@@ -619,7 +606,7 @@ export function CashRegisterPage({
         </div>
 
         {/* Overall balance indicator */}
-        {totalCounted && realCard && (
+        {realCash && realCard && (
           <div className={cn('flex items-center gap-2 p-3 rounded-lg text-sm font-medium', fullyBalanced ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')}>
             {fullyBalanced ? (
               <><CheckCircle className="w-4 h-4" /> Caja cuadrada — puedes proceder al cierre</>
@@ -641,7 +628,7 @@ export function CashRegisterPage({
         </div>
 
         <button
-          disabled={isPending || !totalCounted || !realCard}
+          disabled={isPending || !realCash || !realCard}
           onClick={handleCloseCash}
           className="btn-primary gap-2 flex items-center"
         >
@@ -686,7 +673,7 @@ export function CashRegisterPage({
                   <td className={cn('px-4 py-3 text-right font-semibold', Math.abs(c.card_difference) < 0.01 ? 'text-green-600' : 'text-red-600')}>
                     {c.card_difference >= 0 ? '+' : ''}{formatCurrency(c.card_difference)}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{formatDate(c.created_at)}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{formatDateTime(c.created_at)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 justify-end">
                       <a
