@@ -29,6 +29,14 @@ export default async function CajaPage() {
     }
   }
 
+  // Get club settings (for cash register float)
+  const { data: clubSettings } = await sb
+    .from('club_settings')
+    .select('cash_register_float')
+    .eq('club_id', clubId)
+    .single()
+  const cashRegisterFloat: number = clubSettings?.cash_register_float ?? 0
+
   // Get the last cash close to determine period start
   const { data: lastClose } = await sb
     .from('cash_closes')
@@ -184,6 +192,7 @@ export default async function CajaPage() {
           movements={movs}
           movementDetails={movementDetails}
           activityDetails={activityDetails}
+          cashRegisterFloat={cashRegisterFloat}
         />
       </div>
     </div>

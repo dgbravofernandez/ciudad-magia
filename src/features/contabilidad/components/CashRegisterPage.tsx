@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import {
   Lock, CheckCircle, AlertTriangle, FileText, Download,
-  Unlock, Pencil, Trash2, X, FileDown,
+  Unlock, Pencil, Trash2, X, FileDown, Wallet, ChevronDown, ChevronUp, Save,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatDate } from '@/lib/utils/currency'
@@ -14,6 +14,7 @@ import {
   deletePayment,
   updatePayment,
   updateCashMovement,
+  updateCashRegisterFloat,
 } from '@/features/contabilidad/actions/accounting.actions'
 import { useRouter } from 'next/navigation'
 
@@ -74,6 +75,7 @@ interface CashClose {
   real_card: number
   cash_difference: number
   card_difference: number
+  cash_register_float: number
   notes: string | null
   closed_by: string
   created_at: string
@@ -90,6 +92,7 @@ interface Props {
   movements: Movement[]
   movementDetails: MovementDetail[]
   activityDetails: ActivityDetail[]
+  cashRegisterFloat: number
 }
 
 export function CashRegisterPage({
@@ -103,12 +106,17 @@ export function CashRegisterPage({
   movements,
   movementDetails,
   activityDetails,
+  cashRegisterFloat: initialFloat,
 }: Props) {
   const router = useRouter()
-  const [realCash, setRealCash]   = useState('')
-  const [realCard, setRealCard]   = useState('')
-  const [notes, setNotes]         = useState('')
-  const [isPending, startTransition] = useTransition()
+  const [totalCounted, setTotalCounted] = useState('')
+  const [realCard, setRealCard]         = useState('')
+  const [notes, setNotes]               = useState('')
+  const [isPending, startTransition]    = useTransition()
+
+  // Fondo de caja (cambio)
+  const [floatValue, setFloatValue]     = useState(initialFloat.toFixed(2))
+  const [editingFloat, setEditingFloat] = useState(false)
 
   // Edit-movement modal state
   const [editMovement, setEditMovement] = useState<Movement | null>(null)
@@ -175,13 +183,15 @@ export function CashRegisterPage({
     })
   }
 
-  const realCashNum = parseFloat(realCash) || 0
-  const realCardNum = parseFloat(realCard) || 0
-  const diffCash    = realCashNum - systemCash
-  const diffCard    = realCardNum - systemCard
-  const cashBalanced  = Math.abs(diffCash) < 0.01
-  const cardBalanced  = Math.abs(diffCard) < 0.01
-  const fullyBalanced = cashBalanced && cardBalanced
+  const totalCountedNum = parseFloat(totalCounted) || 0
+  const floatNum        = parseFloat(floatValue) || 0
+  const netCash         = totalCountedNum - floatNum   // lo que cuadra contra el sistema
+  const realCardNum     = parseFloat(realCard) || 0
+  const diffCash        = netCash - systemCash
+  const diffCard        = realCardNum - systemCard
+  const cashBalanced    = Math.abs(diffCash) < 0.01
+  const cardBalanced    = Math.abs(diffCard) < 0.01
+  const fullyBalanced   = cashBalanced && cardBalanced
 
   // Build detail map for enriching movements (quota payments)
   const detailMap: Record<string, MovementDetail> = {}
@@ -191,6 +201,21 @@ export function CashRegisterPage({
   const activityDetailMap: Record<string, ActivityDetail> = {}
   for (const a of activityDetails) activityDetailMap[a.charge_id] = a
 
+  function handleSaveFloat() {
+    const amount = parseFloat(floatValue)
+    if (isNaN(amount) || amount < 0) { toast.error('Importe inválido'); return }
+    startTransition(async () => {
+      const r = await updateCashRegisterFloat(amount)
+      if (r.success) {
+        toast.success('Fondo de caja actualizado')
+        setEditingFloat(false)
+        router.refresh()
+      } else {
+        toast.error(r.error ?? 'Error')
+      }
+    })
+  }
+
   function handleCloseCash() {
     startTransition(async () => {
       const result = await closeCash({
@@ -198,16 +223,17 @@ export function CashRegisterPage({
         periodStart,
         periodEnd,
         systemCash,
-        realCash:  realCashNum,
+        totalCounted: totalCountedNum,
         systemCard,
         realCard:  realCardNum,
         notes,
         closedBy:  memberId,
+        cashRegisterFloat: floatNum,
       })
 
       if (result.success) {
         toast.success('Caja cerrada correctamente')
-        setRealCash('')
+        setTotalCounted('')
         setRealCard('')
         setNotes('')
         router.refresh()
@@ -385,10 +411,67 @@ export function CashRegisterPage({
           </div>
         </div>
 
+        {/* Fondo de caja (cambio) */}
+        <div className="border rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Fondo de caja (cambio fijo)</span>
+            </div>
+            {!editingFloat ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">{formatCurrency(floatNum)}</span>
+                <button
+                  type="button"
+                  onClick={() => setEditingFloat(true)}
+                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                  title="Editar fondo de caja"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  min="0"
+                  className="input w-28 text-sm"
+                  value={floatValue}
+                  onChange={(e) => setFloatValue(e.target.value)}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveFloat}
+                  disabled={isPending}
+                  className="p-1.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                  title="Guardar"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setFloatValue(initialFloat.toFixed(2)); setEditingFloat(false) }}
+                  className="p-1.5 rounded hover:bg-muted text-muted-foreground transition-colors"
+                  title="Cancelar"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Importe fijo que queda en caja para el cambio del siguiente periodo.
+            Se resta automáticamente del total contado al calcular el efectivo neto.
+          </p>
+        </div>
+
         {/* Real counts */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1">
-            <label className="label">Efectivo contado fisicamente</label>
+            <label className="label">Efectivo contado físicamente</label>
             <input
               type="number"
               step="0.01"
@@ -396,13 +479,25 @@ export function CashRegisterPage({
               min="0"
               className="input w-full"
               placeholder={`Sistema: ${formatCurrency(systemCash)}`}
-              value={realCash}
-              onChange={(e) => setRealCash(e.target.value)}
+              value={totalCounted}
+              onChange={(e) => setTotalCounted(e.target.value)}
             />
-            {realCash && (
-              <div className={cn('flex items-center gap-1.5 text-sm mt-1', cashBalanced ? 'text-green-600' : 'text-red-600')}>
-                {cashBalanced ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-                {cashBalanced ? 'Cuadre' : `Descuadre: ${formatCurrency(Math.abs(diffCash))}`}
+            {totalCounted && (
+              <div className="space-y-1 mt-1">
+                {floatNum > 0 && (
+                  <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/40 rounded px-2 py-1">
+                    <span>— Fondo de caja</span>
+                    <span>- {formatCurrency(floatNum)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-xs font-medium bg-muted/40 rounded px-2 py-1">
+                  <span>Efectivo neto del periodo</span>
+                  <span>{formatCurrency(netCash)}</span>
+                </div>
+                <div className={cn('flex items-center gap-1.5 text-sm', cashBalanced ? 'text-green-600' : 'text-red-600')}>
+                  {cashBalanced ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                  {cashBalanced ? 'Cuadre ✓' : `Descuadre: ${formatCurrency(Math.abs(diffCash))}`}
+                </div>
               </div>
             )}
           </div>
@@ -421,17 +516,17 @@ export function CashRegisterPage({
             {realCard && (
               <div className={cn('flex items-center gap-1.5 text-sm mt-1', cardBalanced ? 'text-green-600' : 'text-red-600')}>
                 {cardBalanced ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-                {cardBalanced ? 'Cuadre' : `Descuadre: ${formatCurrency(Math.abs(diffCard))}`}
+                {cardBalanced ? 'Cuadre ✓' : `Descuadre: ${formatCurrency(Math.abs(diffCard))}`}
               </div>
             )}
           </div>
         </div>
 
         {/* Overall balance indicator */}
-        {realCash && realCard && (
+        {totalCounted && realCard && (
           <div className={cn('flex items-center gap-2 p-3 rounded-lg text-sm font-medium', fullyBalanced ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')}>
             {fullyBalanced ? (
-              <><CheckCircle className="w-4 h-4" /> Caja cuadrada</>
+              <><CheckCircle className="w-4 h-4" /> Caja cuadrada — puedes proceder al cierre</>
             ) : (
               <><AlertTriangle className="w-4 h-4" /> Hay descuadre en la caja</>
             )}
@@ -450,7 +545,7 @@ export function CashRegisterPage({
         </div>
 
         <button
-          disabled={isPending || !realCash || !realCard}
+          disabled={isPending || !totalCounted || !realCard}
           onClick={handleCloseCash}
           className="btn-primary gap-2 flex items-center"
         >
