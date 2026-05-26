@@ -248,6 +248,26 @@ export function CashRegisterPage({
   const totalIncome  = incomeMovements.reduce((s, m) => s + m.amount, 0)
   const totalExpense = expenseMovements.reduce((s, m) => s + m.amount, 0)
 
+  // Desglose por fuente para diagnóstico
+  const SOURCES = ['cuota', 'ropa', 'torneo', 'actividad', 'gasto', 'otro'] as const
+  type SourceKey = typeof SOURCES[number]
+  const sourceBreakdown = SOURCES.reduce<Record<SourceKey, { cash: number; card: number; transfer: number; count: number }>>((acc, s) => {
+    acc[s] = { cash: 0, card: 0, transfer: 0, count: 0 }
+    return acc
+  }, {} as Record<SourceKey, { cash: number; card: number; transfer: number; count: number }>)
+
+  for (const m of movements) {
+    const src = (m.source ?? 'otro') as SourceKey
+    if (!sourceBreakdown[src]) continue
+    const sign = m.type === 'income' ? 1 : -1
+    if (m.payment_method === 'cash')     sourceBreakdown[src].cash     += sign * m.amount
+    else if (m.payment_method === 'card') sourceBreakdown[src].card     += sign * m.amount
+    else                                  sourceBreakdown[src].transfer += sign * m.amount
+    sourceBreakdown[src].count++
+  }
+
+  const [showBreakdown, setShowBreakdown] = useState(false)
+
   function exportCSV() {
     const BOM    = '﻿'
     const header = 'Nombre,Equipo,Cantidad,Forma de Pago,Fecha,Tipo\n'
@@ -322,6 +342,82 @@ export function CashRegisterPage({
           </div>
         </div>
       </div>
+
+      {/* Diagnóstico: desglose por fuente */}
+      {movements.length > 0 && (
+        <div className="card overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowBreakdown(v => !v)}
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/20 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <ChevronDown className={cn('w-4 h-4 text-muted-foreground transition-transform', showBreakdown && 'rotate-180')} />
+              <span className="font-medium text-sm">Desglose por fuente — ¿de dónde vienen los {formatCurrency(systemCash)} en efectivo?</span>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {SOURCES.filter(s => sourceBreakdown[s].count > 0).length} fuentes activas
+            </span>
+          </button>
+          {showBreakdown && (
+            <div className="border-t overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 text-xs text-muted-foreground">
+                    <th className="text-left px-4 py-2 font-medium">Fuente</th>
+                    <th className="text-right px-4 py-2 font-medium">Movimientos</th>
+                    <th className="text-right px-4 py-2 font-medium">Efectivo</th>
+                    <th className="text-right px-4 py-2 font-medium">Tarjeta</th>
+                    <th className="text-right px-4 py-2 font-medium">Transferencia</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {SOURCES.filter(s => sourceBreakdown[s].count > 0).map(s => (
+                    <tr key={s} className="border-t">
+                      <td className="px-4 py-2.5">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                          {SOURCE_LABELS[s] ?? s}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-muted-foreground">{sourceBreakdown[s].count}</td>
+                      <td className={cn('px-4 py-2.5 text-right font-medium', sourceBreakdown[s].cash !== 0 ? 'text-foreground' : 'text-muted-foreground/40')}>
+                        {sourceBreakdown[s].cash !== 0 ? formatCurrency(sourceBreakdown[s].cash) : '—'}
+                      </td>
+                      <td className={cn('px-4 py-2.5 text-right', sourceBreakdown[s].card !== 0 ? 'text-foreground' : 'text-muted-foreground/40')}>
+                        {sourceBreakdown[s].card !== 0 ? formatCurrency(sourceBreakdown[s].card) : '—'}
+                      </td>
+                      <td className={cn('px-4 py-2.5 text-right', sourceBreakdown[s].transfer !== 0 ? 'text-foreground' : 'text-muted-foreground/40')}>
+                        {sourceBreakdown[s].transfer !== 0 ? formatCurrency(sourceBreakdown[s].transfer) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t bg-muted/30 font-semibold">
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground uppercase tracking-wide">TOTAL</td>
+                    <td className="px-4 py-2.5 text-right text-muted-foreground">{movements.length}</td>
+                    <td className="px-4 py-2.5 text-right text-blue-700">{formatCurrency(systemCash)}</td>
+                    <td className="px-4 py-2.5 text-right text-purple-700">{formatCurrency(systemCard)}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      {formatCurrency(
+                        movements.reduce((s, m) => {
+                          if (m.payment_method !== 'cash' && m.payment_method !== 'card') {
+                            return s + (m.type === 'income' ? m.amount : -m.amount)
+                          }
+                          return s
+                        }, 0)
+                      )}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <div className="px-4 py-3 bg-amber-50 border-t text-xs text-amber-700">
+                <strong>¿Hay más dinero físico que efectivo de sistema?</strong>{' '}
+                Lo más habitual es que la diferencia sea el fondo de caja (cambio) que quedó del periodo anterior.
+                Configura el fondo arriba para que cuadre.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Movement detail table */}
       {incomeMovements.length > 0 && (
