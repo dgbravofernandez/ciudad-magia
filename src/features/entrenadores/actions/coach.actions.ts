@@ -176,10 +176,21 @@ export async function getCoachesForPlanning(): Promise<{ success: boolean; coach
 
   if (!clubId) return { success: false, error: 'No se pudo obtener el club' }
 
+  // Obtener IDs de miembros activos del club — necesario para filtrar club_member_roles
+  // (que no tiene club_id directamente) y garantizar aislamiento multi-tenant
+  const { data: clubMemberRows } = await sb
+    .from('club_members')
+    .select('id')
+    .eq('club_id', clubId)
+    .eq('active', true)
+  const clubMemberIds: string[] = (clubMemberRows ?? []).map((m: { id: string }) => m.id)
+
   // Set 1: miembros con rol entrenador/coordinador en club_member_roles
+  // Filtramos por member_id ∈ clubMemberIds para garantizar que son de este club
   const { data: roleRows } = await sb
     .from('club_member_roles')
     .select('member_id')
+    .in('member_id', clubMemberIds.length > 0 ? clubMemberIds : ['__no_match__'])
     .in('role', ['entrenador', 'coordinador'])
 
   const roleIds: string[] = (roleRows ?? []).map((r: { member_id: string }) => r.member_id)

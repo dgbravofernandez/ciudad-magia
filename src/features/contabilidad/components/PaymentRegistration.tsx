@@ -37,6 +37,7 @@ import {
   updatePendingPaymentAmount,
   toggleQuotaSpecialCase,
 } from '@/features/contabilidad/actions/accounting.actions'
+import { EMAIL_BATCH_CAP } from '@/lib/contabilidad/constants'
 import Link from 'next/link'
 
 interface PlayerRow {
@@ -461,7 +462,7 @@ export function PaymentRegistration({
     const ids = Array.from(selectedPlayers)
     if (ids.length === 0) return
 
-    const BATCH_SIZE = 15
+    const BATCH_SIZE = EMAIL_BATCH_CAP
     const totalBatches = Math.ceil(ids.length / BATCH_SIZE)
     const plural = ids.length === 1 ? 'familia' : 'familias'
     const batchMsg = totalBatches > 1 ? ` en ${totalBatches} lotes automáticos` : ''

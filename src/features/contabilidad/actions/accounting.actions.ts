@@ -91,7 +91,7 @@ export async function registerPayment(data: {
     // Actualizar el registro pendiente existente → pagado
     const { error: updateErr } = await sb.from('quota_payments').update({
       amount_paid: data.amount,
-      amount_due: Math.max(Number(pendingRec.amount_due), data.amount),
+      amount_due: Number(pendingRec.amount_due), // preservar la deuda original (no máx con el pago parcial)
       payment_date: data.date,
       payment_method: dbMethod,
       status: 'paid',
@@ -331,7 +331,7 @@ export async function updateQuotaPaymentComment(paymentId: string, comment: stri
  *
  * Devuelve detalle granular: sent, skipped, failed.
  */
-const EMAIL_BATCH_CAP = 15    // máx por llamada (15×2s=30s, dentro del timeout de Vercel)
+import { EMAIL_BATCH_CAP, CLUB_IBAN } from '@/lib/contabilidad/constants'
 const EMAIL_DELAY_MS = 2000   // 2s entre emails — evita detección de spam por Gmail
 
 function sleep(ms: number) {
@@ -387,7 +387,9 @@ export async function sendPendingReminders(playerIds: string[]) {
   const errorList: string[] = []
 
   // 3. Para cada jugador → enviar email
-  for (const player of (players ?? [])) {
+  const playersList = players ?? []
+  for (let i = 0; i < playersList.length; i++) {
+    const player = playersList[i]
     const info = byPlayer[player.id]
 
     if (info?.specialCase) { skippedSpecial++; continue }
@@ -409,7 +411,7 @@ export async function sendPendingReminders(playerIds: string[]) {
       `Le informamos que ${playerName} tiene una cuota pendiente de ${debtStr} con ${clubName}.`,
       '',
       'MÉTODOS DE PAGO:',
-      `  · Transferencia bancaria: ES58 3067 0163 1028 0449 8729 (${clubName})`,
+      `  · Transferencia bancaria: ${CLUB_IBAN} (${clubName})`,
       '  · En las oficinas del club',
       '',
       'Por favor, realice el pago a la mayor brevedad posible.',
@@ -443,14 +445,15 @@ export async function sendPendingReminders(playerIds: string[]) {
         status: 'sent',
         sent_at: new Date().toISOString(),
       })
-
-      // Delay anti-spam entre emails (evita detección de envío masivo)
-      if (sent < (players ?? []).length) {
-        await sleep(EMAIL_DELAY_MS)
-      }
     } catch (e) {
       failed++
       errorList.push(`${playerName}: ${(e as Error).message}`)
+    } finally {
+      // Throttle entre TODOS los intentos (éxito o fallo) — evita detección de spam
+      // No dormimos tras el último jugador del lote
+      if (i < playersList.length - 1) {
+        await sleep(EMAIL_DELAY_MS)
+      }
     }
   }
 
@@ -510,7 +513,7 @@ function buildReminderHtml(opts: {
       <table style="width:100%;font-size:14px;color:#333;border-collapse:collapse;margin-bottom:16px;">
         <tr><td style="padding:3px 0;color:#888;width:130px;">Titular</td><td><strong>CLUB DEPORTIVO ELEMENTAL E.F. CIUDAD DE GETAFE</strong></td></tr>
         <tr><td style="padding:3px 0;color:#888;">Banco</td><td>Caja Rural Jaén</td></tr>
-        <tr><td style="padding:3px 0;color:#888;">IBAN</td><td><strong>ES58 3067 0163 1028 0449 8729</strong></td></tr>
+        <tr><td style="padding:3px 0;color:#888;">IBAN</td><td><strong>${CLUB_IBAN}</strong></td></tr>
       </table>
       <p style="margin:0 0 16px;font-size:13px;color:#e05c00;background:#fff3e0;padding:8px 12px;border-radius:4px;">
         ⚠️ <strong>Importante:</strong> Indique en el concepto el nombre completo del jugador/a para identificar correctamente el pago.

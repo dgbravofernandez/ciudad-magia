@@ -179,7 +179,7 @@ export async function updateSessionAttendance(
 }
 
 export interface MatchEvent {
-  event_type: 'goal' | 'yellow_card' | 'red_card' | 'substitution' | 'injury'
+  event_type: 'goal' | 'goal_away' | 'yellow_card' | 'red_card' | 'substitution' | 'injury'
   player_id: string | null
   player_out_id?: string | null
   minute: number
@@ -223,7 +223,7 @@ export async function addMatchEvent(sessionId: string, event: MatchEvent) {
       p_team: 'home',
     })
   }
-  if ((event.event_type as string) === 'goal_away') {
+  if (event.event_type === 'goal_away') {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase as any).rpc('increment_session_score', {
       p_session_id: sessionId,
