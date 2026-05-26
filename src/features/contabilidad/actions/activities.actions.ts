@@ -145,7 +145,20 @@ export async function addCharge(input: {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
-    const { error } = await sb.from('activity_charges').insert({
+
+    // Obtener nombre de la actividad + nombre del jugador (si es jugador del club)
+    const [{ data: activity }, playerRow] = await Promise.all([
+      sb.from('activities').select('name').eq('id', input.activityId).single(),
+      input.playerId
+        ? sb.from('players').select('first_name, last_name').eq('id', input.playerId).single()
+        : Promise.resolve({ data: null }),
+    ])
+    const activityName = activity?.name ?? 'Actividad'
+    const playerFullName = playerRow.data
+      ? `${playerRow.data.first_name} ${playerRow.data.last_name}`.trim()
+      : (input.participantName?.trim() ?? '')
+
+    const { data: insertedCharge, error } = await sb.from('activity_charges').insert({
       club_id: clubId,
       activity_id: input.activityId,
       player_id: input.playerId ?? null,
@@ -157,19 +170,21 @@ export async function addCharge(input: {
       payment_date: input.paid ? input.paymentDate ?? new Date().toISOString().slice(0, 10) : null,
       notes: input.notes?.trim() || null,
       registered_by: memberId || null,
-    })
+    }).select('id').single()
     if (error) return { success: false, error: error.message }
 
-    // Si está pagada en cash/card → registrar en cash_movements
+    // Si está pagada en cash/card → registrar en cash_movements con el ID del cobro
     if (input.paid && (input.paymentMethod === 'cash' || input.paymentMethod === 'card')) {
       await sb.from('cash_movements').insert({
         club_id: clubId,
         type: 'income',
+        source: 'actividad',
         amount: input.amount,
         payment_method: input.paymentMethod,
-        description: `Actividad · ${input.concept ?? ''} ${input.participantName ?? ''}`.trim(),
+        description: `${activityName}${playerFullName ? ` — ${playerFullName}` : ''}`,
         movement_date: input.paymentDate ?? new Date().toISOString().slice(0, 10),
         registered_by: memberId || null,
+        related_activity_charge_id: insertedCharge?.id ?? null,
       })
     }
 
@@ -212,6 +227,10 @@ export async function addChargesBulk(input: {
     const nameMap = new Map<string, string>()
     for (const p of (players ?? [])) nameMap.set(p.id, `${p.first_name} ${p.last_name}`.trim())
 
+    // Obtener nombre de la actividad para la descripción del movimiento de caja
+    const { data: activity } = await sb.from('activities').select('name').eq('id', input.activityId).single()
+    const activityName = activity?.name ?? 'Actividad'
+
     const paymentDate = input.paid ? (input.paymentDate ?? new Date().toISOString().slice(0, 10)) : null
     const rows = input.playerIds.map(pid => ({
       club_id: clubId,
@@ -226,20 +245,29 @@ export async function addChargesBulk(input: {
       registered_by: memberId || null,
     }))
 
-    const { error } = await sb.from('activity_charges').insert(rows)
+    // Recuperar IDs de los cobros insertados para enlazarlos con los movimientos de caja
+    const { data: insertedCharges, error } = await sb.from('activity_charges').insert(rows).select('id, player_id')
     if (error) return { success: false, error: error.message }
 
-    // Si vienen pagados con cash/card → registrar movimientos de caja por jugador
+    // Si vienen pagados con cash/card → registrar movimientos de caja con enlace al cobro
     if (input.paid && (input.paymentMethod === 'cash' || input.paymentMethod === 'card')) {
-      const movements = input.playerIds.map(pid => ({
-        club_id: clubId,
-        type: 'income',
-        amount: input.amount,
-        payment_method: input.paymentMethod,
-        description: `Actividad · ${input.concept ?? ''} ${nameMap.get(pid) ?? ''}`.trim(),
-        movement_date: paymentDate,
-        registered_by: memberId || null,
-      }))
+      const chargeMap = new Map<string, string>() // player_id → charge_id
+      for (const c of (insertedCharges ?? [])) chargeMap.set(c.player_id, c.id)
+
+      const movements = input.playerIds.map(pid => {
+        const playerName = nameMap.get(pid) ?? ''
+        return {
+          club_id: clubId,
+          type: 'income',
+          source: 'actividad',
+          amount: input.amount,
+          payment_method: input.paymentMethod,
+          description: `${activityName}${playerName ? ` — ${playerName}` : ''}`,
+          movement_date: paymentDate,
+          registered_by: memberId || null,
+          related_activity_charge_id: chargeMap.get(pid) ?? null,
+        }
+      })
       await sb.from('cash_movements').insert(movements)
     }
 
@@ -264,7 +292,7 @@ export async function markChargePaid(
     const date = paymentDate ?? new Date().toISOString().slice(0, 10)
     const { data: charge, error: fetchErr } = await sb
       .from('activity_charges')
-      .select('activity_id, amount, amount_paid, participant_name, concept, paid, player_id')
+      .select('activity_id, amount, amount_paid, participant_name, concept, paid, player_id, activities(name)')
       .eq('id', chargeId)
       .single()
     if (fetchErr || !charge) return { success: false, error: fetchErr?.message ?? 'No existe' }
@@ -290,15 +318,25 @@ export async function markChargePaid(
     if (error) return { success: false, error: error.message }
 
     if (paymentMethod === 'cash' || paymentMethod === 'card') {
+      // Construir descripción con nombre de actividad + nombre del jugador
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const activityName = (charge as any).activities?.name ?? 'Actividad'
+      let playerName = charge.participant_name?.trim() ?? ''
+      if (!playerName && charge.player_id) {
+        const { data: p } = await sb.from('players').select('first_name, last_name').eq('id', charge.player_id).single()
+        if (p) playerName = `${p.first_name} ${p.last_name}`.trim()
+      }
       const partialLabel = isFullyPaid ? '' : ' (parcial)'
       await sb.from('cash_movements').insert({
         club_id: clubId,
         type: 'income',
+        source: 'actividad',
         amount: payNow,
         payment_method: paymentMethod,
-        description: `Actividad · ${charge.concept ?? ''} ${charge.participant_name ?? ''}${partialLabel}`.trim(),
+        description: `${activityName}${playerName ? ` — ${playerName}` : ''}${partialLabel}`,
         movement_date: date,
         registered_by: memberId || null,
+        related_activity_charge_id: chargeId,
       })
     }
 

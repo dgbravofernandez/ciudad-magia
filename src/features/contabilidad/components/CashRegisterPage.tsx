@@ -47,6 +47,7 @@ interface Movement {
   movement_date: string
   related_payment_id: string | null
   related_expense_id: string | null
+  related_activity_charge_id: string | null
   source: string | null
 }
 
@@ -55,6 +56,12 @@ interface MovementDetail {
   player_id: string
   player_name: string
   team_name: string
+}
+
+interface ActivityDetail {
+  charge_id: string
+  player_name: string
+  activity_name: string
 }
 
 interface CashClose {
@@ -82,6 +89,7 @@ interface Props {
   closes: CashClose[]
   movements: Movement[]
   movementDetails: MovementDetail[]
+  activityDetails: ActivityDetail[]
 }
 
 export function CashRegisterPage({
@@ -94,6 +102,7 @@ export function CashRegisterPage({
   closes,
   movements,
   movementDetails,
+  activityDetails,
 }: Props) {
   const router = useRouter()
   const [realCash, setRealCash]   = useState('')
@@ -174,9 +183,13 @@ export function CashRegisterPage({
   const cardBalanced  = Math.abs(diffCard) < 0.01
   const fullyBalanced = cashBalanced && cardBalanced
 
-  // Build detail map for enriching movements
+  // Build detail map for enriching movements (quota payments)
   const detailMap: Record<string, MovementDetail> = {}
   for (const d of movementDetails) detailMap[d.id] = d
+
+  // Build activity detail map (activity charges)
+  const activityDetailMap: Record<string, ActivityDetail> = {}
+  for (const a of activityDetails) activityDetailMap[a.charge_id] = a
 
   function handleCloseCash() {
     startTransition(async () => {
@@ -213,9 +226,10 @@ export function CashRegisterPage({
     const BOM    = '﻿'
     const header = 'Nombre,Equipo,Cantidad,Forma de Pago,Fecha,Tipo\n'
     const rows   = movements.map((m) => {
-      const detail = m.related_payment_id ? detailMap[m.related_payment_id] : null
-      const name   = detail?.player_name || m.description
-      const team   = detail?.team_name   || ''
+      const detail    = m.related_payment_id ? detailMap[m.related_payment_id] : null
+      const actDetail = m.related_activity_charge_id ? activityDetailMap[m.related_activity_charge_id] : null
+      const name   = actDetail?.player_name || detail?.player_name || m.description
+      const team   = actDetail ? actDetail.activity_name : (detail?.team_name || '')
       const amount = m.amount.toFixed(2)
       const method = METHOD_LABELS[m.payment_method] ?? m.payment_method
       const date   = m.movement_date
@@ -306,7 +320,10 @@ export function CashRegisterPage({
               <tbody>
                 {incomeMovements.map((m) => {
                   const detail = m.related_payment_id ? detailMap[m.related_payment_id] : null
+                  const actDetail = m.related_activity_charge_id ? activityDetailMap[m.related_activity_charge_id] : null
                   const sourceLabel = SOURCE_LABELS[m.source ?? ''] ?? (m.source ?? 'Otro')
+                  const displayName = actDetail?.player_name || detail?.player_name || m.description
+                  const displayTeam = actDetail ? actDetail.activity_name : (detail?.team_name || '—')
                   return (
                     <tr key={m.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
                       <td className="px-4 py-3">
@@ -314,8 +331,8 @@ export function CashRegisterPage({
                           {sourceLabel}
                         </span>
                       </td>
-                      <td className="px-4 py-3 font-medium">{detail?.player_name || m.description}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{detail?.team_name || '—'}</td>
+                      <td className="px-4 py-3 font-medium">{displayName}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{displayTeam}</td>
                       <td className="px-4 py-3 text-right font-semibold text-green-600">{formatCurrency(m.amount)}</td>
                       <td className="px-4 py-3 text-muted-foreground">{METHOD_LABELS[m.payment_method] ?? m.payment_method}</td>
                       <td className="px-4 py-3 text-muted-foreground">{formatDate(m.movement_date)}</td>

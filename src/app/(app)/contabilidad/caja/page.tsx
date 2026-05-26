@@ -78,7 +78,9 @@ export default async function CajaPage() {
     .filter((m) => m.payment_method === 'card')
     .reduce((sum: number, m) => sum + (m.type === 'income' ? m.amount : -m.amount), 0)
 
-  // Fetch movements detail for the summary (player names)
+  // ── Enriquecer movimientos con nombre de jugador/equipo ──────────────────
+
+  // 1. Movimientos de cuotas → quota_payments → players → teams
   const paymentIds = movs
     .filter((m) => m.related_payment_id)
     .map((m) => m.related_payment_id)
@@ -122,6 +124,51 @@ export default async function CajaPage() {
     }
   }
 
+  // 2. Movimientos de actividades → activity_charges → activities + players
+  const activityChargeIds = movs
+    .filter((m) => m.related_activity_charge_id)
+    .map((m) => m.related_activity_charge_id)
+
+  let activityDetails: { charge_id: string; player_name: string; activity_name: string }[] = []
+  if (activityChargeIds.length > 0) {
+    const { data: chargeRows } = await sb
+      .from('activity_charges')
+      .select('id, player_id, participant_name, activity_id')
+      .in('id', activityChargeIds)
+
+    if (chargeRows && chargeRows.length > 0) {
+      // Cargar actividades
+      const activityIds = [...new Set(chargeRows.map((c: { activity_id: string }) => c.activity_id))]
+      const { data: activityRows } = await sb
+        .from('activities')
+        .select('id, name')
+        .in('id', activityIds)
+      const activityMap: Record<string, string> = {}
+      for (const a of (activityRows ?? [])) activityMap[a.id] = a.name
+
+      // Cargar nombres de jugadores del club
+      const playerIds = [...new Set(chargeRows
+        .filter((c: { player_id: string | null }) => c.player_id)
+        .map((c: { player_id: string }) => c.player_id))]
+      const activityPlayerMap: Record<string, string> = {}
+      if (playerIds.length > 0) {
+        const { data: pRows } = await sb
+          .from('players')
+          .select('id, first_name, last_name')
+          .in('id', playerIds)
+        for (const p of (pRows ?? [])) {
+          activityPlayerMap[p.id] = `${p.first_name} ${p.last_name}`.trim()
+        }
+      }
+
+      activityDetails = chargeRows.map((c: { id: string; player_id: string | null; participant_name: string | null; activity_id: string }) => ({
+        charge_id: c.id,
+        player_name: (c.player_id ? activityPlayerMap[c.player_id] : null) ?? c.participant_name ?? '',
+        activity_name: activityMap[c.activity_id] ?? 'Actividad',
+      }))
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
       <Topbar title="Cierre de Caja" />
@@ -136,6 +183,7 @@ export default async function CajaPage() {
           closes={closes ?? []}
           movements={movs}
           movementDetails={movementDetails}
+          activityDetails={activityDetails}
         />
       </div>
     </div>
