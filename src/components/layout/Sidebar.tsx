@@ -250,8 +250,17 @@ function NavItemComponent({ item }: { item: NavItem }) {
 }
 
 export function Sidebar() {
-  const { club } = useClub()
+  const { club, settings } = useClub()
   const { member, roles } = useCurrentUser()
+
+  // RFFM only available for clubs with rffm_enabled flag (e.g. EF Ciudad de Getafe)
+  const navItems = settings?.rffm_enabled
+    ? NAV_ITEMS
+    : NAV_ITEMS.map(item =>
+        item.href === '/scouting' && item.children
+          ? { ...item, children: item.children.filter(c => c.href !== '/scouting/rffm') }
+          : item
+      )
   const router = useRouter()
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { ROLE_LABELS } = require('@/types/roles')
@@ -317,7 +326,7 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavItemComponent key={item.href} item={item} />
           ))}
         </nav>

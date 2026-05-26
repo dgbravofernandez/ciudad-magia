@@ -41,6 +41,7 @@ export type Database = {
           inscription_open: boolean
           sanction_yellow_threshold: number
           sanction_matches: number
+          rffm_enabled: boolean | null
         }
         Insert: Omit<Database['public']['Tables']['club_settings']['Row'], 'id'>
         Update: Partial<Database['public']['Tables']['club_settings']['Insert']>

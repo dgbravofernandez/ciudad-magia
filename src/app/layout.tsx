@@ -11,10 +11,10 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Ciudad Magia CRM',
-    template: '%s | Ciudad Magia CRM',
+    default: 'Cluberly',
+    template: '%s | Cluberly',
   },
-  description: 'Sistema de gestión para clubs de fútbol',
+  description: 'El CRM para clubs deportivos. Gestiona socios, cuotas, sesiones y comunicaciones.',
 }
 
 export default function RootLayout({
