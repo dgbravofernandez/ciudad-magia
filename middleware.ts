@@ -3,11 +3,17 @@ import { createServerClient } from '@supabase/ssr'
 import { updateSession } from '@/lib/supabase/middleware'
 import { verifyValue } from '@/lib/utils/hmac'
 
-const PUBLIC_PATHS = [
+// Coincidencia exacta — no usar startsWith aquí para no capturar todo
+const PUBLIC_EXACT = ['/', '/privacy']
+
+// Prefijos que se permiten sin auth
+const PUBLIC_PREFIX = [
   '/login',
   '/register',
+  '/onboarding',        // registro de nuevos clubs
   '/api/auth/callback',
   '/api/webhooks',
+  '/api/stripe/webhook', // Stripe llama esto sin auth de usuario
 ]
 
 // Rutas exclusivas del panel superadmin — no necesitan club membership
@@ -17,7 +23,10 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Allow public paths without auth check
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  if (
+    PUBLIC_EXACT.includes(pathname) ||
+    PUBLIC_PREFIX.some((p) => pathname.startsWith(p))
+  ) {
     return NextResponse.next()
   }
 
@@ -160,6 +169,32 @@ export async function middleware(request: NextRequest) {
     .eq('member_id', member.id)
 
   const roleNames = (roles ?? []).map((r) => r.role)
+
+  // ─────────────────────────────────────────────
+  // TRIAL ENFORCEMENT: redirigir a /upgrade si el trial ha expirado
+  // ─────────────────────────────────────────────
+  const isAppRoute = !pathname.startsWith('/api/') &&
+    !pathname.startsWith('/upgrade') &&
+    !pathname.startsWith('/cambiar-password')
+
+  if (isAppRoute) {
+    const { data: clubRow } = await adminSupabase
+      .from('clubs')
+      .select('subscription_status, trial_ends_at')
+      .eq('id', member.club_id)
+      .single()
+
+    if (
+      clubRow?.subscription_status === 'trial' &&
+      clubRow?.trial_ends_at &&
+      new Date(clubRow.trial_ends_at) < new Date()
+    ) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/upgrade'
+      url.searchParams.set('trial_expired', '1')
+      return NextResponse.redirect(url)
+    }
+  }
 
   // Inject headers for Server Components to read
   const requestHeaders = new Headers(request.headers)

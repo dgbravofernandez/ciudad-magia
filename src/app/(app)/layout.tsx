@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
+import { Suspense } from 'react'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { ClubProvider } from '@/context/ClubContext'
@@ -7,6 +8,7 @@ import { UserProvider } from '@/context/UserContext'
 import { ClubThemeProvider } from '@/components/layout/ClubThemeProvider'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner'
+import { TrialBanner } from '@/components/layout/TrialBanner'
 import type { Role } from '@/types/roles'
 
 export default async function AppLayout({
@@ -75,6 +77,9 @@ export default async function AppLayout({
         {isImpersonating && (
           <ImpersonationBanner clubName={club.name} />
         )}
+        <Suspense>
+          <TrialBanner />
+        </Suspense>
         <div className={`flex h-screen overflow-hidden bg-background ${isImpersonating ? 'pt-10' : ''}`}>
           <Sidebar />
           <div className="flex-1 flex flex-col lg:ml-64 overflow-hidden">

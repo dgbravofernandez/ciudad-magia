@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       ...(isLtd ? {} : {
         subscription_data: {
           metadata: { club_id: clubId, plan: planId },
-          trial_period_days: 14,
+          // No trial en Stripe — el trial ya se hizo dentro de la app (14 días gratuitos)
         },
       }),
     })
