@@ -13,11 +13,11 @@ const SPORTS = [
 ]
 
 const PLAN_LABELS: Record<string, string> = {
-  starter: 'Starter — €49/mes',
-  pro: 'Pro — €99/mes',
-  club: 'Club — €179/mes',
-  elite: 'Elite — €279/mes',
-  ltd: '⚡ LTD — €199 de por vida',
+  basic:   'Básico — €29/mes',
+  starter: 'Starter — €59/mes',
+  pro:     'Pro — €109/mes',
+  club:    'Club — €199/mes',
+  elite:   'Elite — €349/mes',
 }
 
 type Step = 'account' | 'club' | 'done'

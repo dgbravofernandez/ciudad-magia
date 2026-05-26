@@ -4,55 +4,66 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useClub } from '@/context/ClubContext'
 import { useCurrentUser } from '@/context/UserContext'
-import { Check, Zap, ExternalLink } from 'lucide-react'
+import { Check, ExternalLink } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
 const PLANS = [
   {
+    id: 'basic',
+    name: 'Básico',
+    icon: '🌱',
+    color: '#6B7280',
+    monthlyPrice: 29,
+    annualPrice: 288,
+    annualMonthly: 24,
+    limit: 'Hasta 50 miembros',
+    features: ['Socios y altas', 'Cuotas manuales', 'Comunicaciones email', 'Soporte email'],
+  },
+  {
     id: 'starter',
     name: 'Starter',
-    icon: '🌱',
+    icon: '⚽',
     color: '#10B981',
-    monthlyPrice: 49,
-    annualPrice: 490,
-    annualMonthly: 41,
-    limit: 'Hasta 75 miembros',
-    features: ['Miembros y grupos', 'Sesiones y asistencia', 'Cuotas manual', 'Emails', 'Soporte email'],
+    monthlyPrice: 59,
+    annualPrice: 588,
+    annualMonthly: 49,
+    limit: 'Hasta 150 miembros',
+    features: ['Todo Básico', 'Sesiones y asistencia', 'Grupos ilimitados', 'Soporte prioritario'],
   },
   {
     id: 'pro',
     name: 'Pro',
-    icon: '⚽',
+    icon: '🏆',
     color: '#6366F1',
-    monthlyPrice: 99,
-    annualPrice: 990,
-    annualMonthly: 83,
-    limit: 'Hasta 200 miembros',
+    monthlyPrice: 109,
+    annualPrice: 1080,
+    annualMonthly: 90,
+    limit: 'Hasta 300 miembros',
     popular: true,
-    features: ['Todo Starter', 'Grupos ilimitados', 'Gastos y balance', 'Recordatorios automáticos', 'SMTP propio', 'Métricas por deporte'],
+    features: ['Todo Starter', 'Gastos y balance', 'Recordatorios automáticos', 'SMTP propio', 'Métricas por deporte'],
   },
   {
     id: 'club',
     name: 'Club',
-    icon: '🏆',
+    icon: '🎯',
     color: '#F59E0B',
-    monthlyPrice: 179,
-    annualPrice: 1790,
-    annualMonthly: 149,
-    limit: 'Hasta 500 miembros',
-    features: ['Todo Pro', '500 miembros', 'Evaluaciones', 'Lesiones avanzado', 'Exportación', 'Soporte telefónico'],
+    monthlyPrice: 199,
+    annualPrice: 1980,
+    annualMonthly: 165,
+    limit: 'Hasta 750 miembros',
+    features: ['Todo Pro', 'Evaluaciones jugadores', 'Lesiones avanzado', 'Exportación datos', 'Google Sheets sync'],
   },
   {
     id: 'elite',
     name: 'Elite',
     icon: '👑',
     color: '#0F172A',
-    monthlyPrice: 279,
-    annualPrice: 2790,
-    annualMonthly: 233,
-    limit: 'Ilimitados',
-    features: ['Todo Club', 'Miembros ilimitados', 'Multi-deporte ilimitado', 'API access', 'SLA', 'Account manager'],
+    monthlyPrice: 349,
+    annualPrice: 3468,
+    annualMonthly: 289,
+    limit: 'Hasta 1.500 miembros',
+    features: ['Todo Club', 'Hasta 1.500 miembros', 'API access', 'SLA garantizado', 'Account manager'],
   },
 ]
 
@@ -92,20 +103,28 @@ export default function UpgradePage() {
 
   const currentPlan = (club as { plan?: string }).plan ?? 'trial'
   const hasStripe = !!(club as { stripe_customer_id?: string }).stripe_customer_id
+  const trialEndsAt = (club as { trial_ends_at?: string }).trial_ends_at
+  const daysLeft = trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86_400_000))
+    : null
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Plan y facturación</h1>
-        <p className="text-gray-500 text-sm mt-1">Gestiona tu suscripción y mejora tu plan cuando quieras.</p>
+        <p className="text-gray-500 text-sm mt-1">Gestiona tu suscripción. Cancela cuando quieras.</p>
       </div>
 
       {/* Current plan banner */}
       <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-8 flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-sm text-indigo-600 font-semibold uppercase tracking-wide">Plan actual</p>
-          <p className="text-lg font-bold text-indigo-900 capitalize">{currentPlan === 'trial' ? '🕐 Prueba gratuita' : currentPlan}</p>
+          <p className="text-lg font-bold text-indigo-900 capitalize">
+            {currentPlan === 'trial'
+              ? `🕐 Prueba gratuita${daysLeft !== null ? ` · ${daysLeft} días restantes` : ''}`
+              : currentPlan}
+          </p>
         </div>
         {hasStripe && (
           <button onClick={openPortal} disabled={isPending}
@@ -115,43 +134,48 @@ export default function UpgradePage() {
         )}
       </div>
 
-      {/* LTD Banner */}
-      <div className="bg-amber-50 border border-amber-300 rounded-xl p-5 mb-8 text-center">
-        <div className="text-2xl mb-1">⚡</div>
-        <p className="font-bold text-amber-900">Oferta fundadores — Acceso de por vida al plan Pro por <span className="text-amber-600">€199</span></p>
-        <p className="text-sm text-amber-700 mt-1 mb-3">Pago único. Sin cuotas mensuales. Solo 18 plazas restantes.</p>
-        <button onClick={() => startCheckout('ltd')} disabled={isPending}
-          className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-red-500 text-white font-bold px-5 py-2.5 rounded-lg text-sm hover:opacity-90 transition-opacity">
-          <Zap size={15} /> Conseguir plaza LTD — €199
+      {/* Toggle anual/mensual */}
+      <div className="flex items-center justify-center gap-3 mb-8">
+        <button
+          onClick={() => setAnnual(false)}
+          className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${!annual ? 'bg-indigo-600 text-white border-indigo-600' : 'text-gray-500 border-gray-300'}`}>
+          Mensual
         </button>
-      </div>
-
-      {/* Toggle */}
-      <div className="flex items-center justify-center gap-3 mb-6">
-        <button onClick={() => setAnnual(false)} className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${!annual ? 'bg-indigo-600 text-white border-indigo-600' : 'text-gray-500 border-gray-300'}`}>Mensual</button>
-        <button onClick={() => setAnnual(true)} className={`px-4 py-1.5 rounded-full text-sm font-semibold border flex items-center gap-2 transition-colors ${annual ? 'bg-indigo-600 text-white border-indigo-600' : 'text-gray-500 border-gray-300'}`}>
+        <button
+          onClick={() => setAnnual(true)}
+          className={`px-4 py-1.5 rounded-full text-sm font-semibold border flex items-center gap-2 transition-colors ${annual ? 'bg-indigo-600 text-white border-indigo-600' : 'text-gray-500 border-gray-300'}`}>
           Anual
           <span className="bg-green-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">−17%</span>
         </button>
       </div>
 
       {/* Plans grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {PLANS.map(plan => {
           const isCurrent = currentPlan === plan.id
           const isLoading = loadingPlan === plan.id && isPending
 
           return (
-            <div key={plan.id} className="relative flex flex-col rounded-2xl p-5 border-2 transition-shadow"
-              style={{ borderColor: plan.popular ? plan.color : '#E2E8F0', boxShadow: plan.popular ? `0 4px 20px ${plan.color}25` : undefined }}>
+            <div key={plan.id}
+              className="relative flex flex-col rounded-2xl p-5 border-2 transition-shadow"
+              style={{
+                borderColor: plan.popular ? plan.color : '#E2E8F0',
+                boxShadow: plan.popular ? `0 4px 20px ${plan.color}25` : undefined,
+              }}>
               {plan.popular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-white text-xs font-bold px-3 py-0.5 rounded-full whitespace-nowrap" style={{ background: plan.color }}>⭐ Popular</div>
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-white text-xs font-bold px-3 py-0.5 rounded-full whitespace-nowrap"
+                  style={{ background: plan.color }}>
+                  ⭐ Popular
+                </div>
               )}
+
               <div className="text-2xl mb-1">{plan.icon}</div>
               <div className="font-bold text-gray-900 mb-3">{plan.name}</div>
 
               <div className="mb-1">
-                <span className="text-3xl font-black text-gray-900">€{annual ? plan.annualMonthly : plan.monthlyPrice}</span>
+                <span className="text-3xl font-black text-gray-900">
+                  €{annual ? plan.annualMonthly : plan.monthlyPrice}
+                </span>
                 <span className="text-gray-400 text-sm">/mes</span>
               </div>
               {annual && <p className="text-xs text-gray-400 mb-1">€{plan.annualPrice}/año</p>}
@@ -177,14 +201,19 @@ export default function UpgradePage() {
                   cursor: isCurrent ? 'default' : 'pointer',
                   opacity: isLoading ? 0.7 : 1,
                 }}>
-                {isCurrent ? 'Plan actual' : isLoading ? 'Cargando…' : plan.id === 'elite' ? 'Contactar' : 'Seleccionar'}
+                {isCurrent ? 'Plan actual'
+                  : isLoading ? 'Cargando…'
+                  : plan.id === 'elite' ? 'Contactar'
+                  : 'Seleccionar'}
               </button>
             </div>
           )
         })}
       </div>
 
-      <p className="text-center text-xs text-gray-400 mt-6">🔒 Pago seguro vía Stripe · Cancela cuando quieras · Garantía 30 días</p>
+      <p className="text-center text-xs text-gray-400 mt-6">
+        🔒 Pago seguro vía Stripe · Cancela cuando quieras · Sin permanencia
+      </p>
     </div>
   )
 }

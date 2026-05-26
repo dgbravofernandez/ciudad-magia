@@ -13,8 +13,7 @@ export async function POST(req: NextRequest) {
     const plan = PLANS[planId]
     if (!plan) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
 
-    const isLtd = planId === 'ltd'
-    const priceId = annual && !isLtd ? plan.priceIdAnnual : plan.priceId
+    const priceId = annual ? plan.priceIdAnnual : plan.priceId
 
     if (!priceId) {
       return NextResponse.json({ error: 'Price not configured' }, { status: 400 })
@@ -23,7 +22,7 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
     const session = await stripe.checkout.sessions.create({
-      mode: isLtd ? 'payment' : 'subscription',
+      mode: 'subscription',
       payment_method_types: ['card'],
       customer_email: email,
       line_items: [{ price: priceId, quantity: 1 }],
@@ -31,12 +30,10 @@ export async function POST(req: NextRequest) {
       success_url: `${appUrl}/dashboard?billing=success`,
       cancel_url: `${appUrl}/upgrade?canceled=1`,
       allow_promotion_codes: true,
-      ...(isLtd ? {} : {
-        subscription_data: {
-          metadata: { club_id: clubId, plan: planId },
-          // No trial en Stripe — el trial ya se hizo dentro de la app (14 días gratuitos)
-        },
-      }),
+      subscription_data: {
+        metadata: { club_id: clubId, plan: planId },
+        // No trial en Stripe — el trial ya se hizo dentro de la app (14 días gratuitos)
+      },
     })
 
     return NextResponse.json({ url: session.url })

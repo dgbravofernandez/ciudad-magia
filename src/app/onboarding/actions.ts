@@ -40,7 +40,7 @@ export async function createClub(input: {
       name: input.clubName,
       slug,
       city: input.city || null,
-      plan: ['starter', 'pro', 'club', 'elite', 'ltd'].includes(input.plan) ? input.plan : 'starter',
+      plan: ['basic', 'starter', 'pro', 'club', 'elite'].includes(input.plan) ? input.plan : 'basic',
       active: true,
       subscription_status: 'trial',
     }).select('id').single()
