@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowLeft, Plus, Trash2, Check, Euro, Receipt } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Check, Euro, Receipt, Upload, TrendingUp } from 'lucide-react'
 import {
   addCharge,
   addChargesBulk,
@@ -12,10 +12,12 @@ import {
   markChargePaid,
   addActivityExpense,
   deleteActivityExpense,
+  addActivityIncome,
   type Activity,
   type ActivityCharge,
   type ActivityExpense,
 } from '../actions/activities.actions'
+import { createClient } from '@/lib/supabase/client'
 import { formatCurrency, formatDate } from '@/lib/utils/currency'
 
 const METHOD_LABELS: Record<string, string> = {
@@ -34,18 +36,34 @@ interface Props {
 
 export function ActivityDetail({ activity, charges, expenses, players, teams = [] }: Props) {
   const router = useRouter()
-  const [tab, setTab] = useState<'charges' | 'expenses'>('charges')
+  const [tab, setTab] = useState<'charges' | 'expenses' | 'ingresos'>('charges')
   const [isPending, startTransition] = useTransition()
 
   // Charge form
   const [useExisting, setUseExisting] = useState(true)
   const [playerId, setPlayerId] = useState('')
+  const [playerSearch, setPlayerSearch] = useState('')
+  const [showPlayerDropdown, setShowPlayerDropdown] = useState(false)
   const [participantName, setParticipantName] = useState('')
+  const [participantEmail, setParticipantEmail] = useState('')
   const [concept, setConcept] = useState('')
   const [amount, setAmount] = useState('')
   const [markPaid, setMarkPaid] = useState(true)
   const [method, setMethod] = useState<'cash' | 'card' | 'transfer'>('cash')
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10))
+
+  // Expense form extras
+  const [expPaymentMethod, setExpPaymentMethod] = useState<'cash' | 'card' | 'transfer'>('cash')
+  const [expPaid, setExpPaid] = useState(false)
+  const [expReceiptUrl, setExpReceiptUrl] = useState('')
+  const [uploadingReceipt, setUploadingReceipt] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Ingresos form
+  const [incConcept, setIncConcept] = useState('')
+  const [incAmount, setIncAmount] = useState('')
+  const [incMethod, setIncMethod] = useState<'cash' | 'card' | 'transfer'>('cash')
+  const [incDate, setIncDate] = useState(new Date().toISOString().slice(0, 10))
 
   // Modal para marcar cobro como pagado
   const [payMethodModal, setPayMethodModal] = useState<{ charge: ActivityCharge; method: 'cash' | 'card' | 'transfer'; partialAmount: number } | null>(null)
@@ -132,6 +150,33 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
   const playerMap: Record<string, string> = {}
   for (const p of players) playerMap[p.id] = `${p.first_name} ${p.last_name}`
 
+  const filteredPlayers = useMemo(() => {
+    const q = playerSearch.toLowerCase()
+    if (!q) return players
+    return players.filter(p =>
+      `${p.first_name} ${p.last_name}`.toLowerCase().includes(q) ||
+      `${p.last_name} ${p.first_name}`.toLowerCase().includes(q)
+    )
+  }, [players, playerSearch])
+
+  async function handleReceiptUpload(file: File) {
+    setUploadingReceipt(true)
+    try {
+      const sb = createClient()
+      const ext = file.name.split('.').pop() ?? 'jpg'
+      const path = `activity-receipts/${Date.now()}.${ext}`
+      const { error } = await sb.storage.from('activity-receipts').upload(path, file, { upsert: true })
+      if (error) { toast.error(`Error al subir foto: ${error.message}`); return }
+      const { data: urlData } = sb.storage.from('activity-receipts').getPublicUrl(path)
+      setExpReceiptUrl(urlData.publicUrl)
+      toast.success('Foto subida')
+    } catch (e) {
+      toast.error(`Error: ${(e as Error).message}`)
+    } finally {
+      setUploadingReceipt(false)
+    }
+  }
+
   function handleAddCharge() {
     const amt = parseFloat(amount)
     if (!amt || amt < 0) {
@@ -151,6 +196,7 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
         activityId: activity.id,
         playerId: useExisting ? playerId : null,
         participantName: useExisting ? null : participantName,
+        participantEmail: useExisting ? null : (participantEmail.trim() || null),
         concept: concept || undefined,
         amount: amt,
         paid: markPaid,
@@ -158,9 +204,17 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
         paymentDate: markPaid ? paymentDate : null,
       })
       if (res.success) {
-        toast.success('Cobro añadido')
+        if (res.emailSent) {
+          toast.success('Cobro añadido · email enviado')
+        } else if (res.emailError && markPaid && method !== 'transfer') {
+          toast.success(`Cobro añadido (email: ${res.emailError})`)
+        } else {
+          toast.success('Cobro añadido')
+        }
         setParticipantName('')
+        setParticipantEmail('')
         setPlayerId('')
+        setPlayerSearch('')
         setConcept('')
         setAmount('')
         router.refresh()
@@ -221,12 +275,40 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
         amount: amt,
         category: expCategory || undefined,
         expenseDate: expDate,
+        paymentMethod: expPaid ? expPaymentMethod : null,
+        paid: expPaid,
+        receiptUrl: expReceiptUrl || null,
       })
       if (res.success) {
         toast.success('Gasto añadido')
         setExpConcept('')
         setExpAmount('')
         setExpCategory('')
+        setExpReceiptUrl('')
+        setExpPaid(false)
+        router.refresh()
+      } else toast.error(res.error ?? 'Error')
+    })
+  }
+
+  function handleAddIncome() {
+    const amt = parseFloat(incAmount)
+    if (!incConcept.trim() || !amt || amt <= 0) {
+      toast.error('Datos inválidos')
+      return
+    }
+    startTransition(async () => {
+      const res = await addActivityIncome({
+        activityId: activity.id,
+        concept: incConcept,
+        amount: amt,
+        paymentMethod: incMethod,
+        incomeDate: incDate,
+      })
+      if (res.success) {
+        toast.success('Ingreso registrado en caja')
+        setIncConcept('')
+        setIncAmount('')
         router.refresh()
       } else toast.error(res.error ?? 'Error')
     })
@@ -278,6 +360,12 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
         >
           Gastos ({expenses.length})
         </button>
+        <button
+          onClick={() => setTab('ingresos')}
+          className={`pb-2 text-sm font-medium ${tab === 'ingresos' ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground'}`}
+        >
+          Ingresos extra
+        </button>
       </div>
 
       {tab === 'charges' && (
@@ -311,20 +399,47 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               {useExisting ? (
-                <select value={playerId} onChange={(e) => setPlayerId(e.target.value)} className="input">
-                  <option value="">— Selecciona jugador —</option>
-                  {players.map((p) => (
-                    <option key={p.id} value={p.id}>{p.last_name}, {p.first_name}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={playerSearch}
+                    onChange={(e) => { setPlayerSearch(e.target.value); setPlayerId(''); setShowPlayerDropdown(true) }}
+                    onFocus={() => setShowPlayerDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowPlayerDropdown(false), 150)}
+                    placeholder="Buscar jugador..."
+                    className="input w-full"
+                  />
+                  {showPlayerDropdown && filteredPlayers.length > 0 && (
+                    <ul className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto text-sm">
+                      {filteredPlayers.slice(0, 30).map(p => (
+                        <li
+                          key={p.id}
+                          onMouseDown={() => { setPlayerId(p.id); setPlayerSearch(`${p.last_name}, ${p.first_name}`); setShowPlayerDropdown(false) }}
+                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer"
+                        >
+                          {p.last_name}, {p.first_name}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               ) : (
-                <input
-                  type="text"
-                  value={participantName}
-                  onChange={(e) => setParticipantName(e.target.value)}
-                  placeholder="Nombre del participante"
-                  className="input"
-                />
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={participantName}
+                    onChange={(e) => setParticipantName(e.target.value)}
+                    placeholder="Nombre del participante"
+                    className="input"
+                  />
+                  <input
+                    type="email"
+                    value={participantEmail}
+                    onChange={(e) => setParticipantEmail(e.target.value)}
+                    placeholder="Email (para enviar recibo)"
+                    className="input text-sm"
+                  />
+                </div>
               )}
               <input
                 type="text"
@@ -478,6 +593,40 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
                 className="input"
               />
             </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={expPaid} onChange={(e) => setExpPaid(e.target.checked)} />
+                Pagado
+              </label>
+              {expPaid && (
+                <select
+                  value={expPaymentMethod}
+                  onChange={(e) => setExpPaymentMethod(e.target.value as typeof expPaymentMethod)}
+                  className="input w-auto text-sm"
+                >
+                  <option value="cash">Efectivo</option>
+                  <option value="card">Tarjeta</option>
+                  <option value="transfer">Transferencia</option>
+                </select>
+              )}
+              {/* Foto / ticket */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleReceiptUpload(f) }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingReceipt}
+                className="flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-dashed border-gray-300 hover:border-primary text-muted-foreground hover:text-primary disabled:opacity-50"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                {uploadingReceipt ? 'Subiendo…' : expReceiptUrl ? 'Foto subida ✓' : 'Adjuntar foto'}
+              </button>
+            </div>
             <div className="flex justify-end">
               <button onClick={handleAddExpense} disabled={isPending} className="btn-primary flex items-center gap-1.5">
                 <Plus className="w-4 h-4" /> Añadir gasto
@@ -496,8 +645,17 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
                     <p className="text-xs text-muted-foreground">
                       {formatDate(e.expense_date)}
                       {e.category && ` · ${e.category}`}
+                      {e.payment_method && ` · ${METHOD_LABELS[e.payment_method] ?? e.payment_method}`}
                     </p>
                   </div>
+                  {e.receipt_url && (
+                    <a href={e.receipt_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 text-xs underline">
+                      Foto
+                    </a>
+                  )}
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${e.paid ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                    {e.paid ? 'Pagado' : 'Pendiente'}
+                  </span>
                   <p className="font-semibold text-red-700">{formatCurrency(Number(e.amount))}</p>
                   <button
                     onClick={() => handleDeleteExpense(e.id)}
@@ -510,6 +668,62 @@ export function ActivityDetail({ activity, charges, expenses, players, teams = [
               ))
             )}
           </div>
+        </>
+      )}
+
+      {tab === 'ingresos' && (
+        <>
+          <div className="card p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-600" />
+              <h3 className="font-semibold text-sm">Registrar ingreso extra</h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Para ingresos que no corresponden a un cobro de participante (venta material, subvención, patrocinio…).
+              Se registra directamente en la caja para el arqueo.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+              <input
+                type="text"
+                value={incConcept}
+                onChange={(e) => setIncConcept(e.target.value)}
+                placeholder="Concepto"
+                className="input md:col-span-2"
+              />
+              <input
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                value={incAmount}
+                onChange={(e) => setIncAmount(e.target.value)}
+                placeholder="Importe"
+                className="input"
+              />
+              <select
+                value={incMethod}
+                onChange={(e) => setIncMethod(e.target.value as typeof incMethod)}
+                className="input"
+              >
+                <option value="cash">Efectivo</option>
+                <option value="card">Tarjeta</option>
+                <option value="transfer">Transferencia</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="date"
+                value={incDate}
+                onChange={(e) => setIncDate(e.target.value)}
+                className="input w-auto text-sm"
+              />
+              <button onClick={handleAddIncome} disabled={isPending} className="btn-primary ml-auto flex items-center gap-1.5">
+                <Plus className="w-4 h-4" /> Registrar ingreso
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground px-1">
+            Los ingresos registrados aquí aparecerán en el cierre de caja como &ldquo;actividad&rdquo;.
+          </p>
         </>
       )}
 

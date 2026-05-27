@@ -29,6 +29,7 @@ export interface ActivityCharge {
   activity_id: string
   player_id: string | null
   participant_name: string | null
+  participant_email: string | null
   concept: string | null
   amount: number
   amount_paid: number
@@ -48,6 +49,9 @@ export interface ActivityExpense {
   receipt_url: string | null
   expense_date: string
   notes: string | null
+  payment_method: string | null
+  paid: boolean
+  paid_at: string | null
   created_at: string
 }
 
@@ -128,6 +132,7 @@ export async function addCharge(input: {
   activityId: string
   playerId?: string | null
   participantName?: string | null
+  participantEmail?: string | null
   concept?: string
   amount: number
   paid?: boolean
@@ -150,7 +155,7 @@ export async function addCharge(input: {
     const [{ data: activity }, playerRow] = await Promise.all([
       sb.from('activities').select('name').eq('id', input.activityId).single(),
       input.playerId
-        ? sb.from('players').select('first_name, last_name').eq('id', input.playerId).single()
+        ? sb.from('players').select('first_name, last_name, tutor_email').eq('id', input.playerId).single()
         : Promise.resolve({ data: null }),
     ])
     const activityName = activity?.name ?? 'Actividad'
@@ -163,6 +168,7 @@ export async function addCharge(input: {
       activity_id: input.activityId,
       player_id: input.playerId ?? null,
       participant_name: input.participantName?.trim() || null,
+      participant_email: input.participantEmail?.trim() || null,
       concept: input.concept?.trim() || null,
       amount: input.amount,
       paid: !!input.paid,
@@ -188,8 +194,42 @@ export async function addCharge(input: {
       })
     }
 
+    // Enviar email de recibo si está pagado y hay email disponible
+    let emailSent = false
+    let emailError: string | undefined
+    if (input.paid && input.paymentMethod && input.paymentMethod !== 'transfer') {
+      const date = input.paymentDate ?? new Date().toISOString().slice(0, 10)
+      // Email del jugador del club: usar tutor_email
+      const clubPlayerEmail = playerRow.data?.tutor_email ?? null
+      // Email externo: lo que introdujo el admin
+      const externalEmail = input.participantEmail?.trim() || null
+      const recipientEmail = clubPlayerEmail ?? externalEmail
+      if (recipientEmail) {
+        try {
+          const res = await Promise.race([
+            sendPaymentReceiptEmail({
+              tutorEmail: recipientEmail,
+              playerName: playerFullName || 'Participante',
+              teamName: activityName,
+              amount: input.amount,
+              method: input.paymentMethod,
+              date,
+              concept: input.concept ?? activityName,
+              clubId,
+            }),
+            new Promise<{ sent: boolean; error?: string }>((_, rej) =>
+              setTimeout(() => rej(new Error('timeout tras 20s')), 20000)),
+          ])
+          emailSent = res.sent
+          if (!res.sent) emailError = res.error ?? 'Error desconocido al enviar'
+        } catch (err) {
+          emailError = (err as Error).message
+        }
+      }
+    }
+
     revalidatePath(`/contabilidad/actividades/${input.activityId}`)
-    return { success: true }
+    return { success: true, emailSent, emailError }
   } catch (e) {
     return { success: false, error: (e as Error).message }
   }
@@ -292,7 +332,7 @@ export async function markChargePaid(
     const date = paymentDate ?? new Date().toISOString().slice(0, 10)
     const { data: charge, error: fetchErr } = await sb
       .from('activity_charges')
-      .select('activity_id, amount, amount_paid, participant_name, concept, paid, player_id, activities(name)')
+      .select('activity_id, amount, amount_paid, participant_name, participant_email, concept, paid, player_id, activities(name)')
       .eq('id', chargeId)
       .single()
     if (fetchErr || !charge) return { success: false, error: fetchErr?.message ?? 'No existe' }
@@ -347,45 +387,47 @@ export async function markChargePaid(
 
     if (!isFullyPaid) {
       emailError = 'Pago parcial — el email se envía al completar el pago'
-    } else if (!charge.player_id) {
-      emailError = 'El cargo no tiene jugador del club asociado'
     } else {
-      const { data: player, error: playerErr } = await sb
-        .from('players')
-        .select('tutor_email, first_name, last_name, team_id')
-        .eq('id', charge.player_id)
-        .single()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const activityName = (charge as any).activities?.name ?? 'Actividad'
+      let recipientEmail: string | null = null
+      let playerName: string = charge.participant_name ?? 'Participante'
+      let teamName: string = activityName
 
-      const tutorEmail = player?.tutor_email ?? null
-      const playerName = player
-        ? `${player.first_name ?? ''} ${player.last_name ?? ''}`.trim()
-        : (charge.participant_name ?? 'Participante')
-
-      let teamName = 'Actividad'
-      if (player?.team_id) {
-        const { data: team } = await sb
-          .from('teams')
-          .select('name')
-          .eq('id', player.team_id)
+      if (charge.player_id) {
+        const { data: player, error: playerErr } = await sb
+          .from('players')
+          .select('tutor_email, first_name, last_name, team_id')
+          .eq('id', charge.player_id)
           .single()
-        if (team?.name) teamName = team.name
+        if (playerErr) {
+          emailError = `Error al leer el jugador: ${playerErr.message}`
+        } else {
+          recipientEmail = player?.tutor_email ?? null
+          playerName = player ? `${player.first_name ?? ''} ${player.last_name ?? ''}`.trim() : playerName
+          if (!recipientEmail) emailError = 'El jugador no tiene email de tutor configurado'
+          if (player?.team_id) {
+            const { data: team } = await sb.from('teams').select('name').eq('id', player.team_id).single()
+            if (team?.name) teamName = team.name
+          }
+        }
+      } else {
+        // Participante externo — usar el email registrado en el cobro
+        recipientEmail = charge.participant_email ?? null
+        if (!recipientEmail) emailError = 'Participante externo sin email registrado'
       }
 
-      if (playerErr) {
-        emailError = `Error al leer el jugador: ${playerErr.message}`
-      } else if (!tutorEmail) {
-        emailError = 'El jugador no tiene email de tutor configurado'
-      } else {
+      if (recipientEmail && !emailError) {
         try {
           const res = await Promise.race([
             sendPaymentReceiptEmail({
-              tutorEmail,
+              tutorEmail: recipientEmail,
               playerName,
               teamName,
               amount: payNow,
               method: paymentMethod,
               date,
-              concept: charge.concept ?? 'Actividad',
+              concept: charge.concept ?? activityName,
               clubId,
             }),
             new Promise<{ sent: boolean; error?: string }>((_, rej) =>
@@ -437,6 +479,9 @@ export async function addActivityExpense(input: {
   category?: string
   expenseDate: string
   notes?: string
+  paymentMethod?: 'cash' | 'card' | 'transfer' | null
+  paid?: boolean
+  receiptUrl?: string | null
 }) {
   try {
     const { clubId, memberId, roles } = await getClubContext()
@@ -445,6 +490,10 @@ export async function addActivityExpense(input: {
     if (input.amount <= 0) return { success: false, error: 'Importe inválido' }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
+
+    const isPaid = !!input.paid
+    const paidAt = isPaid ? input.expenseDate : null
+
     const { error } = await sb.from('activity_expenses').insert({
       club_id: clubId,
       activity_id: input.activityId,
@@ -453,6 +502,61 @@ export async function addActivityExpense(input: {
       category: input.category?.trim() || null,
       expense_date: input.expenseDate,
       notes: input.notes?.trim() || null,
+      payment_method: input.paymentMethod ?? null,
+      paid: isPaid,
+      paid_at: paidAt,
+      receipt_url: input.receiptUrl ?? null,
+      registered_by: memberId || null,
+    })
+    if (error) return { success: false, error: error.message }
+
+    // Si pagado con efectivo o tarjeta → registrar en caja como gasto
+    if (isPaid && (input.paymentMethod === 'cash' || input.paymentMethod === 'card')) {
+      const { data: activity } = await sb.from('activities').select('name').eq('id', input.activityId).single()
+      const activityName = activity?.name ?? 'Actividad'
+      await sb.from('cash_movements').insert({
+        club_id: clubId,
+        type: 'expense',
+        source: 'actividad',
+        amount: input.amount,
+        payment_method: input.paymentMethod,
+        description: `${activityName} — ${input.concept.trim()}`,
+        movement_date: input.expenseDate,
+        registered_by: memberId || null,
+      })
+    }
+
+    revalidatePath(`/contabilidad/actividades/${input.activityId}`)
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+export async function addActivityIncome(input: {
+  activityId: string
+  concept: string
+  amount: number
+  paymentMethod: 'cash' | 'card' | 'transfer'
+  incomeDate: string
+}) {
+  try {
+    const { clubId, memberId, roles } = await getClubContext()
+    if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
+    if (!input.concept.trim()) return { success: false, error: 'Concepto requerido' }
+    if (input.amount <= 0) return { success: false, error: 'Importe inválido' }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+    const { data: activity } = await sb.from('activities').select('name').eq('id', input.activityId).single()
+    const activityName = activity?.name ?? 'Actividad'
+    const { error } = await sb.from('cash_movements').insert({
+      club_id: clubId,
+      type: 'income',
+      source: 'actividad',
+      amount: input.amount,
+      payment_method: input.paymentMethod,
+      description: `${activityName} — ${input.concept.trim()}`,
+      movement_date: input.incomeDate,
       registered_by: memberId || null,
     })
     if (error) return { success: false, error: error.message }
