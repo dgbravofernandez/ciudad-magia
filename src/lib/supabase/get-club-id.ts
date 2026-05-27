@@ -20,6 +20,8 @@ async function lookupMemberBySession(): Promise<{ id: string; club_id: string } 
     .select('id, club_id')
     .eq('user_id', user.id)
     .eq('active', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
     .single()
 
   return member ?? null
