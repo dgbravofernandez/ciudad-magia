@@ -11,9 +11,11 @@ const PUBLIC_PREFIX = [
   '/login',
   '/register',
   '/onboarding',        // registro de nuevos clubs
+  '/select-club',       // selector de club para usuarios con varios
   '/api/auth/callback',
   '/api/webhooks',
   '/api/stripe/webhook', // Stripe llama esto sin auth de usuario
+  '/api/user-clubs',    // endpoint para listar clubs del usuario
 ]
 
 // Rutas exclusivas del panel superadmin — no necesitan club membership
@@ -31,6 +33,9 @@ export async function middleware(request: NextRequest) {
   }
 
   const { supabaseResponse, user } = await updateSession(request)
+
+  // DEBUG: log what the middleware sees
+  console.error('[middleware] path:', pathname, '| user:', user?.id ?? 'null', '| cookies:', request.cookies.getAll().map(c => c.name).join(','))
 
   // Not authenticated → redirect to login
   if (!user) {
@@ -142,25 +147,36 @@ export async function middleware(request: NextRequest) {
   // ─────────────────────────────────────────────
   // FLUJO NORMAL: buscar club membership del usuario
   // ─────────────────────────────────────────────
-  const { data: member } = await adminSupabase
+  const { data: members } = await adminSupabase
     .from('club_members')
     .select('id, club_id')
     .eq('user_id', user.id)
     .eq('active', true)
-    .single()
+    .order('created_at', { ascending: false })
 
-  if (!member) {
+  if (!members || members.length === 0) {
     // Si es superadmin sin membership en ningún club, redirigir a su panel
     if (isSuperAdmin) {
       const url = request.nextUrl.clone()
       url.pathname = '/superadmin'
       return NextResponse.redirect(url)
     }
-    console.error('[middleware] No member found for user:', user.id, '— redirecting to login')
+    console.error('[middleware] No member found for user:', user.id, '— redirecting to onboarding')
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    url.searchParams.set('error', 'unauthorized')
+    url.pathname = '/onboarding'
     return NextResponse.redirect(url)
+  }
+
+  // Determinar qué club usar: cookie > único > más reciente
+  let member = members[0]  // por defecto el más reciente
+
+  if (members.length > 1) {
+    const preferredClubId = request.cookies.get('preferred_club_id')?.value
+    if (preferredClubId) {
+      const preferred = members.find(m => m.club_id === preferredClubId)
+      if (preferred) member = preferred
+    }
+    // Si no hay cookie o no coincide, usar el más reciente (members[0])
   }
 
   const { data: roles } = await adminSupabase
