@@ -31,16 +31,18 @@ export default async function AppLayout({
   if (!clubId || !memberId) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) redirect('/login')
+    if (!user) redirect('/login?e=L1_nouser')
 
-    const { data: memberRow } = await adminClient
+    const { data: memberRow, error: memberErr } = await adminClient
       .from('club_members')
       .select('id, club_id')
       .eq('user_id', user.id)
       .eq('active', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single()
 
-    if (!memberRow) redirect('/login')
+    if (!memberRow) redirect(`/login?e=L2_nomember&err=${encodeURIComponent(memberErr?.message ?? 'unknown')}`)
 
     const { data: roleRows } = await adminClient
       .from('club_member_roles')
@@ -65,7 +67,7 @@ export default async function AppLayout({
     ])
 
   if (!club || !member) {
-    redirect('/login?error=no_club')
+    redirect(`/login?e=L3_noclub&cid=${clubId?.substring(0,8)}&mid=${memberId?.substring(0,8)}`)
   }
 
   // Forzar cambio de contraseña en el primer login (cuenta creada por admin)

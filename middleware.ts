@@ -41,6 +41,7 @@ export async function middleware(request: NextRequest) {
     url.searchParams.set('redirectTo', pathname)
     // DEBUG: encode diagnostic info in URL so we can see it in browser
     const cookieNames = request.cookies.getAll().map(c => c.name).join('|')
+    url.searchParams.set('e', 'MW_nouser')
     url.searchParams.set('_dbg_cookies', cookieNames.substring(0, 200))
     url.searchParams.set('_dbg_url', process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(8, 35) ?? 'missing')
     return NextResponse.redirect(url)
