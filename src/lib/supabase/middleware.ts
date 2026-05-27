@@ -31,7 +31,11 @@ export async function updateSession(request: NextRequest) {
 
   const {
     data: { user },
+    error: getUserError,
   } = await supabase.auth.getUser()
+
+  const cookieNames = request.cookies.getAll().map(c => c.name)
+  console.log('[updateSession] cookies:', JSON.stringify(cookieNames), '| user:', user?.id ?? 'null', '| error:', getUserError?.message ?? 'none', '| url:', process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(8, 30))
 
   return { supabaseResponse, user, supabase }
 }
