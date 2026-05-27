@@ -34,14 +34,15 @@ export async function middleware(request: NextRequest) {
 
   const { supabaseResponse, user } = await updateSession(request)
 
-  // DEBUG: log what the middleware sees
-  console.error('[middleware] path:', pathname, '| user:', user?.id ?? 'null', '| cookies:', request.cookies.getAll().map(c => c.name).join(','))
-
   // Not authenticated → redirect to login
   if (!user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('redirectTo', pathname)
+    // DEBUG: encode diagnostic info in URL so we can see it in browser
+    const cookieNames = request.cookies.getAll().map(c => c.name).join('|')
+    url.searchParams.set('_dbg_cookies', cookieNames.substring(0, 200))
+    url.searchParams.set('_dbg_url', process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(8, 35) ?? 'missing')
     return NextResponse.redirect(url)
   }
 
