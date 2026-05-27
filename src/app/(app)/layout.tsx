@@ -11,6 +11,9 @@ import { ImpersonationBanner } from '@/components/layout/ImpersonationBanner'
 import { TrialBanner } from '@/components/layout/TrialBanner'
 import type { Role } from '@/types/roles'
 
+// Nunca cachear el layout — necesitamos datos frescos de member.must_change_password
+export const dynamic = 'force-dynamic'
+
 export default async function AppLayout({
   children,
 }: {

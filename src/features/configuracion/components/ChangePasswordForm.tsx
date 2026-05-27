@@ -28,8 +28,10 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       const res = await changeOwnPassword({ currentPassword: current, newPassword: next })
       if (res.success) {
         toast.success('Contraseña actualizada correctamente')
+        // router.replace en lugar de push para que el botón Atrás no vuelva a /cambiar-password.
+        // NO llamar router.refresh() aquí — causa una carrera con la navegación:
+        // el refresh re-fetcha /cambiar-password antes de que complete el replace a /dashboard.
         router.replace('/dashboard')
-        router.refresh()
       } else {
         toast.error(res.error ?? 'Error al cambiar la contraseña')
       }
