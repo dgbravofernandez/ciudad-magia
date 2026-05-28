@@ -165,6 +165,7 @@ function NavItemComponent({ item }: { item: NavItem }) {
   const pathname = usePathname()
   const router = useRouter()
   const { roles } = useCurrentUser()
+  const { club } = useClub()
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
@@ -173,7 +174,10 @@ function NavItemComponent({ item }: { item: NavItem }) {
     return null
   }
 
-  const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+  // Prefix hrefs with /{slug} so each club lives in its own URL namespace
+  const slug = club?.slug ?? ''
+  const fullHref = slug ? `/${slug}${item.href}` : item.href
+  const isActive = pathname === fullHref || pathname.startsWith(fullHref + '/')
   const Icon = item.icon
 
   function navigate(href: string) {
@@ -185,10 +189,10 @@ function NavItemComponent({ item }: { item: NavItem }) {
   }
 
   if (!item.children) {
-    const loading = isPending && pendingHref === item.href
+    const loading = isPending && pendingHref === fullHref
     return (
       <button
-        onClick={() => navigate(item.href)}
+        onClick={() => navigate(fullHref)}
         className={cn(
           'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
           isActive
@@ -226,14 +230,15 @@ function NavItemComponent({ item }: { item: NavItem }) {
           {item.children.filter(child =>
             !child.requiredRole || child.requiredRole.some(r => roles.includes(r as never))
           ).map((child) => {
-            const loading = isPending && pendingHref === child.href
+            const fullChildHref = slug ? `/${slug}${child.href}` : child.href
+            const loading = isPending && pendingHref === fullChildHref
             return (
               <button
                 key={child.href}
-                onClick={() => navigate(child.href)}
+                onClick={() => navigate(fullChildHref)}
                 className={cn(
                   'w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors',
-                  pathname === child.href
+                  pathname === fullChildHref
                     ? 'text-white bg-sidebar-active'
                     : 'text-sidebar-foreground hover:text-white'
                 )}
@@ -265,6 +270,7 @@ export function Sidebar() {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { ROLE_LABELS } = require('@/types/roles')
   const [mobileOpen, setMobileOpen] = useState(false)
+  const clubSlug = club?.slug ?? ''
 
   async function handleLogout() {
     const supabase = createClient()
@@ -342,7 +348,7 @@ export function Sidebar() {
               <p className="text-slate-400 text-xs truncate">{primaryRoleLabel}</p>
             </div>
             <Link
-              href="/cambiar-password"
+              href={clubSlug ? `/${clubSlug}/cambiar-password` : '/cambiar-password'}
               aria-label="Cambiar contraseña"
               title="Cambiar contraseña"
               className="text-slate-400 hover:text-white lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
