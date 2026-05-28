@@ -164,8 +164,8 @@ const NAV_ITEMS: NavItem[] = [
 
 function NavItemComponent({ item }: { item: NavItem }) {
   const pathname = usePathname()
+  const router = useRouter()
   const { roles } = useCurrentUser()
-  const { club } = useClub()
   const [open, setOpen] = useState(false)
   const [pendingHref, setPendingHref] = useState<string | null>(null)
 
@@ -173,20 +173,15 @@ function NavItemComponent({ item }: { item: NavItem }) {
     return null
   }
 
-  // Prefix hrefs with /{slug} so each club lives in its own URL namespace
-  const slug = club?.slug ?? ''
-  const fullHref = slug ? `/${slug}${item.href}` : item.href
+  const fullHref = item.href
   const isActive = pathname === fullHref || pathname.startsWith(fullHref + '/')
   const Icon = item.icon
 
-  // Use full-page navigation so middleware rewrites (/{slug}/{page} → /{page})
-  // work correctly. App Router RSC navigation causes route-tree mismatch with
-  // slug-prefixed URLs because the server renders a different route than the
-  // client expects.
+  // SPA navigation via App Router. Rutas sin prefijo de slug.
   function navigate(href: string) {
     if (href === pathname) return
     setPendingHref(href)
-    window.location.href = href
+    router.push(href)
   }
 
   if (!item.children) {
@@ -231,7 +226,7 @@ function NavItemComponent({ item }: { item: NavItem }) {
           {item.children.filter(child =>
             !child.requiredRole || child.requiredRole.some(r => roles.includes(r as never))
           ).map((child) => {
-            const fullChildHref = slug ? `/${slug}${child.href}` : child.href
+            const fullChildHref = child.href
             const loading = pendingHref === fullChildHref
             return (
               <button
@@ -271,7 +266,6 @@ export function Sidebar() {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { ROLE_LABELS } = require('@/types/roles')
   const [mobileOpen, setMobileOpen] = useState(false)
-  const clubSlug = club?.slug ?? ''
 
   async function handleLogout() {
     const supabase = createClient()
@@ -349,7 +343,7 @@ export function Sidebar() {
               <p className="text-slate-400 text-xs truncate">{primaryRoleLabel}</p>
             </div>
             <Link
-              href={clubSlug ? `/${clubSlug}/cambiar-password` : '/cambiar-password'}
+              href="/cambiar-password"
               aria-label="Cambiar contraseña"
               title="Cambiar contraseña"
               className="text-slate-400 hover:text-white lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"

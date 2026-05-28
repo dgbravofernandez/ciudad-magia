@@ -21,16 +21,6 @@ const PUBLIC_PREFIX = [
 // Rutas exclusivas del panel superadmin — no necesitan club membership
 const SUPERADMIN_PATHS = ['/superadmin']
 
-// Rutas que NO se redirigen al prefijo de slug aunque no lo tengan
-// (para evitar bucles o comportamientos inesperados)
-const SLUG_EXEMPT_PREFIXES = [
-  '/api/',
-  '/upgrade',
-  '/cambiar-password',
-  '/select-club',
-  '/superadmin',
-]
-
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -186,12 +176,7 @@ export async function middleware(request: NextRequest) {
     // Si no hay cookie o no coincide, usar el más reciente (members[0])
   }
 
-  // ─────────────────────────────────────────────
-  // SLUG-BASED ROUTING: URL con prefijo /{slug}/
-  // Cada club tiene su propio espacio de URLs para aislar tenants visualmente
-  // ─────────────────────────────────────────────
-
-  // Obtener slugs de todos los clubs del usuario (+ datos para trial check)
+  // Datos de los clubs del usuario (para trial check y compat de URLs viejas)
   const clubIds = members.map((m) => m.club_id)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: clubsData } = await (adminSupabase as any)
@@ -199,40 +184,21 @@ export async function middleware(request: NextRequest) {
     .select('id, slug, subscription_status, trial_ends_at')
     .in('id', clubIds)
 
-  // Detectar si el pathname empieza con un slug de los clubs del usuario
+  // ─────────────────────────────────────────────
+  // COMPATIBILIDAD URLs antiguas con prefijo /{slug}/
+  // El slug routing se retiró (incompatible con App Router → páginas en blanco).
+  // Si el primer segmento es el slug de un club del usuario, redirigir a la ruta
+  // sin slug para que marcadores/pestañas viejas sigan funcionando.
+  // ─────────────────────────────────────────────
   const urlFirstSegment = pathname.split('/')[1] ?? ''
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const urlSlugClub = urlFirstSegment
+  const matchedSlugClub = urlFirstSegment
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ? (clubsData as any[])?.find((c: any) => c.slug && c.slug === urlFirstSegment) ?? null
     : null
-  const urlSlugMember = urlSlugClub
-    ? members.find((m) => m.club_id === urlSlugClub.id) ?? null
-    : null
-
-  let isSlugBased = false
-  let effectivePath = pathname
-
-  if (urlSlugMember && urlSlugClub) {
-    // URL tiene prefijo de slug válido: /{slug}/jugadores → /jugadores
-    member = urlSlugMember
-    isSlugBased = true
-    effectivePath = pathname.slice(`/${urlFirstSegment}`.length) || '/dashboard'
-  }
-
-  // Club del member seleccionado (para trial check y slug redirect)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const memberClub = (clubsData as any[])?.find((c: any) => c.id === member.club_id) ?? null
-  const selectedClubSlug: string | null = memberClub?.slug ?? null
-
-  // Si el pathname no tiene slug y no está en la lista de exentos → redirigir para añadir slug
-  if (
-    !isSlugBased &&
-    selectedClubSlug &&
-    !SLUG_EXEMPT_PREFIXES.some((p) => pathname.startsWith(p))
-  ) {
+  if (matchedSlugClub) {
     const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = `/${selectedClubSlug}${pathname}`
+    redirectUrl.pathname = pathname.slice(`/${urlFirstSegment}`.length) || '/dashboard'
     const redirectResp = NextResponse.redirect(redirectUrl)
     supabaseResponse.cookies.getAll().forEach((cookie) => {
       redirectResp.cookies.set(cookie.name, cookie.value, cookie)
@@ -240,7 +206,11 @@ export async function middleware(request: NextRequest) {
     return redirectResp
   }
 
-  // Obtener roles del member seleccionado (después de posible cambio por slug)
+  // Club del member seleccionado (para trial check)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const memberClub = (clubsData as any[])?.find((c: any) => c.id === member.club_id) ?? null
+
+  // Obtener roles del member seleccionado
   const { data: roles } = await adminSupabase
     .from('club_member_roles')
     .select('role, team_id')
@@ -250,11 +220,10 @@ export async function middleware(request: NextRequest) {
 
   // ─────────────────────────────────────────────
   // TRIAL ENFORCEMENT: redirigir a /upgrade si el trial ha expirado
-  // Usa effectivePath (sin slug) para detectar rutas de app correctamente
   // ─────────────────────────────────────────────
-  const isAppRoute = !effectivePath.startsWith('/api/') &&
-    !effectivePath.startsWith('/upgrade') &&
-    !effectivePath.startsWith('/cambiar-password')
+  const isAppRoute = !pathname.startsWith('/api/') &&
+    !pathname.startsWith('/upgrade') &&
+    !pathname.startsWith('/cambiar-password')
 
   if (isAppRoute && memberClub) {
     if (
@@ -277,23 +246,6 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set('x-user-email', user.email ?? '')
   if (isSuperAdmin) {
     requestHeaders.set('x-platform-role', 'superadmin')
-  }
-
-  // If the URL had a slug prefix, rewrite internally to the canonical path.
-  // This ensures club context headers (x-club-id, etc.) are visible to the page
-  // for both full-page loads and App Router RSC navigation requests.
-  // next.config.ts beforeFiles rewrite handles the client router manifest so
-  // the App Router knows /{slug}/... paths are valid before making server requests.
-  if (isSlugBased) {
-    const rewriteUrl = request.nextUrl.clone()
-    rewriteUrl.pathname = effectivePath
-    const response = NextResponse.rewrite(rewriteUrl, {
-      request: { headers: requestHeaders },
-    })
-    supabaseResponse.cookies.getAll().forEach((cookie) => {
-      response.cookies.set(cookie.name, cookie.value, cookie)
-    })
-    return response
   }
 
   const response = NextResponse.next({
