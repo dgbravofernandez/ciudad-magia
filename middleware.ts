@@ -279,8 +279,23 @@ export async function middleware(request: NextRequest) {
     requestHeaders.set('x-platform-role', 'superadmin')
   }
 
-  // URL rewriting (/{slug}/{path} → /{path}) is handled by next.config.ts rewrites.
-  // Middleware only needs to inject the correct headers.
+  // If the URL had a slug prefix, rewrite internally to the canonical path.
+  // This ensures club context headers (x-club-id, etc.) are visible to the page
+  // for both full-page loads and App Router RSC navigation requests.
+  // next.config.ts beforeFiles rewrite handles the client router manifest so
+  // the App Router knows /{slug}/... paths are valid before making server requests.
+  if (isSlugBased) {
+    const rewriteUrl = request.nextUrl.clone()
+    rewriteUrl.pathname = effectivePath
+    const response = NextResponse.rewrite(rewriteUrl, {
+      request: { headers: requestHeaders },
+    })
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      response.cookies.set(cookie.name, cookie.value, cookie)
+    })
+    return response
+  }
+
   const response = NextResponse.next({
     request: { headers: requestHeaders },
   })
