@@ -1,19 +1,6 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  async rewrites() {
-    return {
-      beforeFiles: [
-        {
-          // Map /{club-slug}/{rest} → /{rest} at build time so the client-side
-          // router knows about these routes.  Excludes well-known top-level paths
-          // so they are never mistaken for club slugs.
-          source: '/:slug((?!login|register|api|superadmin|upgrade|onboarding|select-club|cambiar-password|not-found|_next|favicon\\.ico)[^/]+)/:path*',
-          destination: '/:path*',
-        },
-      ],
-    }
-  },
   experimental: {
     serverActions: {
       bodySizeLimit: '2mb',
