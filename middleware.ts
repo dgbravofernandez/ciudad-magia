@@ -279,20 +279,8 @@ export async function middleware(request: NextRequest) {
     requestHeaders.set('x-platform-role', 'superadmin')
   }
 
-  // Si la URL tenía slug, reescribir internamente a la ruta sin slug
-  // El browser sigue viendo /{slug}/dashboard pero Next.js renderiza /dashboard
-  if (isSlugBased) {
-    const rewriteUrl = request.nextUrl.clone()
-    rewriteUrl.pathname = effectivePath
-    const response = NextResponse.rewrite(rewriteUrl, {
-      request: { headers: requestHeaders },
-    })
-    supabaseResponse.cookies.getAll().forEach((cookie) => {
-      response.cookies.set(cookie.name, cookie.value, cookie)
-    })
-    return response
-  }
-
+  // URL rewriting (/{slug}/{path} → /{path}) is handled by next.config.ts rewrites.
+  // Middleware only needs to inject the correct headers.
   const response = NextResponse.next({
     request: { headers: requestHeaders },
   })
