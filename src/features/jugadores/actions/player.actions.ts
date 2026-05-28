@@ -688,7 +688,8 @@ export async function importPlayers(
 export async function sendTrialLetter(
   playerId: string,
   clubDestino: string,
-  trialDate: string
+  trialDate: string,
+  isGeneric = false
 ): Promise<{ success: boolean; error?: string; emailSent?: boolean }> {
   const { createAdminClient } = await import('@/lib/supabase/admin')
   const { getClubId } = await import('@/lib/supabase/get-club-id')
@@ -729,6 +730,7 @@ export async function sendTrialLetter(
       trialDate,
       clubDestino,
       currentDate,
+      isGeneric,
     })
   } catch (pdfErr) {
     console.error('[sendTrialLetter] PDF generation failed:', pdfErr)

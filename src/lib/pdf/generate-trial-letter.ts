@@ -11,6 +11,7 @@ interface TrialLetterParams {
   trialDate: string
   clubDestino: string
   currentDate: string
+  isGeneric?: boolean
 }
 
 export async function generateTrialLetterPDF(params: TrialLetterParams): Promise<Buffer> {
@@ -74,8 +75,12 @@ export async function generateTrialLetterPDF(params: TrialLetterParams): Promise
   y -= 30
 
   // Body text paragraphs
+  const autorizacionLine = params.isGeneric
+    ? `Por medio de la presente, la ${CLUB_NAME} (CIF: ${CIF}) hace constar que el jugador/a ${params.playerName}, nacido/a el ${formatDob(params.playerDob)}, perteneciente a nuestra escuela, tiene autorizacion para realizar pruebas deportivas en el club que la familia y el jugador/a consideren oportuno. La presente carta tendra validez hasta el ${formatTrialDate(params.trialDate)}.`
+    : `Por medio de la presente, la ${CLUB_NAME} (CIF: ${CIF}) hace constar que el jugador/a ${params.playerName}, nacido/a el ${formatDob(params.playerDob)}, perteneciente a nuestra escuela, tiene autorizacion para realizar una prueba en el club ${params.clubDestino} con fecha ${formatTrialDate(params.trialDate)}.`
+
   const paragraphs = [
-    `Por medio de la presente, la ${CLUB_NAME} (CIF: ${CIF}) hace constar que el jugador/a ${params.playerName}, nacido/a el ${formatDob(params.playerDob)}, perteneciente a nuestra escuela, tiene autorizacion para realizar una prueba en el club ${params.clubDestino} con fecha ${formatTrialDate(params.trialDate)}.`,
+    autorizacionLine,
     `El tutor/a responsable, D/Da. ${params.tutorName}, ha sido informado/a y da su consentimiento para la realizacion de dicha prueba.`,
     `Se hace constar que, al expedir la presente carta de pruebas, el club se reserva el derecho de no ofrecer continuidad al jugador/a para la proxima temporada.`,
     `Asimismo, ${CLUB_NAME} no se hace responsable de las lesiones, accidentes o cualquier otro percance que pudiera producirse durante el periodo de prueba en las instalaciones del club de destino. La responsabilidad recae en el club organizador de la prueba y en los tutores legales del menor.`,

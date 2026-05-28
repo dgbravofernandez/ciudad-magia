@@ -96,8 +96,9 @@ export function InscripcionesTable({
   const [isPending, startTransition] = useTransition()
   const [trialLetterIds, setTrialLetterIds] = useState<Set<string>>(new Set(trialLetterPlayerIds))
   const [trialModalPlayer, setTrialModalPlayer] = useState<PlayerWithTeam | null>(null)
+  const [trialMode, setTrialMode] = useState<'generic' | 'specific'>('generic')
   const [trialClub, setTrialClub] = useState('')
-  const [trialDate, setTrialDate] = useState('')
+  const [trialDate, setTrialDate] = useState('2026-06-30')
   const [sendingTrial, setSendingTrial] = useState(false)
 
   // Inscripciones sin coincidencia
@@ -351,10 +352,12 @@ export function InscripcionesTable({
   }
 
   async function handleSendTrialLetter() {
-    if (!trialModalPlayer || !trialClub || !trialDate) return
+    if (!trialModalPlayer || !trialDate) return
+    if (trialMode === 'specific' && !trialClub) return
     setSendingTrial(true)
+    const effectiveClub = trialMode === 'generic' ? 'al club que considere oportuno' : trialClub
     try {
-      const result = await sendTrialLetter(trialModalPlayer.id, trialClub, trialDate)
+      const result = await sendTrialLetter(trialModalPlayer.id, effectiveClub, trialDate, trialMode === 'generic')
       if (result.success) {
         setTrialLetterIds(prev => new Set([...prev, trialModalPlayer.id]))
         if (result.emailSent) {
@@ -370,8 +373,9 @@ export function InscripcionesTable({
     } finally {
       setSendingTrial(false)
       setTrialModalPlayer(null)
+      setTrialMode('generic')
       setTrialClub('')
-      setTrialDate('')
+      setTrialDate('2026-06-30')
     }
   }
 
@@ -831,8 +835,9 @@ export function InscripcionesTable({
                         <button
                           onClick={() => {
                             setTrialModalPlayer(player)
+                            setTrialMode('generic')
                             setTrialClub('')
-                            setTrialDate('')
+                            setTrialDate('2026-06-30')
                           }}
                           disabled={isDismissed || isPending}
                           className="mx-auto flex text-muted-foreground hover:text-amber-500 transition-colors disabled:opacity-40"
@@ -899,25 +904,67 @@ export function InscripcionesTable({
             <h3 className="text-lg font-semibold mb-4">
               Carta de pruebas — {trialModalPlayer.first_name} {trialModalPlayer.last_name}
             </h3>
+
+            {/* Modo toggle */}
+            <div className="flex rounded-lg border overflow-hidden mb-4 text-sm font-medium">
+              <button
+                type="button"
+                onClick={() => { setTrialMode('generic'); setTrialDate('2026-06-30') }}
+                className={`flex-1 py-2 transition-colors ${trialMode === 'generic' ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted'}`}
+              >
+                Genérica
+              </button>
+              <button
+                type="button"
+                onClick={() => { setTrialMode('specific'); setTrialClub(''); setTrialDate('') }}
+                className={`flex-1 py-2 transition-colors border-l ${trialMode === 'specific' ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted'}`}
+              >
+                Club específico
+              </button>
+            </div>
+
             <div className="space-y-3">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Club de destino</label>
-                <input
-                  className="input w-full mt-1"
-                  placeholder="Nombre del club donde hará la prueba"
-                  value={trialClub}
-                  onChange={e => setTrialClub(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Fecha de la prueba</label>
-                <input
-                  type="date"
-                  className="input w-full mt-1"
-                  value={trialDate}
-                  onChange={e => setTrialDate(e.target.value)}
-                />
-              </div>
+              {trialMode === 'generic' ? (
+                <>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Club de destino</label>
+                    <div className="input w-full mt-1 bg-muted/40 text-muted-foreground text-sm cursor-not-allowed select-none">
+                      Al club que la familia considere oportuno
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Válida hasta</label>
+                    <input
+                      type="date"
+                      className="input w-full mt-1"
+                      value={trialDate}
+                      onChange={e => setTrialDate(e.target.value)}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Club de destino</label>
+                    <input
+                      className="input w-full mt-1"
+                      placeholder="Nombre del club donde hará la prueba"
+                      value={trialClub}
+                      onChange={e => setTrialClub(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Fecha de la prueba</label>
+                    <input
+                      type="date"
+                      className="input w-full mt-1"
+                      value={trialDate}
+                      onChange={e => setTrialDate(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+
               {trialModalPlayer.tutor_email ? (
                 <p className="text-xs text-muted-foreground">
                   Se enviará a: <strong>{trialModalPlayer.tutor_email}</strong> con PDF adjunto
@@ -928,6 +975,7 @@ export function InscripcionesTable({
                 </p>
               )}
             </div>
+
             <div className="flex gap-2 mt-5 justify-end">
               <button
                 onClick={() => setTrialModalPlayer(null)}
@@ -938,7 +986,7 @@ export function InscripcionesTable({
               </button>
               <button
                 onClick={handleSendTrialLetter}
-                disabled={!trialClub || !trialDate || sendingTrial}
+                disabled={(trialMode === 'specific' && !trialClub) || !trialDate || sendingTrial}
                 className="btn-primary gap-2 flex items-center text-sm"
               >
                 <FileText className="w-4 h-4" />
