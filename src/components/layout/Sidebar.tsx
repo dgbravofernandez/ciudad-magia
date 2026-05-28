@@ -23,11 +23,12 @@ import {
   KeyRound,
   type LucideIcon,
 } from 'lucide-react'
+
 import { cn } from '@/lib/utils/cn'
 import { useCurrentUser } from '@/context/UserContext'
 import { useClub } from '@/context/ClubContext'
 import { createClient } from '@/lib/supabase/client'
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 
 type NavItem = {
   label: string
@@ -163,11 +164,9 @@ const NAV_ITEMS: NavItem[] = [
 
 function NavItemComponent({ item }: { item: NavItem }) {
   const pathname = usePathname()
-  const router = useRouter()
   const { roles } = useCurrentUser()
   const { club } = useClub()
   const [open, setOpen] = useState(false)
-  const [isPending, startTransition] = useTransition()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
 
   if (item.requiredRole && !item.requiredRole.some((r) => roles.includes(r as never))) {
@@ -180,16 +179,18 @@ function NavItemComponent({ item }: { item: NavItem }) {
   const isActive = pathname === fullHref || pathname.startsWith(fullHref + '/')
   const Icon = item.icon
 
+  // Use full-page navigation so middleware rewrites (/{slug}/{page} → /{page})
+  // work correctly. App Router RSC navigation causes route-tree mismatch with
+  // slug-prefixed URLs because the server renders a different route than the
+  // client expects.
   function navigate(href: string) {
     if (href === pathname) return
     setPendingHref(href)
-    startTransition(() => {
-      router.push(href)
-    })
+    window.location.href = href
   }
 
   if (!item.children) {
-    const loading = isPending && pendingHref === fullHref
+    const loading = pendingHref === fullHref
     return (
       <button
         onClick={() => navigate(fullHref)}
@@ -231,7 +232,7 @@ function NavItemComponent({ item }: { item: NavItem }) {
             !child.requiredRole || child.requiredRole.some(r => roles.includes(r as never))
           ).map((child) => {
             const fullChildHref = slug ? `/${slug}${child.href}` : child.href
-            const loading = isPending && pendingHref === fullChildHref
+            const loading = pendingHref === fullChildHref
             return (
               <button
                 key={child.href}
