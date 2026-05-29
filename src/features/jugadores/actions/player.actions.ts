@@ -228,12 +228,16 @@ function buildFallbackEmail(
       }
     case 'dismissed_requirements':
       return {
-        subject: `Baja confirmada - ${CLUB}`,
-        body: `<div style="${border('#000')}">
-          <h2>Baja Confirmada</h2>
-          <p>Hola <strong>${tutorName}</strong>,</p>
-          <p>Le informamos que <strong>${playerName}</strong> no cumple los requisitos para formar parte del equipo en la temporada 26/27. Cualquier duda puede acudir a la oficina del club.</p>
-          <p>Atentamente,<br>${CLUB}</p>
+        subject: `Información sobre la inscripción 26/27 - ${CLUB}`,
+        body: `<div style="${border('#ffcc00')}">
+          <h2 style="color:#000;text-align:center;">Inscripción Temporada 26/27</h2>
+          <p>Estimado/a <strong>${tutorName}</strong>,</p>
+          <p>En primer lugar, queremos agradecerle de corazón la confianza depositada en la <strong>${CLUB}</strong> y el tiempo que <strong>${playerName}</strong> ha compartido con nosotros.</p>
+          <p>Lamentamos comunicarle que, tras revisar los requisitos de inscripción para la temporada 26/27, en esta ocasión no podemos confirmar la continuidad de su plaza. Somos conscientes de que no es la noticia que esperaban y sentimos de veras no poder darles una respuesta diferente.</p>
+          <p>Le deseamos lo mejor a <strong>${playerName}</strong> en esta nueva etapa, tanto dentro como fuera del terreno de juego. Las puertas del club siempre estarán abiertas.</p>
+          <p>Quedamos a su entera disposición en la oficina del club para cualquier aclaración que necesiten.</p>
+          <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+          <p style="text-align:center;font-size:0.9em;">Un cordial saludo,<br><strong>La Dirección - ${CLUB}</strong></p>
         </div>`,
       }
     case 'dismissed_non_payment':
