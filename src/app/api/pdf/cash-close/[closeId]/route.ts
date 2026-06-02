@@ -71,11 +71,15 @@ export async function GET(
 
   // movement_id → player_id (and source-specific info)
   const movPlayerId: Record<string, string> = {}     // related_id → player_id
+  const paymentSeasonMap: Record<string, string> = {} // payment_id → season
 
   if (paymentIds.length > 0) {
-    const { data } = await sb.from('quota_payments').select('id, player_id').in('id', paymentIds)
+    const { data } = await sb.from('quota_payments').select('id, player_id, season').in('id', paymentIds)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const r of (data ?? [])) if (r.player_id) movPlayerId[r.id] = r.player_id
+    for (const r of (data ?? [])) {
+      if (r.player_id) movPlayerId[r.id] = r.player_id
+      if (r.season) paymentSeasonMap[r.id] = r.season
+    }
   }
   if (attendeeIds.length > 0) {
     const { data } = await sb.from('tournament_attendees').select('id, player_id').in('id', attendeeIds)
@@ -127,6 +131,7 @@ export async function GET(
 
   const enriched: CashCloseMovement[] = movs.map((m) => {
     const { player_name, team_name } = getNames(m)
+    const season = m.related_payment_id ? (paymentSeasonMap[m.related_payment_id] ?? null) : null
     return {
       player_name,
       team_name,
@@ -136,6 +141,7 @@ export async function GET(
       description:    m.description ?? '',
       type:           m.type as 'income' | 'expense',
       source:         m.source ?? null,
+      season,
     }
   })
 

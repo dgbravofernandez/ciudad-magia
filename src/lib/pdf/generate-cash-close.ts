@@ -34,6 +34,7 @@ export interface CashCloseMovement {
   description: string
   type: 'income' | 'expense'
   source?: string | null
+  season?: string | null
 }
 
 export interface CashCloseParams {
@@ -161,13 +162,22 @@ function trunc(str: string, max: number) {
 }
 
 function getSourceLabel(m: CashCloseMovement): string {
-  if (m.source && SOURCE_LABELS[m.source]) return SOURCE_LABELS[m.source]
-  const desc = m.description.toLowerCase()
-  if (desc.startsWith('pago cuota') || desc.includes('cuota')) return 'Cuota'
-  if (desc.startsWith('ropa')) return 'Ropa'
-  if (desc.includes('torneo')) return 'Torneo'
-  if (desc.includes('actividad')) return 'Actividad'
-  return 'Otro'
+  const baseLabel = (() => {
+    if (m.source && SOURCE_LABELS[m.source]) return SOURCE_LABELS[m.source]
+    const desc = m.description.toLowerCase()
+    if (desc.startsWith('pago cuota') || desc.includes('cuota')) return 'Cuota'
+    if (desc.startsWith('ropa')) return 'Ropa'
+    if (desc.includes('torneo')) return 'Torneo'
+    if (desc.includes('actividad')) return 'Actividad'
+    return 'Otro'
+  })()
+  // Añadir temporada para cuotas, p.ej. "Cuota 25/26"
+  if (baseLabel === 'Cuota' && m.season) {
+    // Convertir "2025/26" → "25/26" para que quepa en la columna
+    const short = m.season.replace(/^20(\d{2})\/(\d{2,4})$/, (_: string, a: string, b: string) => `${a}/${b.slice(-2)}`)
+    return `Cuota ${short}`
+  }
+  return baseLabel
 }
 
 export async function generateCashClosePDF(params: CashCloseParams): Promise<Buffer> {
