@@ -744,6 +744,7 @@ export async function closeCash(data: {
   notes: string
   closedBy: string
   cashRegisterFloat: number
+  cardByDay?: Array<{ date: string; system: number; real: number }>
 }) {
   const { sb } = await resolveClubAndMember()
 
@@ -759,6 +760,7 @@ export async function closeCash(data: {
     notes: data.notes || null,
     closed_by: data.closedBy || null,
     cash_register_float: data.cashRegisterFloat,
+    card_by_day: data.cardByDay ?? [],
   })
 
   if (error) return { success: false, error: error.message }

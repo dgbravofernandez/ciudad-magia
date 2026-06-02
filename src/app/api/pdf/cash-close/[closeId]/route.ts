@@ -146,6 +146,9 @@ export async function GET(
   })
 
   // ── Generate PDF ─────────────────────────────────────────────────
+  const cardByDay: Array<{ date: string; system: number; real: number }> =
+    Array.isArray(close.card_by_day) ? close.card_by_day : []
+
   const pdfBuffer = await generateCashClosePDF({
     periodStart:  close.period_start,
     periodEnd:    close.period_end,
@@ -159,6 +162,7 @@ export async function GET(
     clubName:     clubData?.name ?? undefined,
     primaryColor: clubData?.primary_color ?? undefined,
     logoUrl:      clubData?.logo_url ?? undefined,
+    cardByDay,
   })
 
   const filename = `Arqueo_${close.period_start}_${close.period_end}.pdf`

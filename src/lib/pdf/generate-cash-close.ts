@@ -47,6 +47,7 @@ export interface CashCloseParams {
   realCard: number
   notes: string | null
   movements: CashCloseMovement[]
+  cardByDay?: Array<{ date: string; system: number; real: number }>
   // Club branding
   clubName?: string
   primaryColor?: string   // hex e.g. '#003087'
@@ -372,21 +373,100 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
     y -= 20
   }
 
+  // ── VERIFICACIÓN TARJETA DÍA A DÍA ──────────────────────────────
+  const cardByDay = params.cardByDay ?? []
+  const cardDaysWithData = cardByDay.filter(d => d.system > 0 || d.real > 0)
+  if (cardDaysWithData.length > 0) {
+    y -= 8
+    sectionTitle('VERIFICACIÓN TARJETA — DÍA A DÍA')
+
+    const xVDate  = ML + 6
+    const xVSyst  = ML + 125
+    const xVReal  = ML + 245
+    const xVSt    = ML + 330
+    const xVDiff  = ML + CW - 6
+
+    tableHeader([
+      { label: 'FECHA',              x: xVDate },
+      { label: 'APP (SISTEMA)',      x: xVSyst, align: 'right' },
+      { label: 'DATAFONO (REAL)',    x: xVReal, align: 'right' },
+      { label: 'ESTADO',             x: xVSt   },
+      { label: 'DIFERENCIA',         x: xVDiff, align: 'right' },
+    ])
+
+    const COLOR_OK_BG  = rgb(0.92, 0.98, 0.94)
+    const COLOR_ERR_BG = rgb(0.99, 0.93, 0.93)
+    const COLOR_AMBER  = rgb(0.72, 0.44, 0.06)
+
+    for (let i = 0; i < cardDaysWithData.length; i++) {
+      const d    = cardDaysWithData[i]
+      const diff = d.real - d.system
+      const ok   = Math.abs(diff) < 0.01
+      checkBreak(18)
+      // Colored background for each row
+      if (ok) {
+        page.drawRectangle({ x: ML, y: y - 15, width: CW, height: 15, color: COLOR_OK_BG })
+      } else {
+        page.drawRectangle({ x: ML, y: y - 15, width: CW, height: 15, color: COLOR_ERR_BG })
+      }
+
+      const diffColor = ok ? COLOR_GREEN : (diff > 0 ? COLOR_AMBER : COLOR_RED)
+      const diffText  = ok ? '—' : (diff > 0 ? '+' : '') + eur(diff)
+      const stateText = ok ? 'Cuadra OK' : 'DESCUADRE'
+      const stateCol  = ok ? COLOR_GREEN : COLOR_RED
+
+      page.drawText(dateES(d.date), { x: xVDate, y: y - 10, size: 8, font, color: COLOR_DARK })
+      const sw = bold.widthOfTextAtSize(eur(d.system), 8)
+      page.drawText(eur(d.system), { x: xVSyst - sw, y: y - 10, size: 8, font: bold, color: COLOR_NAVY })
+      const rw = bold.widthOfTextAtSize(eur(d.real), 8)
+      page.drawText(eur(d.real), { x: xVReal - rw, y: y - 10, size: 8, font: bold, color: ok ? COLOR_GREEN : COLOR_RED })
+      page.drawText(stateText, { x: xVSt, y: y - 10, size: 8, font: bold, color: stateCol })
+      if (!ok) {
+        const dw = bold.widthOfTextAtSize(diffText, 8)
+        page.drawText(diffText, { x: xVDiff - dw, y: y - 10, size: 8, font: bold, color: diffColor })
+      }
+      y -= 15
+    }
+
+    // Total row
+    const totalSyst = cardDaysWithData.reduce((s, d) => s + d.system, 0)
+    const totalReal = cardDaysWithData.reduce((s, d) => s + d.real, 0)
+    const totalDiff = totalReal - totalSyst
+    const totalOk   = Math.abs(totalDiff) < 0.01
+    page.drawLine({ start: { x: ML, y: y + 2 }, end: { x: ML + CW, y: y + 2 }, thickness: 0.8, color: COLOR_LIGHT })
+    y -= 6
+    checkBreak(18)
+    page.drawRectangle({ x: ML, y: y - 16, width: CW, height: 16, color: totalOk ? COLOR_OK_BG : COLOR_ERR_BG })
+    page.drawText('TOTAL TARJETA', { x: xVDate, y: y - 11, size: 8.5, font: bold, color: COLOR_NAVY })
+    const tsw = bold.widthOfTextAtSize(eur(totalSyst), 8.5)
+    page.drawText(eur(totalSyst), { x: xVSyst - tsw, y: y - 11, size: 8.5, font: bold, color: COLOR_NAVY })
+    const trw = bold.widthOfTextAtSize(eur(totalReal), 8.5)
+    page.drawText(eur(totalReal), { x: xVReal - trw, y: y - 11, size: 8.5, font: bold, color: totalOk ? COLOR_GREEN : COLOR_RED })
+    page.drawText(totalOk ? 'Cuadra OK' : 'DESCUADRE', { x: xVSt, y: y - 11, size: 8.5, font: bold, color: totalOk ? COLOR_GREEN : COLOR_RED })
+    if (!totalOk) {
+      const tdStr = (totalDiff > 0 ? '+' : '') + eur(totalDiff)
+      const tdw   = bold.widthOfTextAtSize(tdStr, 8.5)
+      page.drawText(tdStr, { x: xVDiff - tdw, y: y - 11, size: 8.5, font: bold, color: totalDiff > 0 ? COLOR_AMBER : COLOR_RED })
+    }
+    y -= 20
+  }
+
   // ── INCOME TABLE ─────────────────────────────────────────────────
   if (incomeMovs.length > 0) {
     y -= 8
     sectionTitle('DETALLE DE INGRESOS')
 
-    // Columnas: TIPO | JUGADOR | EQUIPO | F.PAGO | FECHA | IMPORTE
+    // Columnas: TIPO/CONCEPTO | JUGADOR/DESCRIPCIÓN | EQUIPO | F.PAGO | FECHA | IMPORTE
+    // TIPO más ancho para "Cuota 25/26", "Actividad", etc.
     const xTipo = ML + 6
-    const xN    = ML + 58
-    const xEq   = ML + 248
-    const xM    = ML + 338
-    const xD    = ML + 398
-    const xA    = ML + CW - 6
+    const xN    = ML + 74    // TIPO = 68px
+    const xEq   = ML + 255   // JUGADOR = 181px (≈ 36 chars @ 8pt)
+    const xM    = ML + 337   // EQUIPO = 82px
+    const xD    = ML + 401   // F.PAGO = 64px
+    const xA    = ML + CW - 6  // FECHA = 104px, IMPORTE right-aligned
 
     tableHeader([
-      { label: 'TIPO',                   x: xTipo },
+      { label: 'CONCEPTO',               x: xTipo },
       { label: 'JUGADOR / DESCRIPCIÓN',  x: xN    },
       { label: 'EQUIPO',                 x: xEq   },
       { label: 'F. PAGO',                x: xM    },
@@ -399,9 +479,9 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
       const m = incomeMovs[i]
       incTotal += m.amount
       tableRow([
-        { text: getSourceLabel(m),                                            x: xTipo, color: COLOR_NAVY, bold: true },
-        { text: trunc(m.player_name || m.description, 32),                   x: xN    },
-        { text: trunc(m.team_name || '—', 12),                               x: xEq   },
+        { text: trunc(getSourceLabel(m), 13),                                 x: xTipo, color: COLOR_NAVY, bold: true },
+        { text: trunc(m.player_name || m.description, 34),                   x: xN    },
+        { text: trunc(m.team_name || '—', 13),                               x: xEq   },
         { text: METHOD_LABELS[m.payment_method] ?? m.payment_method ?? '—',  x: xM    },
         { text: dateES(m.movement_date),                                      x: xD    },
         { text: eur(m.amount), x: xA, align: 'right', bold: true, color: COLOR_GREEN },
@@ -442,14 +522,14 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
     totalLine('TOTAL GASTOS', eur(expTotal), COLOR_RED, xA2)
   }
 
-  // ── CONTROL DE CAJA ───────────────────────────────────────────────
+  // ── CONTROL DE CAJA (solo efectivo — tarjeta se verifica día a día arriba) ──
   y -= 8
-  checkBreak(110)
-  sectionTitle('CONTROL DE CAJA')
+  checkBreak(80)
+  sectionTitle('CONTROL DE EFECTIVO')
 
   const xConcept = ML + 6
-  const xSist    = ML + 264
-  const xReal    = ML + 368
+  const xSist    = ML + 200
+  const xReal    = ML + 330
   const xDiff    = ML + CW - 6
 
   tableHeader([
@@ -459,21 +539,27 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
     { label: 'DIFERENCIA',       x: xDiff,  align: 'right' },
   ])
 
-  const ctrlRows = [
-    { concept: 'Efectivo', sist: params.systemCash, real: params.realCash },
-    { concept: 'Tarjeta',  sist: params.systemCard, real: params.realCard },
-  ]
-  for (let i = 0; i < ctrlRows.length; i++) {
-    const r    = ctrlRows[i]
-    const diff = r.real - r.sist
-    const dc   = Math.abs(diff) < 0.01 ? COLOR_GREEN : COLOR_RED
-    const ds   = (diff >= 0 ? '+' : '') + eur(diff)
-    tableRow([
-      { text: r.concept,    x: xConcept, bold: true },
-      { text: eur(r.sist),  x: xSist,  align: 'right' },
-      { text: eur(r.real),  x: xReal,  align: 'right' },
-      { text: ds,           x: xDiff,  align: 'right', bold: true, color: dc },
-    ], i)
+  // Solo fila de Efectivo — Tarjeta se verifica en la sección día a día
+  const diffCash = params.realCash - params.systemCash
+  const dcCash   = Math.abs(diffCash) < 0.01 ? COLOR_GREEN : COLOR_RED
+  tableRow([
+    { text: 'Efectivo',              x: xConcept, bold: true },
+    { text: eur(params.systemCash),  x: xSist, align: 'right' },
+    { text: eur(params.realCash),    x: xReal, align: 'right' },
+    { text: (diffCash >= 0 ? '+' : '') + eur(diffCash), x: xDiff, align: 'right', bold: true, color: dcCash },
+  ], 0)
+
+  // Nota si la verificación de tarjeta está disponible
+  if (cardDaysWithData.length > 0) {
+    y -= 4
+    const totalRealCard = cardDaysWithData.reduce((s, d) => s + d.real, 0)
+    const totalSystCard = cardDaysWithData.reduce((s, d) => s + d.system, 0)
+    const cardOk        = Math.abs(totalRealCard - totalSystCard) < 0.01
+    page.drawText(
+      `Tarjeta: ver sección "Verificación Tarjeta" arriba — sistema ${eur(totalSystCard)} / datafono ${eur(totalRealCard)} ${cardOk ? '(OK)' : '(DESCUADRE)'}`,
+      { x: xConcept, y: y - 8, size: 7.5, font, color: cardOk ? COLOR_GREEN : COLOR_RED }
+    )
+    y -= 16
   }
 
   // ── BALANCE NETO ──────────────────────────────────────────────────

@@ -219,6 +219,15 @@ export function CashRegisterPage({
   }
 
   function handleCloseCash() {
+    // Compile card-by-day verification (only entries where user entered a real value)
+    const cardByDay = dayBreakdown
+      .filter(d => d.card !== 0)
+      .map(d => {
+        const realStr = realCardByDay[d.date] ?? ''
+        const real    = parseFloat(realStr)
+        return { date: d.date, system: d.card, real: isNaN(real) ? d.card : real }
+      })
+
     startTransition(async () => {
       const result = await closeCash({
         clubId,
@@ -231,6 +240,7 @@ export function CashRegisterPage({
         notes,
         closedBy: memberId,
         cashRegisterFloat: floatNum,
+        cardByDay,
       })
 
       if (result.success) {
