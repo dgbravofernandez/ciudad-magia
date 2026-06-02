@@ -4,6 +4,7 @@ import { getClubId } from '@/lib/supabase/get-club-id'
 import { headers } from 'next/headers'
 import { CuotasConfig } from '@/features/configuracion/components/CuotasConfig'
 import { SeasonFeesManager } from '@/features/configuracion/components/SeasonFeesManager'
+import { FeeCalculator } from '@/features/configuracion/components/FeeCalculator'
 import { Topbar } from '@/components/layout/Topbar'
 import { getActiveSeasons } from '@/lib/utils/currency'
 import type { Metadata } from 'next'
@@ -44,6 +45,7 @@ export default async function CuotasPage() {
           settings={settingsRes.data}
           teams={teamsRes.data ?? []}
         />
+        <FeeCalculator />
         <SeasonFeesManager
           seasons={getActiveSeasons()}
           teams={teamsRes.data ?? []}

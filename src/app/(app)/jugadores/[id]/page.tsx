@@ -4,6 +4,7 @@ import { getClubId } from '@/lib/supabase/get-club-id'
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { PlayerCard } from '@/features/jugadores/components/PlayerCard'
+import { SiblingLinker } from '@/features/jugadores/components/SiblingLinker'
 import { Topbar } from '@/components/layout/Topbar'
 import type { Metadata } from 'next'
 
@@ -93,6 +94,18 @@ export default async function PlayerDetailPage({ params }: { params: Promise<{ i
   }
 
   /* ── Fetch related data in parallel ── */
+  // Fetch siblings (same family_group_id, excluding self)
+  let siblings: { id: string; first_name: string; last_name: string; family_group_id: string | null }[] = []
+  if (player.family_group_id) {
+    const { data: siblingData } = await sb
+      .from('players')
+      .select('id, first_name, last_name, family_group_id')
+      .eq('club_id', clubId)
+      .eq('family_group_id', player.family_group_id)
+      .neq('id', id)
+    siblings = siblingData ?? []
+  }
+
   const [
     { data: stats },
     { data: injuries },
@@ -136,7 +149,7 @@ export default async function PlayerDetailPage({ params }: { params: Promise<{ i
   return (
     <div className="flex flex-col h-full">
       <Topbar title={`${player.first_name} ${player.last_name}`} />
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-6 space-y-4">
         <PlayerCard
           player={player}
           stats={stats ?? []}
@@ -146,6 +159,11 @@ export default async function PlayerDetailPage({ params }: { params: Promise<{ i
           observations={observations ?? []}
           canAddInjury={canAddInjury}
           authorName={memberName}
+        />
+        <SiblingLinker
+          playerId={id}
+          playerName={`${player.first_name} ${player.last_name}`}
+          initialSiblings={siblings}
         />
       </div>
     </div>
