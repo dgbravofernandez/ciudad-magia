@@ -49,24 +49,32 @@ export default function OnboardingClient() {
     setError('')
     startTransition(async () => {
       const supabase = createClient()
+
+      // 1. Intentar login primero — evita el "usuario fantasma" de Supabase
+      //    (cuando email ya existe, signUp devuelve un ID falso que viola FK en club_members)
+      const { data: loginData } = await supabase.auth.signInWithPassword({ email, password })
+      if (loginData.user) {
+        setUserId(loginData.user.id)
+        setStep('club')
+        return
+      }
+
+      // 2. Nuevo usuario — registrar
       const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { full_name: fullName } },
       })
       if (authError) {
-        // Maybe user already exists — try sign in
-        if (authError.message.includes('already') || authError.message.includes('existe')) {
-          const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({ email, password })
-          if (loginError) { setError(loginError.message); return }
-          setUserId(loginData.user!.id)
-        } else {
-          setError(authError.message)
-          return
-        }
-      } else {
-        setUserId(data.user!.id)
+        setError(authError.message)
+        return
       }
+      if (!data.user) {
+        // Supabase devuelve user=null cuando el email ya existe (protección anti-enumeración)
+        setError('Este email ya está en uso. Si ya tienes cuenta, inicia sesión primero.')
+        return
+      }
+      setUserId(data.user.id)
       setStep('club')
     })
   }
@@ -75,11 +83,28 @@ export default function OnboardingClient() {
     e.preventDefault()
     setError('')
     startTransition(async () => {
+      const supabase = createClient()
+
       const result = await createClub({ userId, fullName, clubName, sport, city, plan })
       if (!result.success) { setError(result.error ?? 'Error'); return }
       await getClubMemberEmail(userId, result.clubId!)
+
+      // Guardar el club recién creado como preferido para que el middleware lo use
+      if (result.clubId) {
+        document.cookie = `preferred_club_id=${result.clubId}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
+      }
+
+      // Iniciar sesión ahora que el email está auto-confirmado
+      // (supabase.auth.signUp no crea sesión cuando email confirmation está habilitado)
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+      if (signInError) {
+        // Si el login falla, continuar de todas formas — el usuario tendrá que
+        // hacer login manualmente, pero el club ya está creado
+        console.warn('[onboarding] auto-login failed:', signInError.message)
+      }
+
       setStep('done')
-      setTimeout(() => router.push('/dashboard'), 1800)
+      setTimeout(() => { window.location.href = '/dashboard' }, 1800)
     })
   }
 

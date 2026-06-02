@@ -45,6 +45,11 @@ export async function createMember(
     const sb = createAdminClient()
     const tempPassword = randomPassword(14)
 
+    // Nombre del club para emails
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: clubRow } = await (sb as any).from('clubs').select('name').eq('id', clubId).single()
+    const clubName: string = (clubRow as { name?: string } | null)?.name ?? 'El Club'
+
     // 1) Create auth user
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: authData, error: authErr } = await (sb as any).auth.admin.createUser({
@@ -92,7 +97,7 @@ export async function createMember(
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://ciudadmagia.app'
     await sendHtmlEmail({
       to: input.email.trim(),
-      subject: 'Acceso al CRM — Ciudad de Getafe',
+      subject: `Acceso al CRM — ${clubName}`,
       html: `
         <p>Hola <b>${input.full_name}</b>,</p>
         <p>Te hemos dado acceso al CRM del club. Tus credenciales:</p>
@@ -319,6 +324,11 @@ export async function createAccountForMember(
 
     const tempPassword = randomPassword(14)
 
+    // Nombre del club para emails
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: clubRow2 } = await (sb as any).from('clubs').select('name').eq('id', clubId).single()
+    const clubName2: string = (clubRow2 as { name?: string } | null)?.name ?? 'El Club'
+
     // 1) Crear usuario auth
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: authData, error: authErr } = await (sb as any).auth.admin.createUser({
@@ -354,7 +364,7 @@ export async function createAccountForMember(
     try {
       await sendHtmlEmail({
         to: m.email.trim(),
-        subject: 'Acceso al CRM — E.F. Ciudad de Getafe',
+        subject: `Acceso al CRM — ${clubName2}`,
         html: `
           <p>Hola <b>${m.full_name}</b>,</p>
           <p>Te hemos creado un acceso al CRM del club. Tus credenciales:</p>

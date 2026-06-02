@@ -24,6 +24,12 @@ export async function createClub(input: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
 
+    // Guard: verificar que el userId existe realmente en auth.users
+    // (evita FK violation si el cliente envió un ID "fantasma" de Supabase)
+    if (!input.userId) return { success: false, error: 'ID de usuario inválido' }
+    const { data: authCheck } = await sb.auth.admin.getUserById(input.userId)
+    if (!authCheck?.user) return { success: false, error: 'Usuario no encontrado. Por favor vuelve al paso anterior.' }
+
     // Generate unique slug
     const baseSlug = slugify(input.clubName)
     let slug = baseSlug
@@ -74,6 +80,10 @@ export async function createClub(input: {
       role: 'admin',
       team_id: null,
     })
+
+    // Auto-confirmar el email para que el usuario pueda hacer login sin confirmar
+    // Necesario cuando Supabase tiene "Email Confirmation" habilitado
+    await sb.auth.admin.updateUserById(input.userId, { email_confirm: true })
 
     return { success: true, clubId }
   } catch (e) {

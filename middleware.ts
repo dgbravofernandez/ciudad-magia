@@ -164,16 +164,29 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Determinar qué club usar: cookie > único > más reciente
+  // Determinar qué club usar: cookie > único > selección interactiva
   let member = members[0]  // por defecto el más reciente
 
   if (members.length > 1) {
     const preferredClubId = request.cookies.get('preferred_club_id')?.value
     if (preferredClubId) {
       const preferred = members.find(m => m.club_id === preferredClubId)
-      if (preferred) member = preferred
+      if (preferred) {
+        member = preferred
+      } else if (!pathname.startsWith('/select-club')) {
+        // Cookie apunta a un club al que ya no pertenece → limpiar y redirigir
+        const url = request.nextUrl.clone()
+        url.pathname = '/select-club'
+        const resp = NextResponse.redirect(url)
+        resp.cookies.delete('preferred_club_id')
+        return resp
+      }
+    } else if (!pathname.startsWith('/select-club')) {
+      // Múltiples clubs sin preferencia guardada → forzar selector
+      const url = request.nextUrl.clone()
+      url.pathname = '/select-club'
+      return NextResponse.redirect(url)
     }
-    // Si no hay cookie o no coincide, usar el más reciente (members[0])
   }
 
   // Datos de los clubs del usuario (para trial check y compat de URLs viejas)

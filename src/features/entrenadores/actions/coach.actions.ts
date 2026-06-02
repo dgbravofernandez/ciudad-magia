@@ -11,7 +11,11 @@ export async function sendCoachInvitation(
   email: string,
   name?: string
 ): Promise<{ success: boolean; error?: string; emailSent?: boolean }> {
-  const CLUB = 'Escuela de Fútbol Ciudad de Getafe'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const _sb = createAdminClient() as any
+  const _clubId = await getClubId()
+  const { data: _clubRow } = _clubId ? await _sb.from('clubs').select('name').eq('id', _clubId).single() : { data: null }
+  const CLUB: string = (_clubRow as { name?: string } | null)?.name ?? 'El Club'
   const subject = `Formulario de inscripción para el cuerpo técnico - ${CLUB}`
   const body = `<div style="font-family:Arial,sans-serif;padding:25px;border:4px solid #ffcc00;border-radius:15px;color:#333;">
     <h2 style="color:#000;text-align:center;">Bienvenido/a al Cuerpo Técnico - Temporada 26/27</h2>
@@ -55,10 +59,11 @@ export async function sendCoachFormLink(
     return { success: false, error: 'Sin email válido' }
   }
 
-  const CLUB = 'Escuela de Fútbol Ciudad de Getafe'
+  const { data: coachClubRow } = clubId ? await sb.from('clubs').select('name').eq('id', clubId).single() : { data: null }
+  const CLUB: string = (coachClubRow as { name?: string } | null)?.name ?? 'El Club'
   const subject = `Formulario de inscripción para el cuerpo técnico - ${CLUB}`
   const body = `<div style="font-family:Arial,sans-serif;padding:25px;border:4px solid #ffcc00;border-radius:15px;color:#333;">
-    <h2 style="color:#000;text-align:center;">Bienvenido/a al Cuerpo Técnico - Temporada 26/27</h2>
+    <h2 style="color:#000;text-align:center;">Bienvenido/a al Cuerpo Técnico</h2>
     <p>Hola <strong>${member.full_name}</strong>,</p>
     <p>Para completar tu inscripción como entrenador/a en la ${CLUB}, necesitamos que rellenes el siguiente formulario con tus datos y documentación:</p>
     <div style="text-align:center;margin:25px 0;">

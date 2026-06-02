@@ -1,12 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Mail, Lock, Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 export function LoginForm({ redirectTo }: { redirectTo?: string }) {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -27,8 +25,9 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
       return
     }
 
-    router.push(redirectTo ?? '/dashboard')
-    router.refresh()
+    // Full page reload — necesario para que el middleware de Next.js/Supabase
+    // reciba las cookies de sesión recién creadas (router.push no las envía al servidor)
+    window.location.href = redirectTo ?? '/dashboard'
   }
 
   return (

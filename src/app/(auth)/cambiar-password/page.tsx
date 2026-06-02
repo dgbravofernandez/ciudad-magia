@@ -7,6 +7,7 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = { title: 'Cambiar contraseña' }
 export const dynamic = 'force-dynamic'
 
+
 export default async function CambiarPasswordPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
