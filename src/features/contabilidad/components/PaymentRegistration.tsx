@@ -474,6 +474,7 @@ export function PaymentRegistration({
       if (result.success) {
         toast.success('Pago modificado correctamente')
         closeEditModal()
+        router.refresh()
       } else {
         toast.error(result.error ?? 'Error al modificar el pago')
       }
