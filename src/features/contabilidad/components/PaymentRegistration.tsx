@@ -1594,7 +1594,11 @@ export function PaymentRegistration({
                   <button
                     key={type}
                     type="button"
-                    onClick={() => { setEditSourceType(type); setEditLinkedId('') }}
+                    onClick={() => {
+                    setEditSourceType(type)
+                    setEditLinkedId('')
+                    if (type === 'cuota') setEditConcept(editingPayment?.concept ?? '')
+                  }}
                     className={cn(
                       'p-2 rounded-lg border text-sm font-medium capitalize transition-colors',
                       editSourceType === type
@@ -1614,7 +1618,19 @@ export function PaymentRegistration({
                     <select
                       className="input w-full"
                       value={editLinkedId}
-                      onChange={(e) => setEditLinkedId(e.target.value)}
+                      onChange={(e) => {
+                        const id = e.target.value
+                        setEditLinkedId(id)
+                        if (id && linkedItems) {
+                          const name = editSourceType === 'torneo'
+                            ? linkedItems.torneos.find(t => t.id === id)?.name
+                            : linkedItems.actividades.find(a => a.id === id)?.name
+                          if (name) {
+                            const label = editSourceType === 'torneo' ? 'Torneo' : 'Actividad'
+                            setEditConcept(`${label} - ${name}`)
+                          }
+                        }
+                      }}
                     >
                       <option value="">— Seleccionar {editSourceType} —</option>
                       {editSourceType === 'torneo'
