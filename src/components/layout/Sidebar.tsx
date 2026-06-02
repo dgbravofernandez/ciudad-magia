@@ -259,14 +259,19 @@ export function Sidebar() {
   const { club, settings } = useClub()
   const { member, roles } = useCurrentUser()
 
-  // RFFM only available for clubs with rffm_enabled flag (e.g. EF Ciudad de Getafe)
-  const navItems = settings?.rffm_enabled
-    ? NAV_ITEMS
-    : NAV_ITEMS.map(item =>
-        item.href === '/scouting' && item.children
-          ? { ...item, children: item.children.filter(c => c.href !== '/scouting/rffm') }
-          : item
-      )
+  // Feature flags — por defecto false para clubs nuevos, true solo si está activado en club_settings
+  const rffmEnabled     = !!settings?.rffm_enabled
+  const personalEnabled = !!(settings as Record<string, unknown> | null)?.personal_enabled
+
+  const navItems = NAV_ITEMS
+    // Quitar RFFM del submenu Scouting si no está habilitado
+    .map(item =>
+      item.href === '/scouting' && item.children
+        ? { ...item, children: item.children.filter(c => c.href !== '/scouting/rffm' || rffmEnabled) }
+        : item
+    )
+    // Quitar Personal del Club si no está habilitado
+    .filter(item => item.href !== '/personal' || personalEnabled)
   const router = useRouter()
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { ROLE_LABELS } = require('@/types/roles')
