@@ -127,6 +127,8 @@ export function PaymentRegistration({
   const [editMethod, setEditMethod] = useState('cash')
   const [editNotes, setEditNotes] = useState('')
   const [editSeason, setEditSeason] = useState('')
+  const [editConcept, setEditConcept] = useState('')
+  const [editTeamId, setEditTeamId] = useState<string>('')
   const [editSourceType, setEditSourceType] = useState<'cuota' | 'torneo' | 'actividad'>('cuota')
   const [editLinkedId, setEditLinkedId] = useState('')
   const [linkedItems, setLinkedItems] = useState<{ torneos: { id: string; name: string }[]; actividades: { id: string; name: string }[] } | null>(null)
@@ -405,6 +407,10 @@ export function PaymentRegistration({
     setEditMethod(p.payment_method ?? 'cash')
     setEditNotes(p.notes ?? '')
     setEditSeason(p.season ?? season ?? '')
+    setEditConcept(p.concept ?? '')
+    // Pre-fill team from player map
+    const pl = playerMap[p.player_id]
+    setEditTeamId(pl?.teams?.id ?? '')
     setEditSourceType('cuota')
     setEditLinkedId('')
     // Lazy-load torneos/actividades once
@@ -436,7 +442,24 @@ export function PaymentRegistration({
       linkedName = linkedItems.actividades.find(a => a.id === editLinkedId)?.name
     }
 
+    const originalPlayer = playerMap[editingPayment.player_id]
+    const originalTeamId = originalPlayer?.teams?.id ?? ''
+    const teamChanged = editTeamId !== originalTeamId
+
     startTransition(async () => {
+      // Update team assignment if changed
+      if (teamChanged) {
+        const teamResult = await updatePlayerTeam(
+          editingPayment.player_id,
+          editTeamId || null,
+          isNextSeason,
+        )
+        if (!teamResult.success) {
+          toast.error(teamResult.error ?? 'Error al cambiar el equipo')
+          return
+        }
+      }
+
       const result = await updatePayment({
         paymentId: editingPayment.id,
         amount,
@@ -444,6 +467,7 @@ export function PaymentRegistration({
         date: editDate,
         notes: editNotes,
         season: editSeason.trim() || undefined,
+        concept: editConcept.trim() || undefined,
         sourceType: editSourceType !== 'cuota' ? editSourceType : undefined,
         linkedName,
       })
@@ -1460,10 +1484,39 @@ export function PaymentRegistration({
               const player = playerMap[editingPayment.player_id]
               return player ? (
                 <p className="text-sm text-muted-foreground">
-                  {player.first_name} {player.last_name} — {player.teams?.name ?? 'Sin equipo'}
+                  {player.first_name} {player.last_name}
                 </p>
               ) : null
             })()}
+
+            {/* Concepto y equipo */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="label">Concepto</label>
+                <input
+                  type="text"
+                  className="input w-full"
+                  value={editConcept}
+                  onChange={(e) => setEditConcept(e.target.value)}
+                  placeholder="p.ej. Reserva, Cuota anual..."
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="label">
+                  Equipo {isNextSeason ? '(26/27)' : '(actual)'}
+                </label>
+                <select
+                  className="input w-full"
+                  value={editTeamId}
+                  onChange={(e) => setEditTeamId(e.target.value)}
+                >
+                  <option value="">— Sin equipo —</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">

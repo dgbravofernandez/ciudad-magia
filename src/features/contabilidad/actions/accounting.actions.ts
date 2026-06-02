@@ -194,6 +194,7 @@ export async function updatePayment(data: {
   date: string
   notes: string
   season?: string
+  concept?: string
   sourceType?: 'cuota' | 'torneo' | 'actividad' | 'otro'
   linkedName?: string  // nombre del torneo/actividad para la descripción
 }) {
@@ -220,6 +221,7 @@ export async function updatePayment(data: {
     notes: data.notes || null,
   }
   if (data.season) paymentUpdate.season = data.season
+  if (data.concept !== undefined) paymentUpdate.concept = data.concept || null
 
   const { error: paymentError } = await sb
     .from('quota_payments')
