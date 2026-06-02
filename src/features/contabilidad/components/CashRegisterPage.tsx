@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import { toast } from 'sonner'
 import {
   Lock, CheckCircle, AlertTriangle, FileText, Download,
-  Unlock, Pencil, Trash2, X, FileDown, Wallet, ChevronDown, ChevronUp, Save,
+  Unlock, Pencil, Trash2, X, FileDown, Wallet, ChevronDown, Save,
+  CreditCard, Banknote, ArrowLeftRight, Filter,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils/currency'
@@ -268,6 +269,37 @@ export function CashRegisterPage({
   }
 
   const [showBreakdown, setShowBreakdown] = useState(false)
+  const [showDayBreakdown, setShowDayBreakdown] = useState(false)
+
+  // ── Filters for movement detail table ───────────────────────────────────────
+  const [filterMethod, setFilterMethod] = useState<'all' | 'cash' | 'card' | 'transfer'>('all')
+  const [filterDate, setFilterDate]     = useState('')
+
+  const filteredIncomeMovements = useMemo(() => {
+    return incomeMovements.filter(m => {
+      if (filterMethod !== 'all' && m.payment_method !== filterMethod) return false
+      if (filterDate && m.movement_date !== filterDate) return false
+      return true
+    })
+  }, [incomeMovements, filterMethod, filterDate])
+
+  const filteredTotal = filteredIncomeMovements.reduce((s, m) => s + m.amount, 0)
+
+  // ── Day-by-day breakdown ─────────────────────────────────────────────────────
+  const dayBreakdown = useMemo(() => {
+    const map: Record<string, { cash: number; card: number; transfer: number; total: number }> = {}
+    for (const m of incomeMovements) {
+      if (!map[m.movement_date]) map[m.movement_date] = { cash: 0, card: 0, transfer: 0, total: 0 }
+      const sign = m.type === 'income' ? 1 : -1
+      if (m.payment_method === 'cash')     map[m.movement_date].cash     += sign * m.amount
+      else if (m.payment_method === 'card') map[m.movement_date].card     += sign * m.amount
+      else                                  map[m.movement_date].transfer += sign * m.amount
+      map[m.movement_date].total += sign * m.amount
+    }
+    return Object.entries(map)
+      .sort(([a], [b]) => b.localeCompare(a)) // Most recent first
+      .map(([date, vals]) => ({ date, ...vals }))
+  }, [incomeMovements])
 
   function exportCSV() {
     const BOM    = '﻿'
@@ -424,12 +456,146 @@ export function CashRegisterPage({
         </div>
       )}
 
+      {/* Desglose día a día */}
+      {incomeMovements.length > 0 && (
+        <div className="card overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowDayBreakdown(v => !v)}
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/20 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <ChevronDown className={cn('w-4 h-4 text-muted-foreground transition-transform', showDayBreakdown && 'rotate-180')} />
+              <span className="font-medium text-sm">Ingresos día a día — cuadra con el datafono por fecha</span>
+            </div>
+            <span className="text-xs text-muted-foreground">{dayBreakdown.length} días con movimientos</span>
+          </button>
+          {showDayBreakdown && (
+            <div className="border-t overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 text-xs text-muted-foreground">
+                    <th className="text-left px-4 py-2 font-medium">Fecha</th>
+                    <th className="text-right px-4 py-2 font-medium">
+                      <span className="inline-flex items-center gap-1"><Banknote className="w-3 h-3" /> Efectivo</span>
+                    </th>
+                    <th className="text-right px-4 py-2 font-medium">
+                      <span className="inline-flex items-center gap-1"><CreditCard className="w-3 h-3" /> Tarjeta</span>
+                    </th>
+                    <th className="text-right px-4 py-2 font-medium">
+                      <span className="inline-flex items-center gap-1"><ArrowLeftRight className="w-3 h-3" /> Transfer.</span>
+                    </th>
+                    <th className="text-right px-4 py-2 font-medium">Total</th>
+                    <th className="px-4 py-2 font-medium w-24 text-center">Filtrar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dayBreakdown.map(day => (
+                    <tr key={day.date} className={cn('border-t', filterDate === day.date && 'bg-blue-50')}>
+                      <td className="px-4 py-2.5 font-medium">{formatDate(day.date)}</td>
+                      <td className={cn('px-4 py-2.5 text-right', day.cash ? 'text-foreground' : 'text-muted-foreground/40')}>
+                        {day.cash ? formatCurrency(day.cash) : '—'}
+                      </td>
+                      <td className={cn('px-4 py-2.5 text-right font-semibold', day.card ? 'text-purple-700' : 'text-muted-foreground/40')}>
+                        {day.card ? formatCurrency(day.card) : '—'}
+                      </td>
+                      <td className={cn('px-4 py-2.5 text-right', day.transfer ? 'text-foreground' : 'text-muted-foreground/40')}>
+                        {day.transfer ? formatCurrency(day.transfer) : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-bold text-green-700">{formatCurrency(day.total)}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFilterDate(d => d === day.date ? '' : day.date)
+                            setFilterMethod('all')
+                          }}
+                          className={cn(
+                            'text-xs px-2 py-1 rounded border transition-colors',
+                            filterDate === day.date
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'border-border hover:border-blue-400 text-muted-foreground hover:text-blue-700'
+                          )}
+                        >
+                          {filterDate === day.date ? 'Limpar' : 'Ver'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t bg-muted/30 font-semibold">
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground uppercase tracking-wide">TOTAL</td>
+                    <td className="px-4 py-2.5 text-right text-blue-700">{formatCurrency(systemCash)}</td>
+                    <td className="px-4 py-2.5 text-right text-purple-700">{formatCurrency(systemCard)}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      {formatCurrency(movements.filter(m => m.payment_method !== 'cash' && m.payment_method !== 'card' && m.type === 'income').reduce((s, m) => s + m.amount, 0))}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-green-700">{formatCurrency(totalIncome)}</td>
+                    <td />
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Movement detail table */}
       {incomeMovements.length > 0 && (
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b">
-            <h3 className="font-semibold">Detalle de ingresos del periodo</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Puedes modificar o borrar pagos antes de cerrar la caja</p>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h3 className="font-semibold">Detalle de ingresos del periodo</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Puedes modificar o borrar pagos antes de cerrar la caja</p>
+              </div>
+              {/* Filters */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Filter className="w-3.5 h-3.5 text-muted-foreground" />
+                {/* Method filter */}
+                <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+                  {([['all','Todo'],['cash','Efectivo'],['card','Tarjeta'],['transfer','Transfer.']] as const).map(([v, label]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setFilterMethod(v)}
+                      className={cn(
+                        'px-2.5 py-1.5 font-medium transition-colors',
+                        filterMethod === v
+                          ? 'bg-primary text-white'
+                          : 'hover:bg-muted text-muted-foreground'
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {/* Date filter */}
+                <input
+                  type="date"
+                  className="input text-xs h-7 py-0 px-2 w-36"
+                  value={filterDate}
+                  min={periodStart}
+                  max={periodEnd}
+                  onChange={e => setFilterDate(e.target.value)}
+                />
+                {(filterMethod !== 'all' || filterDate) && (
+                  <button
+                    type="button"
+                    onClick={() => { setFilterMethod('all'); setFilterDate('') }}
+                    className="text-xs text-muted-foreground hover:text-primary underline"
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </div>
+            </div>
+            {/* Filtered total pill */}
+            {(filterMethod !== 'all' || filterDate) && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Mostrando {filteredIncomeMovements.length} movimientos —</span>
+                <span className="text-sm font-bold text-green-700">{formatCurrency(filteredTotal)}</span>
+              </div>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -445,7 +611,14 @@ export function CashRegisterPage({
                 </tr>
               </thead>
               <tbody>
-                {incomeMovements.map((m) => {
+                {filteredIncomeMovements.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                      No hay movimientos para el filtro seleccionado
+                    </td>
+                  </tr>
+                )}
+                {filteredIncomeMovements.map((m) => {
                   const detail = m.related_payment_id ? detailMap[m.related_payment_id] : null
                   const actDetail = m.related_activity_charge_id ? activityDetailMap[m.related_activity_charge_id] : null
                   const sourceLabel = SOURCE_LABELS[m.source ?? ''] ?? (m.source ?? 'Otro')
