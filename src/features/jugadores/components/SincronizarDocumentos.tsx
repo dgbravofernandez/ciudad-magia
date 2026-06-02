@@ -1,12 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { RefreshCw, CheckCircle, AlertCircle, Users, FileText, Mail, Phone, Image, ChevronDown, ChevronUp } from 'lucide-react'
+import { RefreshCw, CheckCircle, AlertCircle, Users, FileText, Mail, Phone, Image, ChevronDown, ChevronUp, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import { matchAndPreview, applySheetSync, type SyncMatch } from '@/features/jugadores/actions/sync-docs.actions'
-
-const DOCS_SHEET_ID   = '1KnZXtnMK28HgIjNSsp6tnXzDry_lWlvvFTR7O_DNOjc'
-const TUTORS_SHEET_ID = '15YzC25MdHBJ3OGbtAS77xc5lTsw9yamxkDRjTMbNyXc'
 
 function parseCSV(text: string): string[][] {
   const rows: string[][] = []
@@ -55,9 +52,13 @@ const FIELD_ICONS: Record<string, React.ReactNode> = {
   photo_url:     <Image className="w-3 h-3" />,
 }
 
-interface Props { clubId: string }
+interface Props {
+  clubId: string
+  docsSheetId: string | null
+  tutorsSheetId: string | null
+}
 
-export function SincronizarDocumentos({ clubId }: Props) {
+export function SincronizarDocumentos({ clubId, docsSheetId, tutorsSheetId }: Props) {
   const [step, setStep] = useState<'idle' | 'loading' | 'preview' | 'applying' | 'done'>('idle')
   const [preview, setPreview] = useState<SyncMatch[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -65,16 +66,52 @@ export function SincronizarDocumentos({ clubId }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [doneCount, setDoneCount] = useState(0)
 
+  // Si no están configurados los IDs, mostrar UI de setup
+  if (!docsSheetId || !tutorsSheetId) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-96 p-8 text-center">
+        <div className="w-16 h-16 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mb-5">
+          <Settings className="w-8 h-8 text-amber-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Configuración necesaria</h2>
+        <p className="text-gray-500 text-sm max-w-md mb-6 leading-relaxed">
+          Para usar esta función necesitas conectar dos hojas de Google Sheets:
+          una con la documentación de jugadores (fotos, DNIs, certificados) y otra con los datos de inscripción (nombre tutor, email, teléfono).
+        </p>
+        <div className="text-left bg-gray-50 border border-gray-200 rounded-xl p-5 max-w-md w-full space-y-3 mb-6">
+          <div className="flex gap-3">
+            <span className="text-lg">📄</span>
+            <div>
+              <p className="font-semibold text-sm text-gray-800">Hoja de documentos</p>
+              <p className="text-xs text-gray-500">Columnas: <code className="bg-gray-100 px-1 rounded">nombre_jugador, foto_url, dni_frontal_url, dni_trasero_url</code> etc.</p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <span className="text-lg">👥</span>
+            <div>
+              <p className="font-semibold text-sm text-gray-800">Hoja de inscripciones/tutores</p>
+              <p className="text-xs text-gray-500">Columnas: <code className="bg-gray-100 px-1 rounded">nombre_jugador, tutor_nombre, tutor_email, tutor_telefono</code> etc.</p>
+            </div>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400">
+          Una vez tengas las hojas listas, contacta con el administrador para configurar los IDs en{' '}
+          <span className="font-mono">Configuración → Club → Integraciones</span>.
+        </p>
+      </div>
+    )
+  }
+
   async function handleLoad() {
     setStep('loading')
     try {
       // Fetch both CSVs from the browser (bypasses middleware completely)
       const [csv1, csv2] = await Promise.all([
-        fetch(`https://docs.google.com/spreadsheets/d/${DOCS_SHEET_ID}/export?format=csv`).then(r => {
+        fetch(`https://docs.google.com/spreadsheets/d/${docsSheetId}/export?format=csv`).then(r => {
           if (!r.ok) throw new Error(`Error al cargar hoja de documentos (${r.status})`)
           return r.text()
         }),
-        fetch(`https://docs.google.com/spreadsheets/d/${TUTORS_SHEET_ID}/export?format=csv`).then(r => {
+        fetch(`https://docs.google.com/spreadsheets/d/${tutorsSheetId}/export?format=csv`).then(r => {
           if (!r.ok) throw new Error(`Error al cargar hoja de inscripciones (${r.status})`)
           return r.text()
         }),
