@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import {
   Lock, CheckCircle, AlertTriangle, FileText, Download,
   Unlock, Pencil, Trash2, X, FileDown, Wallet, ChevronDown, Save,
-  CreditCard, Banknote, ArrowLeftRight, Filter,
+  CreditCard, Banknote, ArrowLeftRight, Filter, BadgeCheck, BadgeAlert,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils/currency'
@@ -268,8 +268,12 @@ export function CashRegisterPage({
     sourceBreakdown[src].count++
   }
 
-  const [showBreakdown, setShowBreakdown] = useState(false)
+  const [showBreakdown, setShowBreakdown]       = useState(false)
   const [showDayBreakdown, setShowDayBreakdown] = useState(false)
+  const [showCardVerify, setShowCardVerify]     = useState(false)
+
+  // realCardByDay: date → string (lo que marca el datafono ese día)
+  const [realCardByDay, setRealCardByDay] = useState<Record<string, string>>({})
 
   // ── Filters for movement detail table ───────────────────────────────────────
   const [filterMethod, setFilterMethod] = useState<'all' | 'cash' | 'card' | 'transfer'>('all')
@@ -534,6 +538,143 @@ export function CashRegisterPage({
                   </tr>
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Verificación tarjeta día a día */}
+      {dayBreakdown.some(d => d.card !== 0) && (
+        <div className="card overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowCardVerify(v => !v)}
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/20 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <ChevronDown className={cn('w-4 h-4 text-muted-foreground transition-transform', showCardVerify && 'rotate-180')} />
+              <CreditCard className="w-4 h-4 text-purple-600" />
+              <span className="font-medium text-sm">Verificación tarjeta — compara app vs datafono por día</span>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {Object.keys(realCardByDay).filter(d => realCardByDay[d]).length} / {dayBreakdown.filter(d => d.card !== 0).length} días verificados
+            </span>
+          </button>
+          {showCardVerify && (
+            <div className="border-t">
+              <div className="px-5 py-3 bg-purple-50 border-b text-xs text-purple-700">
+                Introduce el total de tarjeta que aparece en tu datafono para cada día. El sistema compara automáticamente.
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/40 text-xs text-muted-foreground">
+                      <th className="text-left px-4 py-2.5 font-medium">Fecha</th>
+                      <th className="text-right px-4 py-2.5 font-medium">App (sistema)</th>
+                      <th className="text-center px-4 py-2.5 font-medium w-44">Datafono (real)</th>
+                      <th className="text-center px-4 py-2.5 font-medium w-36">Estado</th>
+                      <th className="text-right px-4 py-2.5 font-medium w-28">Diferencia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dayBreakdown.filter(d => d.card !== 0).map(day => {
+                      const realStr  = realCardByDay[day.date] ?? ''
+                      const realNum  = parseFloat(realStr)
+                      const hasInput = realStr !== '' && !isNaN(realNum)
+                      const diff     = hasInput ? realNum - day.card : null
+                      const ok       = diff !== null && Math.abs(diff) < 0.01
+                      return (
+                        <tr key={day.date} className={cn(
+                          'border-t transition-colors',
+                          hasInput && ok  && 'bg-green-50',
+                          hasInput && !ok && 'bg-red-50',
+                        )}>
+                          <td className="px-4 py-3 font-medium">{formatDate(day.date)}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-purple-700">
+                            {formatCurrency(day.card)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <input
+                              type="number"
+                              step="0.01"
+                              inputMode="decimal"
+                              min="0"
+                              placeholder="0,00"
+                              className={cn(
+                                'input w-full text-right text-sm',
+                                hasInput && ok  && 'border-green-400 bg-green-50',
+                                hasInput && !ok && 'border-red-400 bg-red-50',
+                              )}
+                              value={realStr}
+                              onChange={e => setRealCardByDay(prev => ({ ...prev, [day.date]: e.target.value }))}
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            {!hasInput && (
+                              <span className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                                — sin verificar
+                              </span>
+                            )}
+                            {hasInput && ok && (
+                              <span className="flex items-center justify-center gap-1 text-xs font-semibold text-green-700">
+                                <BadgeCheck className="w-4 h-4" /> Cuadra ✓
+                              </span>
+                            )}
+                            {hasInput && !ok && (
+                              <span className="flex items-center justify-center gap-1 text-xs font-semibold text-red-700">
+                                <BadgeAlert className="w-4 h-4" /> Descuadre
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {diff !== null && !ok && (
+                              <span className={cn('font-semibold text-sm', diff > 0 ? 'text-amber-700' : 'text-red-700')}>
+                                {diff > 0 ? '+' : ''}{formatCurrency(diff)}
+                              </span>
+                            )}
+                            {diff !== null && ok && (
+                              <span className="text-green-600 text-sm">—</span>
+                            )}
+                            {diff === null && <span className="text-muted-foreground/40">—</span>}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {/* Row totals */}
+                    {(() => {
+                      const verifiedDays  = dayBreakdown.filter(d => d.card !== 0 && realCardByDay[d.date] !== '' && !isNaN(parseFloat(realCardByDay[d.date] ?? '')))
+                      const totalReal     = verifiedDays.reduce((s, d) => s + parseFloat(realCardByDay[d.date] ?? '0'), 0)
+                      const totalApp      = dayBreakdown.filter(d => d.card !== 0).reduce((s, d) => s + d.card, 0)
+                      const totalDiff     = verifiedDays.length > 0 ? totalReal - totalApp : null
+                      const totalOk       = totalDiff !== null && Math.abs(totalDiff) < 0.01
+                      if (verifiedDays.length === 0) return null
+                      return (
+                        <tr className={cn('border-t font-semibold', totalOk ? 'bg-green-100' : 'bg-red-100')}>
+                          <td className="px-4 py-3 text-xs text-muted-foreground uppercase tracking-wide">TOTAL ({verifiedDays.length} días)</td>
+                          <td className="px-4 py-3 text-right text-purple-700">{formatCurrency(totalApp)}</td>
+                          <td className="px-4 py-3 text-right text-purple-700">{formatCurrency(totalReal)}</td>
+                          <td className="px-4 py-3 text-center">
+                            {totalOk
+                              ? <span className="flex items-center justify-center gap-1 text-xs text-green-700"><BadgeCheck className="w-4 h-4" /> Cuadra ✓</span>
+                              : <span className="flex items-center justify-center gap-1 text-xs text-red-700"><BadgeAlert className="w-4 h-4" /> Descuadre</span>
+                            }
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {totalDiff !== null && !totalOk && (
+                              <span className={cn('font-bold', totalDiff > 0 ? 'text-amber-700' : 'text-red-700')}>
+                                {totalDiff > 0 ? '+' : ''}{formatCurrency(totalDiff)}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-5 py-3 bg-muted/30 border-t text-xs text-muted-foreground">
+                <strong>¿Hay diferencia?</strong> Si el datafono tiene más, puede haber pagos registrados con fecha incorrecta o en otro periodo. Usa el filtro de fecha en la tabla de abajo para investigar.
+              </div>
             </div>
           )}
         </div>
