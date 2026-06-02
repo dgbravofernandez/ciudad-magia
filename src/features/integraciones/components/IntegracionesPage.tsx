@@ -16,6 +16,10 @@ import {
   getRffmConfig,
   saveRffmCodigoClub,
 } from '@/features/integraciones/actions/rffm-config.actions'
+import {
+  getDocsSheetConfig,
+  saveDocsSheetConfig,
+} from '@/features/integraciones/actions/backend-sheet.actions'
 
 export function IntegracionesPage() {
   const [config, setConfig] = useState<BackendSheetConfig | null>(null)
@@ -29,6 +33,12 @@ const [loading, setLoading] = useState(true)
   const [rffmCodigo, setRffmCodigo] = useState<string>('')
   const [rffmDraft, setRffmDraft] = useState<string>('')
   const [rffmSaving, setRffmSaving] = useState(false)
+
+  // Config hojas de documentos + formulario entrenadores
+  const [docsSheetId,    setDocsSheetId]    = useState('')
+  const [tutorsSheetId,  setTutorsSheetId]  = useState('')
+  const [coachesFormLink, setCoachesFormLink] = useState('')
+  const [docsSaving, setDocsSaving] = useState(false)
 
   const reloadConfig = useCallback(async () => {
     const r = await getBackendSheetConfig()
@@ -44,9 +54,10 @@ const [loading, setLoading] = useState(true)
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const [r, rffm] = await Promise.all([
+      const [r, rffm, docs] = await Promise.all([
         getBackendSheetConfig(),
         getRffmConfig(),
+        getDocsSheetConfig(),
       ])
       if (cancelled) return
       if (r.success && r.config) {
@@ -59,6 +70,11 @@ const [loading, setLoading] = useState(true)
         const c = rffm.codigoClub ?? ''
         setRffmCodigo(c)
         setRffmDraft(c)
+      }
+      if (docs.success) {
+        setDocsSheetId(docs.docsSheetId ?? '')
+        setTutorsSheetId(docs.tutorsSheetId ?? '')
+        setCoachesFormLink(docs.coachesFormLink ?? '')
       }
       setLoading(false)
 
@@ -443,6 +459,73 @@ const [loading, setLoading] = useState(true)
             </table>
           </div>
         )}
+      </div>
+
+      {/* ── Sección: Hojas de documentos + formulario entrenadores ── */}
+      <div className="card p-5 space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <FileSpreadsheet className="w-5 h-5 text-primary" />
+          <h3 className="font-semibold text-base">Configuración adicional</h3>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Configura las hojas de Google que usa <strong>Sincronizar documentos</strong> y el formulario de inscripción del cuerpo técnico.
+        </p>
+
+        <div className="grid grid-cols-1 gap-3">
+          <div className="space-y-1">
+            <label className="label text-sm">Hoja de documentos (ID de Google Sheets)</label>
+            <p className="text-xs text-muted-foreground">Usada en Jugadores → Sincronizar documentos. Copia el ID de la URL de tu hoja (la parte larga entre /d/ y /edit).</p>
+            <input
+              type="text"
+              className="input w-full font-mono text-sm"
+              value={docsSheetId}
+              onChange={e => setDocsSheetId(e.target.value)}
+              placeholder="1KnZXtnMK28HgIjNSsp6..."
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="label text-sm">Hoja de inscripciones/tutores (ID de Google Sheets)</label>
+            <p className="text-xs text-muted-foreground">Segunda hoja usada en Sincronizar documentos para datos de tutores.</p>
+            <input
+              type="text"
+              className="input w-full font-mono text-sm"
+              value={tutorsSheetId}
+              onChange={e => setTutorsSheetId(e.target.value)}
+              placeholder="15YzC25MdHBJ3OGb..."
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="label text-sm">Link formulario de inscripción — cuerpo técnico</label>
+            <p className="text-xs text-muted-foreground">Se incluye en los emails de invitación a entrenadores. Déjalo vacío si no tienes formulario.</p>
+            <input
+              type="url"
+              className="input w-full text-sm"
+              value={coachesFormLink}
+              onChange={e => setCoachesFormLink(e.target.value)}
+              placeholder="https://forms.gle/..."
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={docsSaving}
+          onClick={async () => {
+            setDocsSaving(true)
+            const r = await saveDocsSheetConfig({
+              docsSheetId:    docsSheetId.trim() || null,
+              tutorsSheetId:  tutorsSheetId.trim() || null,
+              coachesFormLink: coachesFormLink.trim() || null,
+            })
+            setDocsSaving(false)
+            if (r.success) toast.success('Configuración guardada')
+            else toast.error(r.error ?? 'Error al guardar')
+          }}
+          className="btn-primary flex items-center gap-2 self-start"
+        >
+          {docsSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Guardar configuración
+        </button>
       </div>
     </div>
   )

@@ -261,3 +261,62 @@ export async function checkBackendSheet(): Promise<{
     return { success: false, error: (e as Error).message }
   }
 }
+
+/** Guarda los IDs de hojas de documentos e inscripciones + link del formulario de entrenadores.
+ *  Configurable por cada club desde Integraciones — sin tocar código. */
+export async function saveDocsSheetConfig(input: {
+  docsSheetId: string | null
+  tutorsSheetId: string | null
+  coachesFormLink: string | null
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
+      return { success: false, error: 'Solo admin / dirección' }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+    const { error } = await sb
+      .from('club_settings')
+      .update({
+        docs_sheet_id:      input.docsSheetId    || null,
+        tutors_sheet_id:    input.tutorsSheetId  || null,
+        coaches_form_link:  input.coachesFormLink || null,
+      })
+      .eq('club_id', clubId)
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/configuracion/integraciones')
+    revalidatePath('/jugadores/importar/documentos')
+    revalidatePath('/entrenadores/staff')
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+/** Lee la configuración de hojas de documentos del club actual. */
+export async function getDocsSheetConfig(): Promise<{
+  success: boolean
+  docsSheetId: string | null
+  tutorsSheetId: string | null
+  coachesFormLink: string | null
+}> {
+  try {
+    const { clubId } = await getClubContext()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+    const { data } = await sb
+      .from('club_settings')
+      .select('docs_sheet_id, tutors_sheet_id, coaches_form_link')
+      .eq('club_id', clubId)
+      .single()
+    return {
+      success: true,
+      docsSheetId:     (data as any)?.docs_sheet_id    ?? null,
+      tutorsSheetId:   (data as any)?.tutors_sheet_id  ?? null,
+      coachesFormLink: (data as any)?.coaches_form_link ?? null,
+    }
+  } catch (e) {
+    return { success: false, docsSheetId: null, tutorsSheetId: null, coachesFormLink: null }
+  }
+}

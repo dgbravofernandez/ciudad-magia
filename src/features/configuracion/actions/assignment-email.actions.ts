@@ -144,8 +144,10 @@ export async function sendTeamAssignmentEmail(
       .eq('club_id', clubId)
       .single()
 
+    const { data: clubRow } = await sb.from('clubs').select('name').eq('id', clubId).single()
+    const clubName: string = (clubRow as { name?: string } | null)?.name ?? 'El Club'
     const subject = settings?.assignment_email_subject || `Equipo asignado temporada ${team.season}`
-    const bodyTemplate = settings?.assignment_email_body || buildDefaultBody()
+    const bodyTemplate = settings?.assignment_email_body || buildDefaultBody(clubName)
     const deadlineRaw = settings?.reservation_deadline as string | null
     const fechaLimite = deadlineRaw ? formatDate(deadlineRaw) : 'próximamente'
     const feesImageUrl = settings?.fees_image_url as string | null
@@ -277,8 +279,10 @@ export async function sendNewPlayerAssignmentEmail(
       .eq('club_id', clubId)
       .single()
 
+    const { data: clubRow2 } = await sb.from('clubs').select('name').eq('id', clubId).single()
+    const clubName2: string = (clubRow2 as { name?: string } | null)?.name ?? 'El Club'
     const subject = settings?.assignment_email_subject || `Bienvenido/a — Equipo asignado temporada ${team.season}`
-    const bodyTemplate = settings?.assignment_email_body || buildDefaultBody()
+    const bodyTemplate = settings?.assignment_email_body || buildDefaultBody(clubName2)
     const deadlineRaw = settings?.reservation_deadline as string | null
     const fechaLimite = deadlineRaw ? formatDate(deadlineRaw) : 'próximamente'
     const feesImageUrl = settings?.fees_image_url as string | null
@@ -524,10 +528,10 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-function buildDefaultBody(): string {
+function buildDefaultBody(clubName = 'El Club'): string {
   return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;border:3px solid #ffcc00;border-radius:12px;color:#333;">
   <h2 style="color:#000;text-align:center;margin-bottom:4px;">Asignación de equipo — Temporada {temporada}</h2>
-  <p style="text-align:center;font-size:0.9em;color:#666;">Escuela de Fútbol Ciudad de Getafe</p>
+  <p style="text-align:center;font-size:0.9em;color:#666;">${clubName}</p>
   <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
   <p>Hola <strong>{tutor_nombre}</strong>,</p>
   <p>Nos complace comunicaros que <strong>{jugador_nombre}</strong> ha sido asignado/a al equipo:</p>
@@ -538,7 +542,7 @@ function buildDefaultBody(): string {
   <p>Para confirmar la plaza, os pedimos que realicéis el pago de la reserva de <strong>{importe_reserva}</strong> antes del <strong>{fecha_limite}</strong>.</p>
   <p>En caso de dudas, podéis poneros en contacto con nosotros respondiendo a este correo.</p>
   <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
-  <p style="text-align:center;font-size:0.85em;color:#888;">Un saludo,<br><strong>La Dirección — EF Ciudad de Getafe</strong></p>
+  <p style="text-align:center;font-size:0.85em;color:#888;">Un saludo,<br><strong>La Dirección — ${clubName}</strong></p>
 </div>`
 }
 
