@@ -12,6 +12,15 @@ function requireAdmin(roles: string[]) {
   }
 }
 
+/** Helper compartido: obtiene el nombre del club desde la BD.
+ *  Todos los emails del módulo de miembros lo usan para evitar hardcodes. */
+async function getClubName(clubId: string): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const { data } = await sb.from('clubs').select('name').eq('id', clubId).single()
+  return (data as { name?: string } | null)?.name ?? 'El Club'
+}
+
 function randomPassword(len = 12) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%'
   let out = ''
@@ -47,8 +56,7 @@ export async function createMember(
 
     // Nombre del club para emails
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: clubRow } = await (sb as any).from('clubs').select('name').eq('id', clubId).single()
-    const clubName: string = (clubRow as { name?: string } | null)?.name ?? 'El Club'
+    const clubName = await getClubName(clubId)
 
     // 1) Create auth user
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -326,8 +334,7 @@ export async function createAccountForMember(
 
     // Nombre del club para emails
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: clubRow2 } = await (sb as any).from('clubs').select('name').eq('id', clubId).single()
-    const clubName2: string = (clubRow2 as { name?: string } | null)?.name ?? 'El Club'
+    const clubName2 = await getClubName(clubId)
 
     // 1) Crear usuario auth
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

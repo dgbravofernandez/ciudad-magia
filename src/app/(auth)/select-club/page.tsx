@@ -32,7 +32,7 @@ export default function SelectClubPage() {
   }, [router])
 
   function selectClub(clubId: string) {
-    document.cookie = `preferred_club_id=${clubId}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
+    document.cookie = `preferred_club_id=${clubId}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax; Secure`
     window.location.href = '/dashboard'
   }
 

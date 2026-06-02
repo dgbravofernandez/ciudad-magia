@@ -236,7 +236,8 @@ export async function middleware(request: NextRequest) {
   // ─────────────────────────────────────────────
   const isAppRoute = !pathname.startsWith('/api/') &&
     !pathname.startsWith('/upgrade') &&
-    !pathname.startsWith('/cambiar-password')
+    !pathname.startsWith('/cambiar-password') &&
+    !pathname.startsWith('/select-club')  // no bloquear selector de club si el club activo tiene trial expirado
 
   if (isAppRoute && memberClub) {
     if (

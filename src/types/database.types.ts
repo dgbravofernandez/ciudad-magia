@@ -42,6 +42,16 @@ export type Database = {
           sanction_yellow_threshold: number
           sanction_matches: number
           rffm_enabled: boolean | null
+          // Feature flags — añadidos manualmente (regenerar con `supabase gen types` al actualizar)
+          personal_enabled: boolean | null
+          docs_sheet_id: string | null
+          tutors_sheet_id: string | null
+          coaches_form_link: string | null
+          contact_email: string | null
+          bank_iban: string | null
+          bank_titular: string | null
+          bank_name: string | null
+          cif: string | null
         }
         Insert: Omit<Database['public']['Tables']['club_settings']['Row'], 'id'>
         Update: Partial<Database['public']['Tables']['club_settings']['Insert']>

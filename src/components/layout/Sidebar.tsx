@@ -261,7 +261,7 @@ export function Sidebar() {
 
   // Feature flags — por defecto false para clubs nuevos, true solo si está activado en club_settings
   const rffmEnabled     = !!settings?.rffm_enabled
-  const personalEnabled = !!(settings as Record<string, unknown> | null)?.personal_enabled
+  const personalEnabled = !!settings?.personal_enabled
 
   const navItems = NAV_ITEMS
     // Quitar RFFM del submenu Scouting si no está habilitado

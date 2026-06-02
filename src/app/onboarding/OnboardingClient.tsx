@@ -91,7 +91,7 @@ export default function OnboardingClient() {
 
       // Guardar el club recién creado como preferido para que el middleware lo use
       if (result.clubId) {
-        document.cookie = `preferred_club_id=${result.clubId}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
+        document.cookie = `preferred_club_id=${result.clubId}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax; Secure`
       }
 
       // Iniciar sesión ahora que el email está auto-confirmado
