@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { toast } from 'sonner'
-import { createClothingOrder, markClothingOrderPaid, refundClothingOrder, deleteClothingOrder, updateClothingOrder, type ClothingPaymentMethod } from '@/features/ropa/actions/clothing.actions'
+import { createClothingOrder, markClothingOrderPaid, refundClothingOrder, deleteClothingOrder, updateClothingOrder, updateClothingCatalog, type ClothingPaymentMethod, type ClothingCatalogItem } from '@/features/ropa/actions/clothing.actions'
 
 interface OrderItem { count: number }
 interface Player { first_name: string; last_name: string }
-interface PlayerOption { id: string; first_name: string; last_name: string }
+interface PlayerOption { id: string; first_name: string; last_name: string; tutor_phone?: string | null }
 interface Order {
   id: string
   player_id: string | null
@@ -30,9 +30,11 @@ function fullName(p: Player | null, notes: string | null): string {
   return match?.[1]?.trim() || 'N/A'
 }
 
-interface Props { pedidos: Order[]; players: PlayerOption[]; clubId: string }
+interface Props { pedidos: Order[]; players: PlayerOption[]; clubId: string; catalog: ClothingCatalogItem[] }
 
-const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '6', '8', '10', '12', '14', '16'] as const
+const ADULT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
+const KID_SIZES = ['128', '140', '152', '164']
+const SIZES = [...ADULT_SIZES, ...KID_SIZES]
 const STATUS_CONFIG = {
   pending: { label: 'Pendiente', color: 'bg-yellow-50 text-yellow-700', icon: Clock },
   partial: { label: 'Parcial', color: 'bg-blue-50 text-blue-700', icon: Clock },
@@ -40,12 +42,19 @@ const STATUS_CONFIG = {
   cancelled: { label: 'Cancelado', color: 'bg-red-50 text-red-700', icon: XCircle },
 }
 
-export function RopaPage({ pedidos, players, clubId: _clubId }: Props) {
+export function RopaPage({ pedidos, players, clubId: _clubId, catalog: initialCatalog }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [filter, setFilter] = useState<'all' | 'pending' | 'partial' | 'paid' | 'cancelled'>('all')
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState({ playerName: '', description: '', size: 'M', quantity: 1, price: 0, notes: '' })
+
+  // Catalog state
+  const [catalogItems, setCatalogItems] = useState<ClothingCatalogItem[]>(initialCatalog)
+  const [showCatalogModal, setShowCatalogModal] = useState(false)
+  const [catalogDraft, setCatalogDraft] = useState<ClothingCatalogItem[]>(initialCatalog)
+  const [newItemName, setNewItemName] = useState('')
+  const [newItemPrice, setNewItemPrice] = useState('')
 
   // Player selector state for new order form
   const [playerQuery, setPlayerQuery] = useState('')
@@ -114,6 +123,28 @@ export function RopaPage({ pedidos, players, clubId: _clubId }: Props) {
         toast.error(r.error ?? 'Error al crear el pedido')
       }
     })
+  }
+
+  function handleSaveCatalog() {
+    // filter out empty rows
+    const valid = catalogDraft.filter(i => i.name.trim())
+    startTransition(async () => {
+      const r = await updateClothingCatalog(valid)
+      if (r.success) {
+        setCatalogItems(valid)
+        setShowCatalogModal(false)
+        toast.success('Catálogo guardado')
+      } else {
+        toast.error(r.error ?? 'Error al guardar catálogo')
+      }
+    })
+  }
+
+  function openCatalogModal() {
+    setCatalogDraft(catalogItems.map(i => ({ ...i })))
+    setNewItemName('')
+    setNewItemPrice('')
+    setShowCatalogModal(true)
   }
 
   function openPayModal(order: Order) {
@@ -210,9 +241,14 @@ export function RopaPage({ pedidos, players, clubId: _clubId }: Props) {
           <h1 className="text-2xl font-bold text-gray-900">Pedidos de ropa</h1>
           <p className="text-sm text-gray-500">Gestión de equipaciones y merchandising</p>
         </div>
-        <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
-          <Plus className="w-4 h-4" /> Nuevo pedido
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={openCatalogModal} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 bg-white hover:bg-gray-50">
+            <Shirt className="w-4 h-4" /> Catálogo
+          </button>
+          <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white" style={{ backgroundColor: 'var(--color-primary)' }}>
+            <Plus className="w-4 h-4" /> Nuevo pedido
+          </button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -263,7 +299,9 @@ export function RopaPage({ pedidos, players, clubId: _clubId }: Props) {
                 const isPartial = p.payment_status === 'partial'
                 return (
                   <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{fullName(p.player, p.notes)}</td>
+                    <td className="px-4 py-3">
+                      <span className="font-medium text-gray-900">{fullName(p.player, p.notes)}</span>
+                    </td>
                     <td className="px-4 py-3 text-gray-500">{p.description ?? '-'}</td>
                     <td className="px-4 py-3 text-gray-500">{p.clothing_order_items?.[0]?.count ?? 0} artículos</td>
                     <td className="px-4 py-3 font-semibold text-gray-900">
@@ -446,6 +484,26 @@ export function RopaPage({ pedidos, players, clubId: _clubId }: Props) {
               <h3 className="font-semibold text-gray-900">Nuevo pedido de ropa</h3>
             </div>
             <div className="p-6 space-y-4">
+              {/* Catálogo — selector rápido */}
+              {catalogItems.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Artículo del catálogo</label>
+                  <select
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value=""
+                    onChange={e => {
+                      const item = catalogItems.find(i => i.name === e.target.value)
+                      if (item) setForm(f => ({ ...f, description: item.name, price: item.price }))
+                    }}
+                  >
+                    <option value="">— Seleccionar del catálogo —</option>
+                    {catalogItems.map(i => (
+                      <option key={i.name} value={i.name}>{i.name} — {i.price.toFixed(2)} €</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Player selector */}
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -471,18 +529,23 @@ export function RopaPage({ pedidos, players, clubId: _clubId }: Props) {
                   /* Buscador con dropdown */
                   <div className="relative">
                     {selectedPlayer ? (
-                      /* Jugador seleccionado — mostrar chip */
-                      <div className="flex items-center gap-2 border border-blue-300 bg-blue-50 rounded-lg px-3 py-2">
-                        <span className="text-sm font-medium text-blue-800 flex-1">
-                          {selectedPlayer.last_name}, {selectedPlayer.first_name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => { setSelectedPlayer(null); setPlayerQuery('') }}
-                          className="text-blue-400 hover:text-blue-700"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+                      /* Jugador seleccionado — mostrar chip con teléfono */
+                      <div className="border border-blue-300 bg-blue-50 rounded-lg px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-blue-800 flex-1">
+                            {selectedPlayer.last_name}, {selectedPlayer.first_name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => { setSelectedPlayer(null); setPlayerQuery('') }}
+                            className="text-blue-400 hover:text-blue-700"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        {selectedPlayer.tutor_phone && (
+                          <p className="text-xs text-blue-600 mt-0.5">📞 {selectedPlayer.tutor_phone}</p>
+                        )}
                       </div>
                     ) : (
                       <>
@@ -559,6 +622,92 @@ export function RopaPage({ pedidos, players, clubId: _clubId }: Props) {
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
                 {isPending ? 'Guardando...' : 'Crear pedido'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Catalog manager modal */}
+      {showCatalogModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowCatalogModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900">Catálogo de artículos</h3>
+              <p className="text-xs text-gray-500 mt-1">Define artículos con precio estándar. Al crear un pedido se auto-rellena el precio.</p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-2">
+              {catalogDraft.map((item, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <input
+                    value={item.name}
+                    onChange={e => setCatalogDraft(d => d.map((x, i) => i === idx ? { ...x, name: e.target.value } : x))}
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                    placeholder="Nombre del artículo"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    inputMode="decimal"
+                    value={item.price}
+                    onChange={e => setCatalogDraft(d => d.map((x, i) => i === idx ? { ...x, price: Number(e.target.value) } : x))}
+                    className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                    placeholder="€"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCatalogDraft(d => d.filter((_, i) => i !== idx))}
+                    className="text-red-400 hover:text-red-600 p-1"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              {/* Add new item row */}
+              <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                <input
+                  value={newItemName}
+                  onChange={e => setNewItemName(e.target.value)}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                  placeholder="Nuevo artículo..."
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newItemName.trim()) {
+                      setCatalogDraft(d => [...d, { name: newItemName.trim(), price: Number(newItemPrice) || 0 }])
+                      setNewItemName('')
+                      setNewItemPrice('')
+                    }
+                  }}
+                />
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  inputMode="decimal"
+                  value={newItemPrice}
+                  onChange={e => setNewItemPrice(e.target.value)}
+                  className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                  placeholder="€"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!newItemName.trim()) return
+                    setCatalogDraft(d => [...d, { name: newItemName.trim(), price: Number(newItemPrice) || 0 }])
+                    setNewItemName('')
+                    setNewItemPrice('')
+                  }}
+                  className="p-1 text-green-600 hover:text-green-800"
+                  title="Añadir"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setShowCatalogModal(false)} disabled={isPending} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 disabled:opacity-50">Cancelar</button>
+              <button onClick={handleSaveCatalog} disabled={isPending} className="px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-50" style={{ backgroundColor: 'var(--color-primary)' }}>
+                {isPending ? 'Guardando...' : 'Guardar catálogo'}
               </button>
             </div>
           </div>

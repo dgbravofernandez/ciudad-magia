@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils/cn'
 import { useCurrentUser } from '@/context/UserContext'
 import { useClub } from '@/context/ClubContext'
 import { createClient } from '@/lib/supabase/client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 type NavItem = {
   label: string
@@ -168,6 +168,11 @@ function NavItemComponent({ item }: { item: NavItem }) {
   const { roles } = useCurrentUser()
   const [open, setOpen] = useState(false)
   const [pendingHref, setPendingHref] = useState<string | null>(null)
+
+  // Clear spinner when navigation completes (pathname changed)
+  useEffect(() => {
+    setPendingHref(null)
+  }, [pathname])
 
   if (item.requiredRole && !item.requiredRole.some((r) => roles.includes(r as never))) {
     return null

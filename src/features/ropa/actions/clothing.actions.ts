@@ -6,6 +6,24 @@ import { revalidatePath } from 'next/cache'
 import { assertNotLocked } from '@/lib/accounting/lock'
 import { sendPaymentReceiptEmail } from '@/lib/email/send-receipt'
 
+export interface ClothingCatalogItem { name: string; price: number }
+
+export async function updateClothingCatalog(
+  items: ClothingCatalogItem[]
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createAdminClient()
+  const { clubId } = await getClubContext()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any
+  const { error } = await sb
+    .from('club_settings')
+    .update({ clothing_catalog: items })
+    .eq('club_id', clubId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/ropa')
+  return { success: true }
+}
+
 export interface CreateClothingOrderInput {
   playerName: string          // nombre libre (para externos o cuando no se selecciona del club)
   playerId?: string | null    // si se selecciona del combo, se usa directamente
