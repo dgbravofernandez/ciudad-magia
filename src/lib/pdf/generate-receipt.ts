@@ -93,7 +93,7 @@ export interface ReceiptParams {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export async function generateReceiptPDF(params: ReceiptParams): Promise<Buffer> {
-  const CLUB_NAME  = params.clubName ?? 'Escuela de Fútbol Ciudad de Getafe'
+  const CLUB_NAME  = params.clubName ?? 'El Club'
   const primaryHex = params.primaryColor ?? '#0d2e6e'
   const COLOR_BRAND = hexToRgb(primaryHex)
 

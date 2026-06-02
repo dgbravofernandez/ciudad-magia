@@ -412,10 +412,20 @@ export async function sendPendingReminders(playerIds: string[]) {
     if (p.is_special_case) byPlayer[p.player_id].specialCase = true
   }
 
-  // 2. Obtener nombre del club + email remitente para la plantilla
+  // 2. Obtener nombre del club + datos de contacto/banco desde club_settings
   const { data: clubData } = await sb
     .from('clubs').select('name').eq('id', clubId).single()
-  const clubName = clubData?.name ?? 'Club'
+  const clubName = clubData?.name ?? 'El Club'
+
+  const { data: settingsData } = await sb
+    .from('club_settings')
+    .select('contact_email, bank_iban, bank_titular, bank_name')
+    .eq('club_id', clubId)
+    .single()
+  const contactEmail = settingsData?.contact_email ?? ''
+  const bankIban     = settingsData?.bank_iban     ?? CLUB_IBAN
+  const bankTitular  = settingsData?.bank_titular  ?? clubName
+  const bankName     = settingsData?.bank_name     ?? ''
 
   let sent = 0
   let skippedSpecial = 0
@@ -440,6 +450,7 @@ export async function sendPendingReminders(playerIds: string[]) {
 
     const html = buildReminderHtml({
       tutorName, playerName, debtStr, clubName,
+      contactEmail, bankIban, bankTitular, bankName,
     })
 
     // Versión plain text para reducir spam score (Gmail penaliza emails solo-HTML)
@@ -449,7 +460,7 @@ export async function sendPendingReminders(playerIds: string[]) {
       `Le informamos que ${playerName} tiene una cuota pendiente de ${debtStr} con ${clubName}.`,
       '',
       'MÉTODOS DE PAGO:',
-      `  · Transferencia bancaria: ${CLUB_IBAN} (${clubName})`,
+      `  · Transferencia bancaria: ${bankIban} (${bankTitular || clubName})`,
       '  · En las oficinas del club',
       '',
       'Por favor, realice el pago a la mayor brevedad posible.',
@@ -509,12 +520,13 @@ export async function sendPendingReminders(playerIds: string[]) {
 
 function buildReminderHtml(opts: {
   tutorName: string; playerName: string; debtStr: string; clubName: string
+  contactEmail: string; bankIban: string; bankTitular: string; bankName: string
 }) {
   return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;">
 
   <!-- Cabecera -->
   <div style="background:#1a1a1a;padding:24px 32px;text-align:center;">
-    <p style="color:#ffcc00;font-size:20px;font-weight:bold;margin:0;letter-spacing:1px;">E.F. CIUDAD DE GETAFE</p>
+    <p style="color:#ffcc00;font-size:20px;font-weight:bold;margin:0;letter-spacing:1px;">${opts.clubName.toUpperCase()}</p>
     <p style="color:#ffffff;font-size:12px;margin:4px 0 0;letter-spacing:2px;text-transform:uppercase;">Recordatorio de pago de cuotas</p>
   </div>
 
@@ -549,9 +561,9 @@ function buildReminderHtml(opts: {
 
       <p style="margin:0 0 6px;font-size:14px;font-weight:bold;color:#1a1a1a;">🏦 Transferencia bancaria</p>
       <table style="width:100%;font-size:14px;color:#333;border-collapse:collapse;margin-bottom:16px;">
-        <tr><td style="padding:3px 0;color:#888;width:130px;">Titular</td><td><strong>CLUB DEPORTIVO ELEMENTAL E.F. CIUDAD DE GETAFE</strong></td></tr>
-        <tr><td style="padding:3px 0;color:#888;">Banco</td><td>Caja Rural Jaén</td></tr>
-        <tr><td style="padding:3px 0;color:#888;">IBAN</td><td><strong>${CLUB_IBAN}</strong></td></tr>
+        <tr><td style="padding:3px 0;color:#888;width:130px;">Titular</td><td><strong>${opts.bankTitular}</strong></td></tr>
+        ${opts.bankName ? `<tr><td style="padding:3px 0;color:#888;">Banco</td><td>${opts.bankName}</td></tr>` : ''}
+        <tr><td style="padding:3px 0;color:#888;">IBAN</td><td><strong>${opts.bankIban}</strong></td></tr>
       </table>
       <p style="margin:0 0 16px;font-size:13px;color:#e05c00;background:#fff3e0;padding:8px 12px;border-radius:4px;">
         ⚠️ <strong>Importante:</strong> Indique en el concepto el nombre completo del jugador/a para identificar correctamente el pago.
@@ -565,7 +577,7 @@ function buildReminderHtml(opts: {
       Si ya ha efectuado el pago o existe alguna circunstancia que debamos conocer, le rogamos que conteste a este correo para revisar el caso.
     </p>
     <p style="margin:0 0 24px;">
-      <a href="mailto:info@efciudaddegetafe.com" style="color:#ffcc00;font-weight:bold;text-decoration:none;font-size:15px;">📧 info@efciudaddegetafe.com</a>
+      ${opts.contactEmail ? `<a href="mailto:${opts.contactEmail}" style="color:#ffcc00;font-weight:bold;text-decoration:none;font-size:15px;">📧 ${opts.contactEmail}</a>` : ''}
     </p>
 
     <p style="font-size:15px;color:#333;line-height:1.7;margin:0;">
@@ -576,8 +588,8 @@ function buildReminderHtml(opts: {
 
   <!-- Pie -->
   <div style="background:#1a1a1a;padding:18px 32px;text-align:center;">
-    <p style="color:#ffcc00;font-size:13px;font-weight:bold;margin:0 0 4px;">E.F. Ciudad de Getafe</p>
-    <p style="color:#888;font-size:12px;margin:0;">info@efciudaddegetafe.com</p>
+    <p style="color:#ffcc00;font-size:13px;font-weight:bold;margin:0 0 4px;">${opts.clubName}</p>
+    ${opts.contactEmail ? `<p style="color:#888;font-size:12px;margin:0;">${opts.contactEmail}</p>` : ''}
   </div>
 
 </div>`

@@ -8,8 +8,6 @@ import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { logger } from '@/lib/logger'
 
-const CLUB_NAME = 'Escuela de Fútbol Ciudad de Getafe'
-
 interface RecipientRow {
   id: string
   first_name: string
@@ -18,13 +16,13 @@ interface RecipientRow {
   tutor_email: string | null
 }
 
-function applyTokens(text: string, row: RecipientRow, extras: Record<string, string> = {}): string {
+function applyTokens(text: string, row: RecipientRow, clubName: string, extras: Record<string, string> = {}): string {
   const playerName = `${row.first_name} ${row.last_name}`.trim()
   const tutorName = row.tutor_name || playerName
   const tokens: Record<string, string> = {
     '{jugador_nombre}': playerName,
     '{tutor_nombre}': tutorName,
-    '{club_nombre}': CLUB_NAME,
+    '{club_nombre}': clubName,
     ...extras,
   }
   let out = text
@@ -50,6 +48,10 @@ export async function sendBulkEmail(input: {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any
+
+  // Nombre del club para tokens {club_nombre}
+  const { data: clubRow } = await sb.from('clubs').select('name').eq('id', clubId).single()
+  const clubName: string = (clubRow as { name?: string } | null)?.name ?? 'El Club'
 
   // Resolve recipients
   let recipients: RecipientRow[] = []
@@ -120,8 +122,8 @@ export async function sendBulkEmail(input: {
       noEmail++
       continue
     }
-    const subject = applyTokens(input.subject, r)
-    const html = applyTokens(input.bodyHtml, r)
+    const subject = applyTokens(input.subject, r, clubName)
+    const html = applyTokens(input.bodyHtml, r, clubName)
     const result = await sendHtmlEmail({ to: r.tutor_email, subject, html })
     if (result.sent) {
       sent++

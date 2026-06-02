@@ -35,7 +35,7 @@ async function fetchClubBranding(clubId: string): Promise<ClubBranding> {
     .eq('id', clubId)
     .single()
   return {
-    name: data?.name ?? 'Escuela de Fútbol Ciudad de Getafe',
+    name: data?.name ?? 'El Club',
     logoUrl: data?.logo_url ?? null,
     primaryColor: data?.primary_color ?? '#0d2e6e',
   }
@@ -54,7 +54,7 @@ export async function sendPaymentReceiptEmail(
     branding = await fetchClubBranding(params.clubId)
   } catch (err) {
     console.error('[receipt] fetchClubBranding falló, usando defaults:', err)
-    branding = { name: 'Escuela de Fútbol Ciudad de Getafe', logoUrl: null, primaryColor: '#0d2e6e' }
+    branding = { name: 'El Club', logoUrl: null, primaryColor: '#0d2e6e' }
   }
 
   // PDF — si falla, enviar el email SIN adjunto en vez de abortar todo

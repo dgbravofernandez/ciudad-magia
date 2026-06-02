@@ -1,10 +1,8 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
-const CLUB_NAME = 'Escuela de Futbol Ciudad de Getafe'
-const CIF = 'G-79896478'
-
 interface TrialLetterParams {
   clubName: string
+  cif?: string
   playerName: string
   playerDob: string
   tutorName: string
@@ -15,6 +13,8 @@ interface TrialLetterParams {
 }
 
 export async function generateTrialLetterPDF(params: TrialLetterParams): Promise<Buffer> {
+  const CLUB_NAME = params.clubName
+  const CIF = params.cif ?? ''
   const doc = await PDFDocument.create()
   const page = doc.addPage([595, 842]) // A4
   const font = await doc.embedFont(StandardFonts.Helvetica)

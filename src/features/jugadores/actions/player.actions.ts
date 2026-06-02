@@ -107,14 +107,18 @@ export async function sendEmail(playerId: string, emailType: string) {
   // (born <= 2010 → cannot guarantee continuity until full juvenile renewal count is done)
   const birthYear = player.birth_date ? new Date(player.birth_date).getFullYear() : null
 
-  const fallbacks = buildFallbackEmail(emailType, playerName, tutorName, teamName, player.forms_link, coachName, birthYear)
+  // Fetch club name for email templates
+  const { data: clubRow } = await sb.from('clubs').select('name').eq('id', clubId).single()
+  const clubName: string = (clubRow as { name?: string } | null)?.name ?? 'El Club'
+
+  const fallbacks = buildFallbackEmail(emailType, playerName, tutorName, teamName, clubName, player.forms_link, coachName, birthYear)
 
   const tokens: Record<string, string> = {
     '{{player_name}}': playerName,
     '{{tutor_name}}': tutorName,
     '{{team}}': teamName,
     '{{form_link}}': player.forms_link ?? '',
-    '{{club_name}}': 'Escuela de Fútbol Ciudad de Getafe',
+    '{{club_name}}': clubName,
   }
 
   let subject = (template?.subject ?? fallbacks.subject) as string
@@ -171,6 +175,7 @@ function buildFallbackEmail(
   playerName: string,
   tutorName: string,
   teamName: string,
+  clubName: string,
   formsLink?: string | null,
   coachName?: string | null,
   birthYear?: number | null
@@ -179,7 +184,7 @@ function buildFallbackEmail(
   // where the club cannot confirm continuity until all juvenile renewals
   // are tallied (limited training slots / teams).
   const isJuvenile = typeof birthYear === 'number' && birthYear <= 2010
-  const CLUB = 'Escuela de Fútbol Ciudad de Getafe'
+  const CLUB = clubName
   const border = (color: string) =>
     `font-family:Arial,sans-serif;padding:25px;border:4px solid ${color};border-radius:15px;color:#333;`
 
@@ -361,7 +366,9 @@ export async function dismissPlayerInscription(
         .eq('active', true)
         .single()
 
-      const fallback = buildFallbackEmail(emailType, playerName, tutorName, '')
+      const { data: clubRow } = await sb.from('clubs').select('name').eq('id', clubId).single()
+      const dismissClubName: string = (clubRow as { name?: string } | null)?.name ?? 'El Club'
+      const fallback = buildFallbackEmail(emailType, playerName, tutorName, '', dismissClubName)
       const subject = (template?.subject ?? fallback.subject) as string
       const body = (template?.body_html ?? fallback.body) as string
 
@@ -713,13 +720,12 @@ export async function sendTrialLetter(
 
   if (!player) return { success: false, error: 'Jugador no encontrado' }
 
-  const { data: club } = await sb
-    .from('clubs')
-    .select('name')
-    .eq('id', clubId)
-    .single()
+  const [{ data: club }, { data: clubSettings }] = await Promise.all([
+    sb.from('clubs').select('name').eq('id', clubId).single(),
+    sb.from('club_settings').select('cif').eq('club_id', clubId).single(),
+  ])
 
-  const clubName = club?.name ?? 'Escuela de Fútbol Ciudad de Getafe'
+  const clubName = club?.name ?? 'El Club'
   const playerName = `${player.first_name} ${player.last_name}`
   const currentDate = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
 
@@ -728,6 +734,7 @@ export async function sendTrialLetter(
   try {
     pdfBuffer = await generateTrialLetterPDF({
       clubName,
+      cif: clubSettings?.cif ?? undefined,
       playerName,
       playerDob: player.birth_date,
       tutorName: player.tutor_name,
