@@ -36,6 +36,7 @@ import {
   updatePlayerTeam,
   updatePendingPaymentAmount,
   toggleQuotaSpecialCase,
+  getLinkedItems,
 } from '@/features/contabilidad/actions/accounting.actions'
 import { EMAIL_BATCH_CAP } from '@/lib/contabilidad/constants'
 import Link from 'next/link'
@@ -126,6 +127,10 @@ export function PaymentRegistration({
   const [editMethod, setEditMethod] = useState('cash')
   const [editNotes, setEditNotes] = useState('')
   const [editSeason, setEditSeason] = useState('')
+  const [editSourceType, setEditSourceType] = useState<'cuota' | 'torneo' | 'actividad'>('cuota')
+  const [editLinkedId, setEditLinkedId] = useState('')
+  const [linkedItems, setLinkedItems] = useState<{ torneos: { id: string; name: string }[]; actividades: { id: string; name: string }[] } | null>(null)
+  const [loadingLinkedItems, setLoadingLinkedItems] = useState(false)
 
   // Modal de reembolso — reemplaza prompt() (no funciona en iOS Safari)
   const [refundModal, setRefundModal] = useState<{ payment: Payment; method: string } | null>(null)
@@ -400,6 +405,16 @@ export function PaymentRegistration({
     setEditMethod(p.payment_method ?? 'cash')
     setEditNotes(p.notes ?? '')
     setEditSeason(p.season ?? season ?? '')
+    setEditSourceType('cuota')
+    setEditLinkedId('')
+    // Lazy-load torneos/actividades once
+    if (!linkedItems) {
+      setLoadingLinkedItems(true)
+      getLinkedItems().then((items) => {
+        setLinkedItems(items)
+        setLoadingLinkedItems(false)
+      }).catch(() => setLoadingLinkedItems(false))
+    }
   }
 
   function closeEditModal() {
@@ -413,6 +428,14 @@ export function PaymentRegistration({
       toast.error('Introduce un importe valido')
       return
     }
+    // Resolve linked item name
+    let linkedName: string | undefined
+    if (editSourceType === 'torneo' && editLinkedId && linkedItems) {
+      linkedName = linkedItems.torneos.find(t => t.id === editLinkedId)?.name
+    } else if (editSourceType === 'actividad' && editLinkedId && linkedItems) {
+      linkedName = linkedItems.actividades.find(a => a.id === editLinkedId)?.name
+    }
+
     startTransition(async () => {
       const result = await updatePayment({
         paymentId: editingPayment.id,
@@ -421,6 +444,8 @@ export function PaymentRegistration({
         date: editDate,
         notes: editNotes,
         season: editSeason.trim() || undefined,
+        sourceType: editSourceType !== 'cuota' ? editSourceType : undefined,
+        linkedName,
       })
       if (result.success) {
         toast.success('Pago modificado correctamente')
@@ -1508,6 +1533,56 @@ export function PaymentRegistration({
               <p className="text-xs text-muted-foreground">Cambiar la temporada no reenvía ningún email.</p>
             </div>
 
+            <div className="space-y-1">
+              <label className="label">Reasignar como</label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['cuota', 'torneo', 'actividad'] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => { setEditSourceType(type); setEditLinkedId('') }}
+                    className={cn(
+                      'p-2 rounded-lg border text-sm font-medium capitalize transition-colors',
+                      editSourceType === type
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:border-muted-foreground'
+                    )}
+                  >
+                    {type === 'cuota' ? 'Cuota' : type === 'torneo' ? 'Torneo' : 'Actividad'}
+                  </button>
+                ))}
+              </div>
+              {editSourceType !== 'cuota' && (
+                <div className="mt-2">
+                  {loadingLinkedItems ? (
+                    <p className="text-xs text-muted-foreground">Cargando...</p>
+                  ) : (
+                    <select
+                      className="input w-full"
+                      value={editLinkedId}
+                      onChange={(e) => setEditLinkedId(e.target.value)}
+                    >
+                      <option value="">— Seleccionar {editSourceType} —</option>
+                      {editSourceType === 'torneo'
+                        ? (linkedItems?.torneos ?? []).map(t => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))
+                        : (linkedItems?.actividades ?? []).map(a => (
+                            <option key={a.id} value={a.id}>{a.name}</option>
+                          ))
+                      }
+                    </select>
+                  )}
+                  {!loadingLinkedItems && editSourceType === 'torneo' && (linkedItems?.torneos ?? []).length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">No hay torneos activos.</p>
+                  )}
+                  {!loadingLinkedItems && editSourceType === 'actividad' && (linkedItems?.actividades ?? []).length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">No hay actividades activas.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
@@ -1521,7 +1596,7 @@ export function PaymentRegistration({
                 type="button"
                 onClick={handleUpdatePayment}
                 className="btn-primary flex-1"
-                disabled={isPending}
+                disabled={isPending || (editSourceType !== 'cuota' && !editLinkedId)}
               >
                 {isPending ? 'Guardando...' : 'Guardar cambios'}
               </button>

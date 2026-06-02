@@ -194,6 +194,8 @@ export async function updatePayment(data: {
   date: string
   notes: string
   season?: string
+  sourceType?: 'cuota' | 'torneo' | 'actividad' | 'otro'
+  linkedName?: string  // nombre del torneo/actividad para la descripción
 }) {
   const { sb, clubId } = await resolveClubAndMember()
   const dbMethod = toDbMethod(data.method)
@@ -227,13 +229,32 @@ export async function updatePayment(data: {
   if (paymentError) return { success: false, error: paymentError.message }
 
   // Update related cash_movement too
+  const movementUpdate: Record<string, unknown> = {
+    amount: data.amount,
+    payment_method: dbMethod,
+    movement_date: data.date,
+  }
+  if (data.sourceType) {
+    movementUpdate.source = data.sourceType
+    if (data.linkedName) {
+      const { data: paymentRow } = await sb
+        .from('quota_payments')
+        .select('player_id')
+        .eq('id', data.paymentId)
+        .single()
+      // Fetch player name for description
+      const { data: player } = paymentRow?.player_id
+        ? await sb.from('players').select('first_name, last_name').eq('id', paymentRow.player_id).single()
+        : { data: null }
+      const pName = player ? `${player.first_name} ${player.last_name}` : ''
+      const sourceLabel = data.sourceType === 'torneo' ? 'Torneo' : data.sourceType === 'actividad' ? 'Actividad' : 'Pago cuota'
+      movementUpdate.description = `${sourceLabel} - ${data.linkedName}${pName ? ` - ${pName}` : ''}`
+    }
+  }
+
   const { error: movementError } = await sb
     .from('cash_movements')
-    .update({
-      amount: data.amount,
-      payment_method: dbMethod,
-      movement_date: data.date,
-    })
+    .update(movementUpdate)
     .eq('related_payment_id', data.paymentId)
 
   if (movementError) return { success: false, error: movementError.message }
@@ -241,6 +262,30 @@ export async function updatePayment(data: {
   revalidatePath('/contabilidad/pagos')
   revalidatePath('/contabilidad/caja')
   return { success: true }
+}
+
+export async function getLinkedItems() {
+  const { sb, clubId } = await resolveClubAndMember()
+
+  const [{ data: torneos }, { data: actividades }] = await Promise.all([
+    sb
+      .from('tournaments')
+      .select('id, name')
+      .eq('club_id', clubId)
+      .in('status', ['upcoming', 'in_progress'])
+      .order('name', { ascending: true }),
+    sb
+      .from('activities')
+      .select('id, name')
+      .eq('club_id', clubId)
+      .eq('active', true)
+      .order('name', { ascending: true }),
+  ])
+
+  return {
+    torneos: (torneos ?? []) as { id: string; name: string }[],
+    actividades: (actividades ?? []) as { id: string; name: string }[],
+  }
 }
 
 export async function refundPayment(
