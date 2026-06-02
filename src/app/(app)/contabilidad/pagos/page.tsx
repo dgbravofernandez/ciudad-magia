@@ -35,10 +35,7 @@ export default async function PagosPage({
       clubId = member?.club_id ?? ''
     }
   }
-  if (!clubId) {
-    const { data: anyClub } = await sb.from('clubs').select('id').limit(1).single()
-    clubId = anyClub?.id ?? ''
-  }
+  if (!clubId) return <div className="p-6 text-muted-foreground">No se pudo determinar el club.</div>
 
   /* ── Resolve roles for permission check ── */
   const PAYMENT_ROLES = ['admin', 'direccion', 'director_deportivo']

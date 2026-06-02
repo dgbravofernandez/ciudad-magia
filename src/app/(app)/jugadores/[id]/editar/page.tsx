@@ -9,10 +9,7 @@ export default async function EditPlayerPage({ params }: { params: Promise<{ id:
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
   let clubId = await getClubId()
-  if (!clubId) {
-    const { data: anyClub } = await sb.from('clubs').select('id').limit(1).single()
-    clubId = anyClub?.id ?? ''
-  }
+  if (!clubId) notFound()
 
   const [{ data: player }, { data: teams }] = await Promise.all([
     sb

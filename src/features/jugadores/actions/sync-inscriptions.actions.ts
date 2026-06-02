@@ -127,10 +127,7 @@ export async function previewCoachSync(rows: string[][]): Promise<CoachSyncPrevi
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = createAdminClient() as any
     let clubId = await getClubId()
-    if (!clubId) {
-      const { data: anyClub } = await supabase.from('clubs').select('id').limit(1).single()
-      clubId = anyClub?.id ?? ''
-    }
+    // Sin fallback al primer club — cada usuario solo accede a su propio club
     if (!clubId) return { toAssign: [], unknownTeams: [], error: 'no_club' }
 
     const [{ data: teams }, { data: members }] = await Promise.all([
@@ -230,10 +227,7 @@ export async function applyCoachSync(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = createAdminClient() as any
     let clubId = await getClubId()
-    if (!clubId) {
-      const { data: anyClub } = await supabase.from('clubs').select('id').limit(1).single()
-      clubId = anyClub?.id ?? ''
-    }
+    // Sin fallback al primer club — cada usuario solo accede a su propio club
     if (!clubId) return { created: 0, assigned: 0, error: 'no_club' }
 
     let created = 0

@@ -24,10 +24,7 @@ export default async function InscripcionesPage() {
       clubId = member?.club_id ?? ''
     }
   }
-  if (!clubId) {
-    const { data: anyClub } = await sb.from('clubs').select('id').limit(1).single()
-    clubId = anyClub?.id ?? ''
-  }
+  if (!clubId) return <div className="p-6 text-muted-foreground">No se pudo determinar el club.</div>
 
   // Resolve isAdmin
   const memberRoles = JSON.parse(headersList.get('x-user-roles') ?? '[]') as string[]

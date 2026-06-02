@@ -14,10 +14,7 @@ export default async function CoachesStaffPage() {
 
   /* ── clubId: header first, then fallback to first club in DB ── */
   let clubId = await getClubId()
-  if (!clubId) {
-    const { data: anyClub } = await sb.from('clubs').select('id').limit(1).single()
-    clubId = anyClub?.id ?? ''
-  }
+  if (!clubId) return <div className="p-6 text-muted-foreground">No se pudo determinar el club.</div>
 
   /* ── isAdmin: header first, then fallback via admin client ── */
   const headersList = await headers()

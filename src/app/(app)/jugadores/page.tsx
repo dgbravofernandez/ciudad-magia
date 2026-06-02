@@ -41,15 +41,8 @@ export default async function JugadoresPage() {
     }
   }
 
-  // 3. Last resort: get the only club that exists
-  if (!clubId) {
-    const { data: anyClub } = await sb
-      .from('clubs')
-      .select('id')
-      .limit(1)
-      .single()
-    clubId = anyClub?.id ?? ''
-  }
+  // Si no hay clubId el middleware ya habría redirigido — no hacer fallback al primer club
+  if (!clubId) return <div className="p-6 text-muted-foreground">No se pudo determinar el club.</div>
 
   // Temporadas
   const { data: settings } = await sb

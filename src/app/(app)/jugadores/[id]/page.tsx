@@ -28,10 +28,7 @@ export default async function PlayerDetailPage({ params }: { params: Promise<{ i
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
   let clubId = await getClubId()
-  if (!clubId) {
-    const { data: anyClub } = await sb.from('clubs').select('id').limit(1).single()
-    clubId = anyClub?.id ?? ''
-  }
+  if (!clubId) return null
 
   /* ── isAdmin / roles with fallback ── */
   const headersList = await headers()
