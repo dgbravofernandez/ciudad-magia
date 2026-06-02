@@ -104,20 +104,10 @@ export default async function JugadoresPage() {
     if (remaining > 0) activeSanctions[s.player_id] = remaining
   }
 
-  // Debug info solo cuando no hay jugadores
-  const debugInfo = (players ?? []).length === 0
-    ? `[DEBUG] clubId="${clubId}", header="${headersList.get('x-club-id') ?? 'null'}", error="${playersError?.message ?? 'none'}"`
-    : null
-
   return (
     <div className="flex flex-col h-full">
       <Topbar title="Jugadores" />
       <div className="flex-1 p-6">
-        {debugInfo && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-xs font-mono text-red-800">
-            {debugInfo}
-          </div>
-        )}
         <PlayerList
           players={enrichedPlayers}
           teams={teams ?? []}
