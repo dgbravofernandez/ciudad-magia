@@ -1,6 +1,17 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      // Redirige el dominio antiguo al nuevo permanentemente (301)
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'ciudad-magia-qj91.vercel.app' }],
+        destination: 'https://cluberly.vercel.app/:path*',
+        permanent: true,
+      },
+    ]
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '2mb',
