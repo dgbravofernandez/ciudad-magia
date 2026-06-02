@@ -193,6 +193,7 @@ export async function updatePayment(data: {
   method: string
   date: string
   notes: string
+  season?: string
 }) {
   const { sb, clubId } = await resolveClubAndMember()
   const dbMethod = toDbMethod(data.method)
@@ -209,15 +210,18 @@ export async function updatePayment(data: {
     if (!newCheck.ok) return { success: false, error: newCheck.error }
   }
 
+  const paymentUpdate: Record<string, unknown> = {
+    amount_due: data.amount,
+    amount_paid: data.amount,
+    payment_date: data.date,
+    payment_method: dbMethod,
+    notes: data.notes || null,
+  }
+  if (data.season) paymentUpdate.season = data.season
+
   const { error: paymentError } = await sb
     .from('quota_payments')
-    .update({
-      amount_due: data.amount,
-      amount_paid: data.amount,
-      payment_date: data.date,
-      payment_method: dbMethod,
-      notes: data.notes || null,
-    })
+    .update(paymentUpdate)
     .eq('id', data.paymentId)
 
   if (paymentError) return { success: false, error: paymentError.message }

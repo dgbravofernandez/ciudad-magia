@@ -65,6 +65,7 @@ interface Payment {
   concept: string | null
   email_sent?: boolean | null
   is_special_case?: boolean | null
+  season?: string | null
 }
 
 interface Props {
@@ -124,6 +125,7 @@ export function PaymentRegistration({
   const [editDate, setEditDate] = useState('')
   const [editMethod, setEditMethod] = useState('cash')
   const [editNotes, setEditNotes] = useState('')
+  const [editSeason, setEditSeason] = useState('')
 
   // Modal de reembolso — reemplaza prompt() (no funciona en iOS Safari)
   const [refundModal, setRefundModal] = useState<{ payment: Payment; method: string } | null>(null)
@@ -397,6 +399,7 @@ export function PaymentRegistration({
     setEditDate(p.payment_date ?? today)
     setEditMethod(p.payment_method ?? 'cash')
     setEditNotes(p.notes ?? '')
+    setEditSeason(p.season ?? season ?? '')
   }
 
   function closeEditModal() {
@@ -417,6 +420,7 @@ export function PaymentRegistration({
         method: editMethod,
         date: editDate,
         notes: editNotes,
+        season: editSeason.trim() || undefined,
       })
       if (result.success) {
         toast.success('Pago modificado correctamente')
@@ -1490,6 +1494,18 @@ export function PaymentRegistration({
                 onChange={(e) => setEditNotes(e.target.value)}
                 placeholder="Observaciones..."
               />
+            </div>
+
+            <div className="space-y-1">
+              <label className="label">Temporada</label>
+              <input
+                type="text"
+                className="input w-full font-mono"
+                value={editSeason}
+                onChange={(e) => setEditSeason(e.target.value)}
+                placeholder="p.ej. 2025/26"
+              />
+              <p className="text-xs text-muted-foreground">Cambiar la temporada no reenvía ningún email.</p>
             </div>
 
             <div className="flex gap-2 pt-2">
