@@ -89,13 +89,36 @@ export async function registerPayment(data: {
     if (updateErr) return { success: false, error: updateErr.message }
     paymentId = pendingRec.id
   } else {
+    // Anti-duplicado: comprobar si ya existe un pago idéntico (mismo jugador + temporada + concepto + importe + fecha)
+    // Evita doble registro por doble clic o doble envío del formulario
+    const concept = data.concept ?? 'Cuota mensual'
+    const { data: existingPaid } = await sb
+      .from('quota_payments')
+      .select('id')
+      .eq('club_id', clubId)
+      .eq('player_id', data.playerId)
+      .eq('season', season)
+      .eq('concept', concept)
+      .eq('amount_paid', data.amount)
+      .eq('payment_date', data.date)
+      .eq('status', 'paid')
+      .limit(1)
+      .maybeSingle()
+
+    if (existingPaid) {
+      return {
+        success: false,
+        error: `Ya existe un pago de "${concept}" por ${data.amount}€ registrado para ${data.playerName} en esta fecha. Recarga la página para verificar.`,
+      }
+    }
+
     // Sin pendiente previo — crear registro nuevo pagado
     const { data: payment, error: paymentError } = await sb.from('quota_payments').insert({
       club_id: clubId,
       player_id: data.playerId,
       season,
       month: data.month ?? new Date(data.date).getMonth() + 1,
-      concept: data.concept ?? 'Cuota mensual',
+      concept,
       amount_due: data.amount,
       amount_paid: data.amount,
       payment_date: data.date,

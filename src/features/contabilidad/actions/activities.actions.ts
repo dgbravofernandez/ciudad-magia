@@ -358,26 +358,37 @@ export async function markChargePaid(
     if (error) return { success: false, error: error.message }
 
     if (paymentMethod === 'cash' || paymentMethod === 'card') {
-      // Construir descripción con nombre de actividad + nombre del jugador
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const activityName = (charge as any).activities?.name ?? 'Actividad'
-      let playerName = charge.participant_name?.trim() ?? ''
-      if (!playerName && charge.player_id) {
-        const { data: p } = await sb.from('players').select('first_name, last_name').eq('id', charge.player_id).single()
-        if (p) playerName = `${p.first_name} ${p.last_name}`.trim()
+      // Anti-duplicado: comprobar si ya existe un cash_movement para este charge
+      const { data: existingMov } = await sb
+        .from('cash_movements')
+        .select('id')
+        .eq('related_activity_charge_id', chargeId)
+        .eq('type', 'income')
+        .limit(1)
+        .maybeSingle()
+
+      if (!existingMov) {
+        // Construir descripción con nombre de actividad + nombre del jugador
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const activityName = (charge as any).activities?.name ?? 'Actividad'
+        let playerName = charge.participant_name?.trim() ?? ''
+        if (!playerName && charge.player_id) {
+          const { data: p } = await sb.from('players').select('first_name, last_name').eq('id', charge.player_id).single()
+          if (p) playerName = `${p.first_name} ${p.last_name}`.trim()
+        }
+        const partialLabel = isFullyPaid ? '' : ' (parcial)'
+        await sb.from('cash_movements').insert({
+          club_id: clubId,
+          type: 'income',
+          source: 'actividad',
+          amount: payNow,
+          payment_method: paymentMethod,
+          description: `${activityName}${playerName ? ` — ${playerName}` : ''}${partialLabel}`,
+          movement_date: date,
+          registered_by: memberId || null,
+          related_activity_charge_id: chargeId,
+        })
       }
-      const partialLabel = isFullyPaid ? '' : ' (parcial)'
-      await sb.from('cash_movements').insert({
-        club_id: clubId,
-        type: 'income',
-        source: 'actividad',
-        amount: payNow,
-        payment_method: paymentMethod,
-        description: `${activityName}${playerName ? ` — ${playerName}` : ''}${partialLabel}`,
-        movement_date: date,
-        registered_by: memberId || null,
-        related_activity_charge_id: chargeId,
-      })
     }
 
     // Email de confirmación con justificante PDF (solo si pago completo y hay jugador con tutor_email)
