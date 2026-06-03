@@ -163,19 +163,35 @@ function trunc(str: string, max: number) {
   return str.length > max ? str.slice(0, max - 1) + '…' : str
 }
 
-function getSourceLabel(m: CashCloseMovement): string {
-  // Normalizar season: '2026-27' → '2026/27' para mostrar consistente
-  const season = m.season?.replace(/^(\d{4})-(\d{2})$/, '$1/$2') ?? m.season
+/** Convierte "2026/27" → "26/27", "2025/26" → "25/26" */
+function shortSeason(raw: string): string {
+  return raw
+    .replace(/^(\d{4})-(\d{2})$/, '$1/$2')               // normaliza guion → barra
+    .replace(/^20(\d{2})\/(\d{2,4})$/, (_: string, a: string, b: string) => `${a}/${b.slice(-2)}`)
+}
 
-  // Si tenemos el concepto real del pago (Cuota 1, Reserva, Pago Completo…) usarlo directamente
-  if (m.concept && m.source === 'cuota') {
-    // Añadir temporada corta si está disponible: "Reserva 26/27", "Cuota mensual 26/27"
-    if (season) {
-      const short = season.replace(/^20(\d{2})\/(\d{2,4})$/, (_: string, a: string, b: string) => `${a}/${b.slice(-2)}`)
-      return `${m.concept} ${short}`
+/** Concepto corto para la columna CONCEPTO del PDF.
+ *  Formato: "26/27 Cuota", "26/27 Reserva", "26/27 C.Completo", etc.
+ *  El año va siempre primero para que quepa en 16 chars y sea fácil de leer.
+ */
+function getSourceLabel(m: CashCloseMovement): string {
+  // Normalizar season: '2026-27' → '2026/27'
+  const rawSeason = m.season?.replace(/^(\d{4})-(\d{2})$/, '$1/$2') ?? m.season
+  const ss = rawSeason ? shortSeason(rawSeason) : null   // "26/27"
+
+  if (m.source === 'cuota') {
+    // Abreviar el concepto para que quepa en la columna
+    let conceptShort = 'Cuota'
+    if (m.concept) {
+      const c = m.concept.toLowerCase()
+      if (c.includes('reserva'))         conceptShort = 'Reserva'
+      else if (c.includes('completo'))   conceptShort = 'C.Completo'
+      else if (c.match(/cuota\s*(\d+)/)) conceptShort = m.concept.replace(/cuota\s*/i, 'Cuota ').trim()
+      else                               conceptShort = 'Cuota'
     }
-    return m.concept
+    return ss ? `${ss} ${conceptShort}` : conceptShort
   }
+
   const baseLabel = (() => {
     if (m.source && SOURCE_LABELS[m.source]) return SOURCE_LABELS[m.source]
     const desc = m.description.toLowerCase()
@@ -185,10 +201,9 @@ function getSourceLabel(m: CashCloseMovement): string {
     if (desc.includes('actividad')) return 'Actividad'
     return 'Otro'
   })()
-  if (baseLabel === 'Cuota' && season) {
-    const short = season.replace(/^20(\d{2})\/(\d{2,4})$/, (_: string, a: string, b: string) => `${a}/${b.slice(-2)}`)
-    return `Cuota ${short}`
-  }
+
+  // Para cuotas sin campo concept (legacy), añadir temporada
+  if (baseLabel === 'Cuota' && ss) return `${ss} Cuota`
   return baseLabel
 }
 
