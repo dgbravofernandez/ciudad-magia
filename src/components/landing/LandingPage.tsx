@@ -72,14 +72,14 @@ const PLANS = [
     name: 'Básico',
     icon: '🌱',
     color: '#6B7280',
-    monthlyPrice: 29,
-    annualPrice: 288,
-    annualMonthly: 24,
-    limit: 'Hasta 50 miembros',
-    description: 'Para empezar: socios, cuotas manuales y comunicaciones.',
+    monthlyPrice: 39,
+    annualPrice: 390,
+    annualMonthly: 33,
+    limit: 'Hasta 100 jugadores',
+    description: 'Para clubes pequeños: jugadores, cuotas y comunicaciones.',
     features: [
-      'Gestión de socios',
-      'Cuotas manuales',
+      'Gestión de jugadores',
+      'Cuotas y pagos',
       'Comunicaciones email',
       'Formulario de inscripción',
       'Soporte email',
@@ -87,42 +87,24 @@ const PLANS = [
     cta: 'Empezar gratis',
   },
   {
-    id: 'starter',
-    name: 'Starter',
-    icon: '⚽',
-    color: '#10B981',
-    monthlyPrice: 59,
-    annualPrice: 588,
-    annualMonthly: 49,
-    limit: 'Hasta 150 miembros',
-    description: 'Sesiones, asistencia y grupos para clubs en crecimiento.',
-    features: [
-      'Todo lo de Básico',
-      'Sesiones y asistencia',
-      'Grupos ilimitados',
-      'Métricas básicas',
-      'Soporte prioritario',
-    ],
-    cta: 'Empezar con Starter',
-  },
-  {
     id: 'pro',
     name: 'Pro',
     icon: '🏆',
     color: '#6366F1',
-    monthlyPrice: 109,
-    annualPrice: 1080,
-    annualMonthly: 90,
-    limit: 'Hasta 300 miembros',
-    description: 'Gastos, balance, recordatorios y métricas por deporte.',
+    monthlyPrice: 89,
+    annualPrice: 890,
+    annualMonthly: 74,
+    limit: 'Hasta 300 jugadores',
+    description: 'Sesiones, contabilidad completa, informes y recordatorios automáticos.',
     popular: true,
     features: [
-      'Todo lo de Starter',
-      'Gastos y balance financiero',
-      'Recordatorios automáticos',
-      'SMTP propio',
-      'Métricas avanzadas por deporte',
-      'Soporte prioritario',
+      'Todo lo de Básico',
+      'Sesiones y asistencia',
+      'Contabilidad completa',
+      'Informes y estadísticas',
+      'Recordatorios automáticos de cobro',
+      'Migración gratis desde Excel',
+      'Soporte WhatsApp',
     ],
     cta: 'Empezar con Pro',
   },
@@ -131,39 +113,39 @@ const PLANS = [
     name: 'Club',
     icon: '🎯',
     color: '#F59E0B',
-    monthlyPrice: 199,
-    annualPrice: 1980,
-    annualMonthly: 165,
-    limit: 'Hasta 750 miembros',
-    description: 'Evaluaciones, lesiones avanzado y exportación de datos.',
+    monthlyPrice: 149,
+    annualPrice: 1490,
+    annualMonthly: 124,
+    limit: 'Hasta 600 jugadores',
+    description: 'Para clubes grandes: todo + evaluaciones, lesiones y prioridad.',
     features: [
       'Todo lo de Pro',
       'Evaluaciones de jugadores',
       'Módulo de lesiones avanzado',
       'Exportación completa de datos',
       'Google Sheets sync automático',
-      'Soporte telefónico',
+      'Soporte prioritario',
     ],
     cta: 'Empezar con Club',
   },
   {
-    id: 'elite',
-    name: 'Elite',
+    id: 'personalizado',
+    name: 'Personalizado',
     icon: '👑',
     color: '#0F172A',
-    monthlyPrice: 349,
-    annualPrice: 3468,
-    annualMonthly: 289,
-    limit: 'Hasta 1.500 miembros',
-    description: 'API access, SLA garantizado y account manager dedicado.',
+    monthlyPrice: 0,
+    annualPrice: 0,
+    annualMonthly: 0,
+    limit: 'Federaciones y +600',
+    description: 'Federaciones, integraciones a medida, onboarding y SLA.',
     features: [
       'Todo lo de Club',
-      'Hasta 1.500 miembros',
-      'API access',
+      'Jugadores ilimitados',
+      'Integraciones a medida',
+      'Onboarding presencial',
       'SLA garantizado',
-      'Account manager dedicado',
     ],
-    cta: 'Contactar ventas',
+    cta: 'Contactar',
   },
 ]
 
@@ -252,7 +234,7 @@ function PricingSection() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
           {PLANS.map(plan => {
-            const isElite = plan.id === 'elite'
+            const isElite = plan.id === 'personalizado'
             return (
               <div key={plan.id} style={{
                 background: '#fff', borderRadius: 16, padding: '1.75rem', position: 'relative',
@@ -292,7 +274,7 @@ function PricingSection() {
                     </li>
                   ))}
                 </ul>
-                <Link href={isElite ? 'mailto:iakevoapp@gmail.com?subject=Plan%20Elite' : `/onboarding?plan=${plan.id}`} style={{
+                <Link href={isElite ? 'mailto:iakevoapp@gmail.com?subject=Plan%20Personalizado' : `/onboarding?plan=${plan.id}`} style={{
                   display: 'block', padding: '0.8rem 1rem', borderRadius: 10, textAlign: 'center',
                   fontWeight: 700, fontSize: '0.9375rem', textDecoration: 'none',
                   background: plan.popular ? plan.color : 'transparent',
@@ -664,13 +646,13 @@ export default function LandingPage() {
             Plan Pro — El más elegido por clubs
           </div>
           <h2 style={{ fontSize: 'clamp(1.5rem,4vw,2.25rem)', fontWeight: 900, letterSpacing: '-0.03em', marginBottom: '0.75rem', color: '#F1F5F9' }}>
-            Gestión completa por <span style={{ background: 'linear-gradient(90deg,#818CF8,#F472B6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>€90/mes</span>
+            Gestión completa por <span style={{ background: 'linear-gradient(90deg,#818CF8,#F472B6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>€89/mes</span>
           </h2>
           <p style={{ color: '#94A3B8', fontSize: '1rem', lineHeight: 1.7, maxWidth: 540, margin: '0 auto 2rem' }}>
-            Con el plan anual pagas <strong style={{ color: '#A5B4FC' }}>€1.080/año</strong> — ahorras 2 meses. Acceso a todas las funciones Pro para hasta 300 miembros, sesiones ilimitadas y recordatorios automáticos.
+            Con el plan anual pagas <strong style={{ color: '#A5B4FC' }}>€890/año</strong> — ahorras 2 meses. Acceso a todas las funciones Pro para hasta 300 jugadores, sesiones ilimitadas y recordatorios automáticos.
           </p>
           <div style={{ display: 'flex', gap: '1.25rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '2rem' }}>
-            {['✅ Hasta 300 miembros', '✅ Balance financiero', '✅ Recordatorios automáticos', '✅ Métricas avanzadas'].map(b => (
+            {['✅ Hasta 300 jugadores', '✅ Contabilidad completa', '✅ Recordatorios automáticos', '✅ Migración gratis'].map(b => (
               <span key={b} style={{ fontSize: '0.875rem', fontWeight: 600, color: '#A5B4FC' }}>{b}</span>
             ))}
           </div>

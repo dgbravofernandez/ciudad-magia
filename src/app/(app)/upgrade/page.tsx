@@ -14,56 +14,45 @@ const PLANS = [
     name: 'Básico',
     icon: '🌱',
     color: '#6B7280',
-    monthlyPrice: 29,
-    annualPrice: 288,
-    annualMonthly: 24,
-    limit: 'Hasta 50 miembros',
-    features: ['Socios y altas', 'Cuotas manuales', 'Comunicaciones email', 'Soporte email'],
-  },
-  {
-    id: 'starter',
-    name: 'Starter',
-    icon: '⚽',
-    color: '#10B981',
-    monthlyPrice: 59,
-    annualPrice: 588,
-    annualMonthly: 49,
-    limit: 'Hasta 150 miembros',
-    features: ['Todo Básico', 'Sesiones y asistencia', 'Grupos ilimitados', 'Soporte prioritario'],
+    monthlyPrice: 39,
+    annualPrice: 390,
+    annualMonthly: 33,
+    limit: 'Hasta 100 jugadores',
+    features: ['Jugadores y altas', 'Cuotas', 'Comunicaciones email', 'Formulario de inscripción', 'Soporte email'],
   },
   {
     id: 'pro',
     name: 'Pro',
     icon: '🏆',
     color: '#6366F1',
-    monthlyPrice: 109,
-    annualPrice: 1080,
-    annualMonthly: 90,
-    limit: 'Hasta 300 miembros',
+    monthlyPrice: 89,
+    annualPrice: 890,
+    annualMonthly: 74,
+    limit: 'Hasta 300 jugadores',
     popular: true,
-    features: ['Todo Starter', 'Gastos y balance', 'Recordatorios automáticos', 'SMTP propio', 'Métricas por deporte'],
+    features: ['Todo Básico', 'Sesiones y asistencia', 'Contabilidad completa', 'Informes', 'Recordatorios automáticos de cobro', 'Soporte WhatsApp'],
   },
   {
     id: 'club',
     name: 'Club',
     icon: '🎯',
     color: '#F59E0B',
-    monthlyPrice: 199,
-    annualPrice: 1980,
-    annualMonthly: 165,
-    limit: 'Hasta 750 miembros',
-    features: ['Todo Pro', 'Evaluaciones jugadores', 'Lesiones avanzado', 'Exportación datos', 'Google Sheets sync'],
+    monthlyPrice: 149,
+    annualPrice: 1490,
+    annualMonthly: 124,
+    limit: 'Hasta 600 jugadores',
+    features: ['Todo Pro', 'Evaluaciones de jugadores', 'Lesiones avanzado', 'Exportación de datos', 'Google Sheets sync', 'Soporte prioritario'],
   },
   {
-    id: 'elite',
-    name: 'Elite',
+    id: 'personalizado',
+    name: 'Personalizado',
     icon: '👑',
     color: '#0F172A',
-    monthlyPrice: 349,
-    annualPrice: 3468,
-    annualMonthly: 289,
-    limit: 'Hasta 1.500 miembros',
-    features: ['Todo Club', 'Hasta 1.500 miembros', 'API access', 'SLA garantizado', 'Account manager'],
+    monthlyPrice: 0,
+    annualPrice: 0,
+    annualMonthly: 0,
+    limit: 'Federaciones y +600',
+    features: ['Todo Club', 'Jugadores ilimitados', 'Integraciones a medida', 'Onboarding presencial', 'SLA garantizado'],
   },
 ]
 
@@ -84,8 +73,8 @@ export default function UpgradePage() {
   }
 
   async function startCheckout(planId: string) {
-    if (planId === 'elite') {
-      window.location.href = 'mailto:iakevoapp@gmail.com?subject=Plan%20Elite%20-%20' + encodeURIComponent(club.name)
+    if (planId === 'personalizado') {
+      window.location.href = 'mailto:iakevoapp@gmail.com?subject=Plan%20Personalizado%20-%20' + encodeURIComponent(club.name)
       return
     }
     setLoadingPlan(planId)
@@ -150,7 +139,7 @@ export default function UpgradePage() {
       </div>
 
       {/* Plans grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {PLANS.map(plan => {
           const isCurrent = currentPlan === plan.id
           const isLoading = loadingPlan === plan.id && isPending
@@ -173,12 +162,18 @@ export default function UpgradePage() {
               <div className="font-bold text-gray-900 mb-3">{plan.name}</div>
 
               <div className="mb-1">
-                <span className="text-3xl font-black text-gray-900">
-                  €{annual ? plan.annualMonthly : plan.monthlyPrice}
-                </span>
-                <span className="text-gray-400 text-sm">/mes</span>
+                {plan.id === 'personalizado' ? (
+                  <span className="text-3xl font-black text-gray-900">A medida</span>
+                ) : (
+                  <>
+                    <span className="text-3xl font-black text-gray-900">
+                      €{annual ? plan.annualMonthly : plan.monthlyPrice}
+                    </span>
+                    <span className="text-gray-400 text-sm">/mes</span>
+                  </>
+                )}
               </div>
-              {annual && <p className="text-xs text-gray-400 mb-1">€{plan.annualPrice}/año</p>}
+              {annual && plan.id !== 'personalizado' && <p className="text-xs text-gray-400 mb-1">€{plan.annualPrice}/año</p>}
               <p className="text-xs font-semibold text-gray-500 mb-4">{plan.limit}</p>
 
               <ul className="flex flex-col gap-1.5 mb-5 flex-1">
@@ -203,7 +198,7 @@ export default function UpgradePage() {
                 }}>
                 {isCurrent ? 'Plan actual'
                   : isLoading ? 'Cargando…'
-                  : plan.id === 'elite' ? 'Contactar'
+                  : plan.id === 'personalizado' ? 'Contactar'
                   : 'Seleccionar'}
               </button>
             </div>
