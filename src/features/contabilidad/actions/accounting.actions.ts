@@ -198,19 +198,34 @@ export async function updatePayment(data: {
   sourceType?: 'cuota' | 'torneo' | 'actividad' | 'otro'
   linkedName?: string  // nombre del torneo/actividad para la descripción
 }) {
-  const { sb, clubId } = await resolveClubAndMember()
+  const { sb, clubId, roles } = await resolveClubAndMember()
   const dbMethod = toDbMethod(data.method)
+  const isAdmin = roles.some(r => ['admin', 'direccion'].includes(r))
 
-  // Lock check against BOTH old and new date (so you can't sneak a row out of a locked period by moving it)
+  // Lock check: admin/direccion puede siempre reclasificar (cambiar source/concept)
+  // El lock solo aplica para cambios de importe/fecha en periodos cerrados.
+  // Para importes y fechas se mantiene siempre para proteger la integridad del arqueo.
   const { data: existing } = await sb
-    .from('quota_payments').select('payment_date').eq('id', data.paymentId).single()
-  if (existing?.payment_date) {
-    const oldCheck = await assertNotLocked(existing.payment_date, clubId)
-    if (!oldCheck.ok) return { success: false, error: oldCheck.error }
-  }
-  if (data.date) {
-    const newCheck = await assertNotLocked(data.date, clubId)
-    if (!newCheck.ok) return { success: false, error: newCheck.error }
+    .from('quota_payments')
+    .select('payment_date, amount_paid')
+    .eq('id', data.paymentId)
+    .single()
+
+  const isAmountChange = existing && parseFloat(String(existing.amount_paid)) !== data.amount
+  const isDateChange   = existing && existing.payment_date?.slice(0, 10) !== data.date?.slice(0, 10)
+
+  // Admin bypass: si no cambia importe ni fecha → skip lock (reclasificación)
+  const skipLock = isAdmin && !isAmountChange && !isDateChange
+
+  if (!skipLock) {
+    if (existing?.payment_date) {
+      const oldCheck = await assertNotLocked(existing.payment_date, clubId)
+      if (!oldCheck.ok) return { success: false, error: oldCheck.error }
+    }
+    if (data.date) {
+      const newCheck = await assertNotLocked(data.date, clubId)
+      if (!newCheck.ok) return { success: false, error: newCheck.error }
+    }
   }
 
   const paymentUpdate: Record<string, unknown> = {
