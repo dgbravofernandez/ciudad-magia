@@ -135,7 +135,9 @@ export async function GET(
     const p          = playerMap[playerId] as { name: string; team: string; nextTeam: string }
     const season     = m.related_payment_id ? (paymentSeasonMap[m.related_payment_id] ?? null) : null
     // For 26/27 payments use the next-season team; otherwise current team
-    const teamName   = season === '2026/27' ? (p.nextTeam || p.team) : p.team
+    // season stored as '2026-27' (hyphen) OR '2026/27' (slash) — normalise both
+    const isNextSeason = season === '2026/27' || season === '2026-27'
+    const teamName     = isNextSeason ? (p.nextTeam || p.team) : p.team
     return { player_name: p.name, team_name: teamName }
   }
 

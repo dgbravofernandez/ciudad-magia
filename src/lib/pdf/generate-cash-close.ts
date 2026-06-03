@@ -164,11 +164,14 @@ function trunc(str: string, max: number) {
 }
 
 function getSourceLabel(m: CashCloseMovement): string {
+  // Normalizar season: '2026-27' → '2026/27' para mostrar consistente
+  const season = m.season?.replace(/^(\d{4})-(\d{2})$/, '$1/$2') ?? m.season
+
   // Si tenemos el concepto real del pago (Cuota 1, Reserva, Pago Completo…) usarlo directamente
   if (m.concept && m.source === 'cuota') {
-    // Añadir temporada corta si está disponible: "Cuota 1 25/26"
-    if (m.season) {
-      const short = m.season.replace(/^20(\d{2})\/(\d{2,4})$/, (_: string, a: string, b: string) => `${a}/${b.slice(-2)}`)
+    // Añadir temporada corta si está disponible: "Reserva 26/27", "Cuota mensual 26/27"
+    if (season) {
+      const short = season.replace(/^20(\d{2})\/(\d{2,4})$/, (_: string, a: string, b: string) => `${a}/${b.slice(-2)}`)
       return `${m.concept} ${short}`
     }
     return m.concept
@@ -182,8 +185,8 @@ function getSourceLabel(m: CashCloseMovement): string {
     if (desc.includes('actividad')) return 'Actividad'
     return 'Otro'
   })()
-  if (baseLabel === 'Cuota' && m.season) {
-    const short = m.season.replace(/^20(\d{2})\/(\d{2,4})$/, (_: string, a: string, b: string) => `${a}/${b.slice(-2)}`)
+  if (baseLabel === 'Cuota' && season) {
+    const short = season.replace(/^20(\d{2})\/(\d{2,4})$/, (_: string, a: string, b: string) => `${a}/${b.slice(-2)}`)
     return `Cuota ${short}`
   }
   return baseLabel
