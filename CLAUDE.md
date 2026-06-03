@@ -4,6 +4,14 @@ CRM multi-tenant para clubes de fútbol. Pensado primero para E.F. Ciudad de Get
 
 ---
 
+## ⚠️ Reglas de trabajo (OBLIGATORIAS)
+
+1. **Probar antes de dar por hecho.** Después de integrar CUALQUIER cambio, ejecutar varios tests/verificaciones hasta estar 100% seguro de que funciona. No decir "listo" sin evidencia.
+2. **No hacer deploy sin confirmación.** No desplegar a producción ni dar nada por terminado hasta estar seguro de que es lo que el usuario quiere. Ante la duda, preguntar.
+3. **No hacer de más.** Hacer solo lo pedido. No añadir features ni cambios no solicitados.
+
+---
+
 ## Stack
 
 - Next.js 15 App Router (TypeScript, React 19, Server Actions)

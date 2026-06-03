@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { sendHtmlEmail } from '@/lib/email/send'
 import { resolveFee } from '@/features/configuracion/actions/season-fees.actions'
+import { bumpSeason } from '@/lib/utils/season'
 import { revalidatePath } from 'next/cache'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -406,7 +407,7 @@ export async function getSeasonRosters(): Promise<{ success: boolean; data?: Sea
       .single()
 
     const currentSeason: string = settings?.current_season ?? ''
-    const nextSeason = bumpSeason(currentSeason)
+    const nextSeason = currentSeason ? bumpSeason(currentSeason) : ''
 
     // Equipos activos (temporada actual)
     const { data: currentTeams } = await sb
@@ -507,22 +508,6 @@ export async function getSeasonRosters(): Promise<{ success: boolean; data?: Sea
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Mismo formato que season.actions.ts: '2025/26' → '2026/27' */
-function bumpSeason(season: string): string {
-  const match = season.match(/^(\d{4})\/(\d{2})$/)
-  if (match) {
-    const y1 = parseInt(match[1]) + 1
-    const y2 = parseInt(match[2])
-    const y2full = y2 >= 90 ? 1900 + y2 : 2000 + y2
-    return `${y1}/${String(y2full + 1).slice(-2)}`
-  }
-  const fullMatch = season.match(/^(\d{4})\/(\d{4})$/)
-  if (fullMatch) {
-    return `${parseInt(fullMatch[1]) + 1}/${parseInt(fullMatch[2]) + 1}`
-  }
-  return season
-}
-
 function formatDate(iso: string): string {
   const d = new Date(iso + 'T12:00:00')  // noon para evitar offset issues
   return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -575,7 +560,7 @@ export async function exportNextSeasonAssignments(): Promise<{
       .eq('club_id', clubId)
       .single()
     const currentSeason = settings?.current_season ?? '2025/26'
-    const nextSeason = bumpSeason(currentSeason)
+    const nextSeason = currentSeason ? bumpSeason(currentSeason) : ''
 
     // Cargar jugadores con next_team_id (activos, status != 'low')
     const { data: players } = await sb
