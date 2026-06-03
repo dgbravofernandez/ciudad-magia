@@ -184,6 +184,11 @@ export default async function CajaPage() {
     }
   }
 
+  // Fetch user email for superuser features
+  const supabaseUser = await createClient()
+  const { data: { user: authUser } } = await supabaseUser.auth.getUser()
+  const userEmail = authUser?.email ?? ''
+
   return (
     <div className="flex flex-col h-full">
       <Topbar title="Cierre de Caja" />
@@ -191,6 +196,7 @@ export default async function CajaPage() {
         <CashRegisterPage
           clubId={clubId}
           memberId={memberId}
+          userEmail={userEmail}
           systemCash={systemCash}
           systemCard={systemCard}
           periodStart={periodStart}

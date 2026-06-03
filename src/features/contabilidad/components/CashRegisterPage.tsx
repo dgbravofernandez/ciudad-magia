@@ -16,6 +16,8 @@ import {
   updatePayment,
   updateCashMovement,
   updateCashRegisterFloat,
+  getClosedPeriodMovements,
+  reclassifyMovement,
 } from '@/features/contabilidad/actions/accounting.actions'
 import { useRouter } from 'next/navigation'
 
@@ -85,6 +87,7 @@ interface CashClose {
 interface Props {
   clubId: string
   memberId: string
+  userEmail?: string
   systemCash: number
   systemCard: number
   periodStart: string
@@ -97,9 +100,23 @@ interface Props {
   cashRegisterFloat: number
 }
 
+const SUPER_EMAIL = 'dgbravofernandez@gmail.com'
+
+const SOURCE_OPTIONS = [
+  { value: 'cuota',     label: 'Cuota' },
+  { value: 'torneo',    label: 'Torneo' },
+  { value: 'actividad', label: 'Actividad' },
+  { value: 'ropa',      label: 'Ropa' },
+  { value: 'otro',      label: 'Otro' },
+] as const
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ClosedMovement = any
+
 export function CashRegisterPage({
   clubId,
   memberId,
+  userEmail,
   systemCash,
   systemCard,
   periodStart,
@@ -276,6 +293,63 @@ export function CashRegisterPage({
     else if (m.payment_method === 'card') sourceBreakdown[src].card     += sign * m.amount
     else                                  sourceBreakdown[src].transfer += sign * m.amount
     sourceBreakdown[src].count++
+  }
+
+  const isSuperUser = userEmail === SUPER_EMAIL
+
+  // ── Panel de gestión de cierre histórico ─────────────────────────────────────
+  const [managingClose, setManagingClose]     = useState<CashClose | null>(null)
+  const [closedMovs, setClosedMovs]           = useState<ClosedMovement[]>([])
+  const [loadingClosed, setLoadingClosed]     = useState(false)
+  const [reclassifyMov, setReclassifyMov]     = useState<ClosedMovement | null>(null)
+  const [reclassSource, setReclassSource]     = useState<string>('cuota')
+  const [reclassDesc, setReclassDesc]         = useState('')
+  const [reclasskConcept, setReclassConcept]  = useState('')
+
+  async function openManageClose(c: CashClose) {
+    setManagingClose(c)
+    setClosedMovs([])
+    setLoadingClosed(true)
+    try {
+      const res = await getClosedPeriodMovements(c.period_start, c.period_end)
+      if (res.success && res.movements) setClosedMovs(res.movements)
+      else toast.error(res.error ?? 'Error al cargar movimientos')
+    } finally {
+      setLoadingClosed(false)
+    }
+  }
+
+  function openReclassify(m: ClosedMovement) {
+    setReclassifyMov(m)
+    setReclassSource(m.source ?? 'cuota')
+    setReclassDesc(m.description ?? '')
+    setReclassConcept(m.payment_concept ?? '')
+  }
+
+  function handleReclassify() {
+    if (!reclassifyMov) return
+    startTransition(async () => {
+      const res = await reclassifyMovement({
+        movementId:     reclassifyMov.id,
+        paymentId:      reclassifyMov.related_payment_id ?? null,
+        newSource:      reclassSource as 'cuota' | 'torneo' | 'actividad' | 'otro',
+        newDescription: reclassDesc,
+        newConcept:     reclassifyMov.related_payment_id ? reclasskConcept : undefined,
+      })
+      if (res.success) {
+        toast.success('Movimiento reclasificado')
+        setReclassifyMov(null)
+        // Actualizar en el listado local sin recargar todo
+        setClosedMovs(prev => prev.map(m =>
+          m.id === reclassifyMov.id
+            ? { ...m, source: reclassSource, description: reclassDesc, payment_concept: reclasskConcept }
+            : m
+        ))
+        router.refresh()
+      } else {
+        toast.error(res.error ?? 'Error al reclasificar')
+      }
+    })
   }
 
   const [showBreakdown, setShowBreakdown]       = useState(false)
@@ -1017,6 +1091,16 @@ export function CashRegisterPage({
                       >
                         <Unlock className="w-3.5 h-3.5" /> Reabrir
                       </button>
+                      {isSuperUser && (
+                        <button
+                          onClick={() => openManageClose(c)}
+                          disabled={isPending}
+                          className="inline-flex items-center gap-1 text-xs text-purple-700 hover:text-purple-900 hover:underline font-semibold"
+                          title="Ver y reclasificar movimientos"
+                        >
+                          <Pencil className="w-3.5 h-3.5" /> Gestionar
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1128,6 +1212,152 @@ export function CashRegisterPage({
                 disabled={isPending}
               >
                 {isPending ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Gestionar cierre histórico (solo superuser) ── */}
+      {managingClose && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setManagingClose(null)}>
+          <div className="bg-background rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div>
+                <h3 className="text-lg font-semibold">Gestionar cierre: {formatDate(managingClose.period_start)} — {formatDate(managingClose.period_end)}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Puedes reclasificar la fuente de cada movimiento sin alterar importes ni fechas</p>
+              </div>
+              <button type="button" onClick={() => setManagingClose(null)} className="p-1 rounded hover:bg-muted text-muted-foreground">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {loadingClosed && <p className="text-center text-muted-foreground py-8">Cargando movimientos…</p>}
+              {!loadingClosed && closedMovs.length === 0 && (
+                <p className="text-center text-muted-foreground py-8">No hay movimientos en este período</p>
+              )}
+              {!loadingClosed && closedMovs.length > 0 && (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/40 text-xs text-muted-foreground">
+                      <th className="text-left px-3 py-2 font-medium">Fecha</th>
+                      <th className="text-left px-3 py-2 font-medium">Fuente</th>
+                      <th className="text-left px-3 py-2 font-medium">Descripción / Jugador</th>
+                      <th className="text-left px-3 py-2 font-medium">Concepto</th>
+                      <th className="text-right px-3 py-2 font-medium">Importe</th>
+                      <th className="px-3 py-2 w-24"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {closedMovs.filter((m: ClosedMovement) => m.type === 'income').map((m: ClosedMovement, i: number) => (
+                      <tr key={m.id} className={cn('border-t', i % 2 === 0 ? 'bg-white' : 'bg-muted/10')}>
+                        <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{formatDate(m.movement_date)}</td>
+                        <td className="px-3 py-2">
+                          <span className={cn(
+                            'inline-flex px-2 py-0.5 rounded-full text-xs font-medium',
+                            m.source === 'torneo' ? 'bg-orange-100 text-orange-700' :
+                            m.source === 'actividad' ? 'bg-teal-100 text-teal-700' :
+                            m.source === 'ropa' ? 'bg-pink-100 text-pink-700' :
+                            'bg-blue-100 text-blue-700'
+                          )}>
+                            {SOURCE_LABELS[m.source ?? ''] ?? m.source ?? 'Otro'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 font-medium max-w-[200px] truncate">
+                          {m.player_name || m.description}
+                        </td>
+                        <td className="px-3 py-2 text-muted-foreground text-xs">{m.payment_concept || '—'}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-green-700">{formatCurrency(m.amount)}</td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => openReclassify(m)}
+                            className="text-xs text-purple-700 hover:text-purple-900 hover:underline flex items-center gap-1"
+                          >
+                            <Pencil className="w-3 h-3" /> Cambiar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="px-6 py-3 border-t bg-muted/20 text-xs text-muted-foreground">
+              Solo visible para <strong>dgbravofernandez@gmail.com</strong> — los cambios de fuente no afectan los totales del arqueo cerrado
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Reclasificar movimiento ── */}
+      {reclassifyMov && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={() => setReclassifyMov(null)}>
+          <div className="bg-background rounded-xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Reclasificar movimiento</h3>
+              <button type="button" onClick={() => setReclassifyMov(null)} className="p-1 rounded hover:bg-muted text-muted-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              <strong>{reclassifyMov.player_name || reclassifyMov.description}</strong> — {formatDate(reclassifyMov.movement_date)} — <strong>{formatCurrency(reclassifyMov.amount)}</strong>
+            </p>
+
+            <div className="space-y-1">
+              <label className="label">Nueva fuente</label>
+              <div className="grid grid-cols-3 gap-2">
+                {SOURCE_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setReclassSource(opt.value)}
+                    className={cn(
+                      'p-2 rounded-lg border text-sm font-medium transition-colors',
+                      reclassSource === opt.value
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:border-muted-foreground'
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="label">Descripción del movimiento</label>
+              <input
+                type="text"
+                className="input w-full"
+                value={reclassDesc}
+                onChange={e => setReclassDesc(e.target.value)}
+                placeholder="Ej: Torneo - Madcup"
+              />
+            </div>
+
+            {reclassifyMov.related_payment_id && (
+              <div className="space-y-1">
+                <label className="label">Concepto del pago (quota_payments)</label>
+                <input
+                  type="text"
+                  className="input w-full"
+                  value={reclasskConcept}
+                  onChange={e => setReclassConcept(e.target.value)}
+                  placeholder="Ej: Torneo - Madcup"
+                />
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setReclassifyMov(null)} className="btn-secondary flex-1" disabled={isPending}>
+                Cancelar
+              </button>
+              <button type="button" onClick={handleReclassify} className="btn-primary flex-1" disabled={isPending || !reclassDesc.trim()}>
+                {isPending ? 'Guardando…' : 'Guardar cambios'}
               </button>
             </div>
           </div>

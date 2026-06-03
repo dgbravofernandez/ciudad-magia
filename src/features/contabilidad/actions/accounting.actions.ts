@@ -281,6 +281,114 @@ export async function updatePayment(data: {
   return { success: true }
 }
 
+// ── Gestión de períodos cerrados (solo dgbravofernandez@gmail.com) ────────────
+
+const SUPER_EMAIL = 'dgbravofernandez@gmail.com'
+
+/**
+ * Carga todos los movimientos de un período cerrado para revisión/edición.
+ * Restringido al superusuario.
+ */
+export async function getClosedPeriodMovements(periodStart: string, periodEnd: string) {
+  try {
+    const { sb, clubId } = await resolveClubAndMember()
+    // Restricción: solo el superusuario
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = createAdminClient() as any
+    const { data: { user } } = await (await import('@/lib/supabase/server')).createClient().then(c => c.auth.getUser())
+    if (!user || user.email !== SUPER_EMAIL) return { success: false, error: 'Sin acceso' }
+
+    const { data: movements, error } = await sb
+      .from('cash_movements')
+      .select('id, type, description, amount, payment_method, movement_date, source, related_payment_id, related_expense_id, related_activity_charge_id')
+      .eq('club_id', clubId)
+      .gte('movement_date', periodStart)
+      .lte('movement_date', periodEnd)
+      .order('movement_date', { ascending: false })
+
+    if (error) return { success: false, error: error.message }
+
+    // Enrich with player names and payment concepts
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const movs = (movements ?? []) as any[]
+    const paymentIds = movs.filter(m => m.related_payment_id).map(m => m.related_payment_id as string)
+
+    const paymentMap: Record<string, { player_name: string; season: string; concept: string }> = {}
+    if (paymentIds.length > 0) {
+      const { data: qps } = await sb
+        .from('quota_payments')
+        .select('id, player_id, season, concept')
+        .in('id', paymentIds)
+      const playerIds = [...new Set((qps ?? []).map((q: { player_id: string }) => q.player_id).filter(Boolean))]
+      const { data: players } = playerIds.length > 0
+        ? await sb.from('players').select('id, first_name, last_name').in('id', playerIds)
+        : { data: [] }
+      const pMap: Record<string, string> = {}
+      for (const p of (players ?? [])) pMap[p.id] = `${p.first_name} ${p.last_name}`.trim()
+      for (const q of (qps ?? [])) {
+        paymentMap[q.id] = {
+          player_name: pMap[q.player_id] ?? '',
+          season: q.season ?? '',
+          concept: q.concept ?? '',
+        }
+      }
+    }
+
+    const enriched = movs.map(m => ({
+      ...m,
+      player_name: m.related_payment_id ? (paymentMap[m.related_payment_id]?.player_name ?? '') : '',
+      payment_season: m.related_payment_id ? (paymentMap[m.related_payment_id]?.season ?? '') : '',
+      payment_concept: m.related_payment_id ? (paymentMap[m.related_payment_id]?.concept ?? '') : '',
+    }))
+
+    void supabase // suppress unused warning
+    return { success: true, movements: enriched }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
+/**
+ * Reclasifica la fuente/concepto de un movimiento de caja y su quota_payment.
+ * Permite cambiar cuota → torneo/actividad en períodos ya cerrados.
+ * Solo superusuario.
+ */
+export async function reclassifyMovement(data: {
+  movementId: string
+  paymentId?: string | null
+  newSource: 'cuota' | 'torneo' | 'actividad' | 'otro'
+  newDescription: string
+  newConcept?: string
+}) {
+  try {
+    const { sb } = await resolveClubAndMember()
+    // Restricción: solo el superusuario
+    const { data: { user } } = await (await import('@/lib/supabase/server')).createClient().then(c => c.auth.getUser())
+    if (!user || user.email !== SUPER_EMAIL) return { success: false, error: 'Sin acceso' }
+
+    // Actualizar cash_movement
+    const { error: movErr } = await sb
+      .from('cash_movements')
+      .update({ source: data.newSource, description: data.newDescription })
+      .eq('id', data.movementId)
+    if (movErr) return { success: false, error: movErr.message }
+
+    // Si hay quota_payment asociado, actualizar también su concept
+    if (data.paymentId && data.newConcept !== undefined) {
+      await sb
+        .from('quota_payments')
+        .update({ concept: data.newConcept })
+        .eq('id', data.paymentId)
+    }
+
+    revalidatePath('/contabilidad/caja')
+    revalidatePath('/contabilidad/pagos')
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
 export async function getLinkedItems() {
   const { sb, clubId } = await resolveClubAndMember()
 
