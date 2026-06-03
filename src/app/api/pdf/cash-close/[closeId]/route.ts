@@ -70,15 +70,17 @@ export async function GET(
   const clothingIds  = movs.filter((m) => m.related_clothing_order_id).map((m) => m.related_clothing_order_id as string)
 
   // movement_id → player_id (and source-specific info)
-  const movPlayerId: Record<string, string> = {}     // related_id → player_id
-  const paymentSeasonMap: Record<string, string> = {} // payment_id → season
+  const movPlayerId: Record<string, string> = {}      // related_id → player_id
+  const paymentSeasonMap: Record<string, string> = {}  // payment_id → season
+  const paymentConceptMap: Record<string, string> = {} // payment_id → concept (Cuota 1, Reserva…)
 
   if (paymentIds.length > 0) {
-    const { data } = await sb.from('quota_payments').select('id, player_id, season').in('id', paymentIds)
+    const { data } = await sb.from('quota_payments').select('id, player_id, season, concept').in('id', paymentIds)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const r of (data ?? [])) {
       if (r.player_id) movPlayerId[r.id] = r.player_id
-      if (r.season) paymentSeasonMap[r.id] = r.season
+      if (r.season)   paymentSeasonMap[r.id]  = r.season
+      if (r.concept)  paymentConceptMap[r.id] = r.concept
     }
   }
   if (attendeeIds.length > 0) {
@@ -94,19 +96,21 @@ export async function GET(
 
   // Resolve all player_ids → {name, team}
   const allPlayerIds = [...new Set(Object.values(movPlayerId))]
-  const playerMap: Record<string, { name: string; team: string }> = {}
+  const playerMap: Record<string, { name: string; team: string; nextTeam: string }> = {}
 
   if (allPlayerIds.length > 0) {
+    // Fetch both team_id (current) and next_team_id (26/27) so we can pick the right one
     const { data: playerRows } = await sb
       .from('players')
-      .select('id, first_name, last_name, team_id')
+      .select('id, first_name, last_name, team_id, next_team_id')
       .in('id', allPlayerIds)
 
+    // Collect all team ids (current + next) for a single teams query
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const teamIds = [...new Set((playerRows ?? []).filter((p: any) => p.team_id).map((p: any) => p.team_id as string))]
+    const allTeamIds = [...new Set((playerRows ?? []).flatMap((p: any) => [p.team_id, p.next_team_id].filter(Boolean)))]
 
-    const { data: teamRows } = teamIds.length > 0
-      ? await sb.from('teams').select('id, name').in('id', teamIds)
+    const { data: teamRows } = allTeamIds.length > 0
+      ? await sb.from('teams').select('id, name').in('id', allTeamIds)
       : { data: [] }
 
     const teamMap: Record<string, string> = {}
@@ -116,22 +120,29 @@ export async function GET(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const p of (playerRows ?? [])) {
       playerMap[p.id] = {
-        name: `${p.first_name} ${p.last_name}`.trim(),
-        team: p.team_id ? (teamMap[p.team_id] ?? '') : '',
+        name:        `${p.first_name} ${p.last_name}`.trim(),
+        team:        p.team_id      ? (teamMap[p.team_id]      ?? '') : '',
+        nextTeam:    p.next_team_id ? (teamMap[p.next_team_id] ?? '') : '',
       }
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function getNames(m: any): { player_name: string; team_name: string } {
-    const relatedId = m.related_payment_id ?? m.related_tournament_attendee_id ?? m.related_clothing_order_id
-    const playerId  = relatedId ? movPlayerId[relatedId] : null
-    if (playerId && playerMap[playerId]) return { player_name: playerMap[playerId].name, team_name: playerMap[playerId].team }
-    return { player_name: '', team_name: '' }
+    const relatedId  = m.related_payment_id ?? m.related_tournament_attendee_id ?? m.related_clothing_order_id
+    const playerId   = relatedId ? movPlayerId[relatedId] : null
+    if (!playerId || !playerMap[playerId]) return { player_name: '', team_name: '' }
+    const p          = playerMap[playerId] as { name: string; team: string; nextTeam: string }
+    const season     = m.related_payment_id ? (paymentSeasonMap[m.related_payment_id] ?? null) : null
+    // For 26/27 payments use the next-season team; otherwise current team
+    const teamName   = season === '2026/27' ? (p.nextTeam || p.team) : p.team
+    return { player_name: p.name, team_name: teamName }
   }
 
   const enriched: CashCloseMovement[] = movs.map((m) => {
     const { player_name, team_name } = getNames(m)
-    const season = m.related_payment_id ? (paymentSeasonMap[m.related_payment_id] ?? null) : null
+    const season  = m.related_payment_id ? (paymentSeasonMap[m.related_payment_id] ?? null) : null
+    const concept = m.related_payment_id ? (paymentConceptMap[m.related_payment_id] ?? null) : null
     return {
       player_name,
       team_name,
@@ -142,6 +153,7 @@ export async function GET(
       type:           m.type as 'income' | 'expense',
       source:         m.source ?? null,
       season,
+      concept,
     }
   })
 

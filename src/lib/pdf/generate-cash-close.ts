@@ -35,6 +35,7 @@ export interface CashCloseMovement {
   type: 'income' | 'expense'
   source?: string | null
   season?: string | null
+  concept?: string | null  // concepto real del pago (Cuota 1, Reserva, etc.)
 }
 
 export interface CashCloseParams {
@@ -163,6 +164,15 @@ function trunc(str: string, max: number) {
 }
 
 function getSourceLabel(m: CashCloseMovement): string {
+  // Si tenemos el concepto real del pago (Cuota 1, Reserva, Pago Completo…) usarlo directamente
+  if (m.concept && m.source === 'cuota') {
+    // Añadir temporada corta si está disponible: "Cuota 1 25/26"
+    if (m.season) {
+      const short = m.season.replace(/^20(\d{2})\/(\d{2,4})$/, (_: string, a: string, b: string) => `${a}/${b.slice(-2)}`)
+      return `${m.concept} ${short}`
+    }
+    return m.concept
+  }
   const baseLabel = (() => {
     if (m.source && SOURCE_LABELS[m.source]) return SOURCE_LABELS[m.source]
     const desc = m.description.toLowerCase()
@@ -172,9 +182,7 @@ function getSourceLabel(m: CashCloseMovement): string {
     if (desc.includes('actividad')) return 'Actividad'
     return 'Otro'
   })()
-  // Añadir temporada para cuotas, p.ej. "Cuota 25/26"
   if (baseLabel === 'Cuota' && m.season) {
-    // Convertir "2025/26" → "25/26" para que quepa en la columna
     const short = m.season.replace(/^20(\d{2})\/(\d{2,4})$/, (_: string, a: string, b: string) => `${a}/${b.slice(-2)}`)
     return `Cuota ${short}`
   }
@@ -456,14 +464,15 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
     y -= 8
     sectionTitle('DETALLE DE INGRESOS')
 
-    // Columnas: TIPO/CONCEPTO | JUGADOR/DESCRIPCIÓN | EQUIPO | F.PAGO | FECHA | IMPORTE
-    // TIPO más ancho para "Cuota 25/26", "Actividad", etc.
+    // Columnas: CONCEPTO | JUGADOR/DESCRIPCIÓN | EQUIPO | F.PAGO | IMPORTE
+    // CONCEPTO ampliado para "Cuota 1 26/27", "Pago Completo 25/26", "Actividad"
+    // Se elimina columna FECHA (queda en el detalle de gastos, no en ingresos para ganar espacio)
     const xTipo = ML + 6
-    const xN    = ML + 74    // TIPO = 68px
-    const xEq   = ML + 255   // JUGADOR = 181px (≈ 36 chars @ 8pt)
-    const xM    = ML + 337   // EQUIPO = 82px
-    const xD    = ML + 401   // F.PAGO = 64px
-    const xA    = ML + CW - 6  // FECHA = 104px, IMPORTE right-aligned
+    const xN    = ML + 88    // CONCEPTO = 82px (~16 chars bold)
+    const xEq   = ML + 262   // JUGADOR = 174px (≈ 34 chars)
+    const xM    = ML + 362   // EQUIPO = 100px (~16 chars)
+    const xD    = ML + 422   // F.PAGO = 60px
+    const xA    = ML + CW - 6  // FECHA = 83px, IMPORTE right
 
     tableHeader([
       { label: 'CONCEPTO',               x: xTipo },
@@ -478,10 +487,16 @@ export async function generateCashClosePDF(params: CashCloseParams): Promise<Buf
     for (let i = 0; i < incomeMovs.length; i++) {
       const m = incomeMovs[i]
       incTotal += m.amount
+      // Para ropa/torneo/actividad: limpiar el prefijo redundante de la descripción
+      // p.ej. "Ropa - Juan García (Camiseta M)" → mostrar solo "Juan García (Camiseta M)"
+      let displayName = m.player_name || m.description
+      if (!m.player_name && m.source && m.description.toLowerCase().startsWith(m.source)) {
+        displayName = m.description.replace(new RegExp(`^${m.source}\\s*-?\\s*`, 'i'), '').trim() || m.description
+      }
       tableRow([
-        { text: trunc(getSourceLabel(m), 13),                                 x: xTipo, color: COLOR_NAVY, bold: true },
-        { text: trunc(m.player_name || m.description, 34),                   x: xN    },
-        { text: trunc(m.team_name || '—', 13),                               x: xEq   },
+        { text: trunc(getSourceLabel(m), 16),                                 x: xTipo, color: COLOR_NAVY, bold: true },
+        { text: trunc(displayName, 32),                                       x: xN    },
+        { text: trunc(m.team_name || '—', 16),                               x: xEq   },
         { text: METHOD_LABELS[m.payment_method] ?? m.payment_method ?? '—',  x: xM    },
         { text: dateES(m.movement_date),                                      x: xD    },
         { text: eur(m.amount), x: xA, align: 'right', bold: true, color: COLOR_GREEN },
