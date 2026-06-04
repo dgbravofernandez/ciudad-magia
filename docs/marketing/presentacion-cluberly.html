@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; }
+  .page {
+    width: 210mm; height: 297mm; padding: 22mm 20mm; position: relative;
+    page-break-after: always; overflow: hidden; display: flex; flex-direction: column;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  /* Marca */
+  .brand-grad { background: linear-gradient(135deg,#6366F1 0%,#8B5CF6 50%,#EC4899 100%); }
+  .ink { color: #0F172A; }
+  .muted { color: #64748B; }
+  .accent { color: #6366F1; }
+
+  /* Logo */
+  .logo-row { display: flex; align-items: center; gap: 12px; }
+  .logo-mark { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+  .logo-text { font-size: 22px; font-weight: 800; letter-spacing: -0.03em; }
+
+  h1 { font-size: 40px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+  h2 { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 6mm; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px; }
+  p { font-size: 14px; line-height: 1.65; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5mm; }
+  .card { border: 1px solid #E2E8F0; border-radius: 14px; padding: 6mm; }
+  .card .ico { font-size: 26px; margin-bottom: 6px; }
+  .card h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .card p { font-size: 12.5px; color: #475569; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+
+  .foot { position: absolute; bottom: 12mm; left: 20mm; right: 20mm; display: flex; justify-content: space-between; font-size: 10px; color: #94A3B8; }
+
+  /* Precios */
+  .price-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4mm; }
+  .plan { border: 1px solid #E2E8F0; border-radius: 14px; padding: 5mm 4mm; display: flex; flex-direction: column; }
+  .plan.popular { border: 2px solid #6366F1; box-shadow: 0 8px 24px rgba(99,102,241,0.15); }
+  .plan .pname { font-weight: 800; font-size: 15px; }
+  .plan .pprice { font-size: 26px; font-weight: 800; margin: 4px 0; }
+  .plan .pprice span { font-size: 12px; color: #94A3B8; font-weight: 500; }
+  .plan .plim { font-size: 10.5px; color: #64748B; font-weight: 600; margin-bottom: 6px; }
+  .plan ul { list-style: none; }
+  .plan li { font-size: 10.5px; color: #475569; padding: 2px 0 2px 14px; position: relative; }
+  .plan li::before { content: '✓'; position: absolute; left: 0; color: #6366F1; font-weight: 800; }
+</style>
+</head>
+<body>
+
+<!-- ░░░ PÁGINA 1 — PORTADA ░░░ -->
+<div class="page brand-grad" style="color:#fff; justify-content:center; align-items:flex-start;">
+  <div class="logo-row" style="margin-bottom: 40px;">
+    <div class="logo-mark" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);">
+      <svg width="26" height="26" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="18" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/><path d="M23 5 C12.5 5 5 13 5 23 C5 33 12.5 41 23 41" stroke="white" stroke-width="3" stroke-linecap="round"/><line x1="5" y1="23" x2="41" y2="23" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/><circle cx="23" cy="23" r="4" fill="white"/></svg>
+    </div>
+    <div class="logo-text" style="color:#fff;">cluberly</div>
+  </div>
+  <h1 style="color:#fff; max-width: 150mm;">La gestión de tu club deportivo,<br>sin papeleo.</h1>
+  <p style="color:rgba(255,255,255,0.85); font-size:17px; margin-top:18px; max-width:130mm;">
+    Jugadores, cuotas, asistencia, comunicaciones y contabilidad — todo en un solo sitio.
+    Multideporte. Sin Excel. Sin perseguir a nadie.
+  </p>
+  <div style="margin-top:auto; display:flex; gap:10px;">
+    <span class="pill" style="background:rgba(255,255,255,0.18); color:#fff;">⚽ Fútbol</span>
+    <span class="pill" style="background:rgba(255,255,255,0.18); color:#fff;">🎾 Tenis</span>
+    <span class="pill" style="background:rgba(255,255,255,0.18); color:#fff;">🏀 Baloncesto</span>
+    <span class="pill" style="background:rgba(255,255,255,0.18); color:#fff;">🥋 Artes marciales</span>
+  </div>
+</div>
+
+<!-- ░░░ PÁGINA 2 — EL PROBLEMA ░░░ -->
+<div class="page">
+  <div class="eyebrow" style="color:#EF4444;">El problema</div>
+  <h2>¿Tu club todavía funciona con Excel y WhatsApp?</h2>
+  <p class="muted" style="margin-bottom:8mm;">El día a día de la mayoría de clubes amateur — y lo que cuesta en horas y dinero.</p>
+  <div class="grid2" style="flex:1;">
+    <div class="card"><div class="ico">📋</div><h3>Listas interminables</h3><p>Excels que nadie entiende, versiones desactualizadas, datos que se pierden.</p></div>
+    <div class="card"><div class="ico">💸</div><h3>Cobros imposibles</h3><p>Perseguir a las familias por WhatsApp cada mes para cobrar la cuota.</p></div>
+    <div class="card"><div class="ico">📅</div><h3>Asistencia manual</h3><p>Listas en papel, fotos de WhatsApp… o directamente nada registrado.</p></div>
+    <div class="card"><div class="ico">📧</div><h3>Comunicación caótica</h3><p>Grupos de WhatsApp, emails con copia oculta, respuestas perdidas.</p></div>
+  </div>
+  <div style="margin-top:8mm; background:#FEF2F2; border:1px solid #FECACA; border-radius:12px; padding:5mm;">
+    <p style="color:#991B1B; font-weight:600;">⏱️ Una secretaría dedica de media <strong>8 horas a la semana</strong> a gestión manual. A 12 €/h, son casi <strong>400 € al mes</strong> en tiempo perdido.</p>
+  </div>
+  <div class="foot"><span>cluberly</span><span>2 / 8</span></div>
+</div>
+
+<!-- ░░░ PÁGINA 3 — LA SOLUCIÓN ░░░ -->
+<div class="page">
+  <div class="eyebrow accent">La solución</div>
+  <h2>Todo tu club en una sola aplicación</h2>
+  <p class="muted" style="margin-bottom:8mm;">Pensada para directivos, coordinadores y entrenadores. No para informáticos.</p>
+  <div class="grid3" style="flex:1; grid-template-rows: 1fr 1fr;">
+    <div class="card"><div class="ico">👥</div><h3>Jugadores</h3><p>Ficha completa: equipo, pagos, lesiones, sanciones, documentos.</p></div>
+    <div class="card"><div class="ico">💳</div><h3>Cuotas y pagos</h3><p>Recordatorios automáticos. Vista clara de deudas. Recibos en PDF.</p></div>
+    <div class="card"><div class="ico">📆</div><h3>Sesiones y asistencia</h3><p>Entrenamientos y partidos. Asistencia y minutos por jugador.</p></div>
+    <div class="card"><div class="ico">✉️</div><h3>Comunicaciones</h3><p>Emails masivos o individuales con plantillas y seguimiento.</p></div>
+    <div class="card"><div class="ico">📊</div><h3>Contabilidad e informes</h3><p>Gastos, cierre de caja, balance y estadísticas de temporada.</p></div>
+    <div class="card"><div class="ico">📝</div><h3>Inscripciones online</h3><p>Formulario público: los nuevos socios se dan de alta solos.</p></div>
+  </div>
+  <div class="foot"><span>cluberly</span><span>3 / 8</span></div>
+</div>
+
+<!-- ░░░ PÁGINA 4 — FUNCIONALIDADES AVANZADAS ░░░ -->
+<div class="page">
+  <div class="eyebrow accent">Funcionalidades</div>
+  <h2>Más de lo que esperas de un CRM deportivo</h2>
+  <div class="grid2" style="flex:1;">
+    <div class="card"><div class="ico">⚽</div><h3>Partidos y métricas</h3><p>Resultados, goles, tarjetas y minutos. Estadísticas por jugador y equipo.</p></div>
+    <div class="card"><div class="ico">🩹</div><h3>Lesiones y evaluaciones</h3><p>Seguimiento de lesiones y valoraciones del cuerpo técnico.</p></div>
+    <div class="card"><div class="ico">🏆</div><h3>Torneos</h3><p>Organiza grupos y eliminatorias con clasificación automática.</p></div>
+    <div class="card"><div class="ico">👕</div><h3>Ropa y pedidos</h3><p>Gestión de equipaciones y seguimiento de pedidos.</p></div>
+    <div class="card"><div class="ico">🔗</div><h3>Integración Google Sheets</h3><p>Sincronización automática de datos con tus hojas de cálculo.</p></div>
+    <div class="card"><div class="ico">🔒</div><h3>Roles y permisos</h3><p>8 niveles de acceso: cada persona ve solo lo que le corresponde.</p></div>
+  </div>
+  <div class="foot"><span>cluberly</span><span>4 / 8</span></div>
+</div>
+
+<!-- ░░░ PÁGINA 5 — CÓMO FUNCIONA ░░░ -->
+<div class="page">
+  <div class="eyebrow accent">Cómo funciona</div>
+  <h2>En marcha en menos de 30 minutos</h2>
+  <div style="display:flex; flex-direction:column; gap:6mm; flex:1; justify-content:center;">
+    <div style="display:flex; gap:6mm; align-items:center;">
+      <div class="logo-mark brand-grad" style="color:#fff; font-size:20px; font-weight:800; width:50px; height:50px;">1</div>
+      <div><h3 style="font-size:17px; font-weight:700;">Creas tu cuenta</h3><p class="muted">Te registras, configuras tu club y subes tu escudo. 5 minutos.</p></div>
+    </div>
+    <div style="display:flex; gap:6mm; align-items:center;">
+      <div class="logo-mark brand-grad" style="color:#fff; font-size:20px; font-weight:800; width:50px; height:50px;">2</div>
+      <div><h3 style="font-size:17px; font-weight:700;">Migramos tus datos gratis</h3><p class="muted">Nos pasas tu Excel y subimos a todos tus jugadores por ti. Sin coste.</p></div>
+    </div>
+    <div style="display:flex; gap:6mm; align-items:center;">
+      <div class="logo-mark brand-grad" style="color:#fff; font-size:20px; font-weight:800; width:50px; height:50px;">3</div>
+      <div><h3 style="font-size:17px; font-weight:700;">Todo en marcha</h3><p class="muted">Cuotas, sesiones, comunicaciones. Tu club digital desde el primer día.</p></div>
+    </div>
+  </div>
+  <div style="background:#EEF2FF; border-radius:12px; padding:5mm; text-align:center;">
+    <p style="color:#4338CA; font-weight:700;">🎁 Prueba gratis 14 días · Sin tarjeta de crédito · Cancela cuando quieras</p>
+  </div>
+  <div class="foot"><span>cluberly</span><span>5 / 8</span></div>
+</div>
+
+<!-- ░░░ PÁGINA 6 — PRECIOS ░░░ -->
+<div class="page">
+  <div class="eyebrow accent">Precios</div>
+  <h2>Sin sorpresas. Sin permanencia.</h2>
+  <p class="muted" style="margin-bottom:7mm;">Pago mensual o anual (2 meses gratis). Cambia de plan cuando quieras.</p>
+  <div class="price-grid" style="flex:1;">
+    <div class="plan">
+      <div class="pname">🌱 Básico</div>
+      <div class="pprice">39€<span>/mes</span></div>
+      <div class="plim">Hasta 100 jugadores</div>
+      <ul><li>Jugadores</li><li>Cuotas y pagos</li><li>Comunicaciones</li><li>Inscripción online</li></ul>
+    </div>
+    <div class="plan popular">
+      <div class="pill brand-grad" style="color:#fff; align-self:flex-start; margin-bottom:4px;">⭐ Popular</div>
+      <div class="pname">🏆 Pro</div>
+      <div class="pprice">89€<span>/mes</span></div>
+      <div class="plim">Hasta 300 jugadores</div>
+      <ul><li>Todo lo de Básico</li><li>Sesiones y asistencia</li><li>Contabilidad completa</li><li>Recordatorios auto.</li><li>Migración gratis</li></ul>
+    </div>
+    <div class="plan">
+      <div class="pname">🎯 Club</div>
+      <div class="pprice">149€<span>/mes</span></div>
+      <div class="plim">Hasta 600 jugadores</div>
+      <ul><li>Todo lo de Pro</li><li>Evaluaciones</li><li>Lesiones avanzado</li><li>Google Sheets</li><li>Soporte prioritario</li></ul>
+    </div>
+    <div class="plan">
+      <div class="pname">👑 Personalizado</div>
+      <div class="pprice" style="font-size:18px;">A medida</div>
+      <div class="plim">Federaciones y +600</div>
+      <ul><li>Jugadores ilimitados</li><li>Integraciones a medida</li><li>Onboarding presencial</li><li>SLA garantizado</li></ul>
+    </div>
+  </div>
+  <div style="margin-top:6mm; background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:4mm;">
+    <p style="color:#166534;"><strong>💡 Kit Digital:</strong> los clubes con CIF pueden financiar Cluberly con el bono del Kit Digital (hasta 3.000 €). Consúltanos.</p>
+  </div>
+  <div class="foot"><span>cluberly</span><span>6 / 8</span></div>
+</div>
+
+<!-- ░░░ PÁGINA 7 — PRUEBA SOCIAL ░░░ -->
+<div class="page brand-grad" style="color:#fff;">
+  <div class="eyebrow" style="color:rgba(255,255,255,0.8);">Resultados reales</div>
+  <h2 style="color:#fff;">Lo que consigue un club con Cluberly</h2>
+  <div class="grid3" style="margin:8mm 0;">
+    <div style="text-align:center;"><div style="font-size:46px; font-weight:800;">95%</div><p style="color:rgba(255,255,255,0.85);">de cuotas cobradas con recordatorios automáticos</p></div>
+    <div style="text-align:center;"><div style="font-size:46px; font-weight:800;">6h</div><p style="color:rgba(255,255,255,0.85);">ahorradas a la semana en administración</p></div>
+    <div style="text-align:center;"><div style="font-size:46px; font-weight:800;">280</div><p style="color:rgba(255,255,255,0.85);">jugadores gestionados sin un solo Excel</p></div>
+  </div>
+  <div style="background:rgba(255,255,255,0.12); border-radius:14px; padding:7mm; margin-top:auto;">
+    <p style="font-size:18px; font-style:italic; line-height:1.6;">"Antes la secretaría perdía la mañana persiguiendo pagos. Ahora los avisos se
+    envían solos y cobramos casi todo sin llamar a nadie."</p>
+    <p style="margin-top:10px; font-weight:700;">— E.F. Ciudad de Getafe</p>
+  </div>
+  <div class="foot" style="color:rgba(255,255,255,0.7);"><span>cluberly</span><span>7 / 8</span></div>
+</div>
+
+<!-- ░░░ PÁGINA 8 — CTA ░░░ -->
+<div class="page" style="justify-content:center; align-items:center; text-align:center;">
+  <div class="logo-mark brand-grad" style="width:64px; height:64px; margin-bottom:20px;">
+    <svg width="38" height="38" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="18" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/><path d="M23 5 C12.5 5 5 13 5 23 C5 33 12.5 41 23 41" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="23" cy="23" r="4" fill="white"/></svg>
+  </div>
+  <h1 style="font-size:34px; max-width:150mm;">Tu club merece una gestión profesional</h1>
+  <p class="muted" style="font-size:16px; margin:16px 0 30px; max-width:120mm;">
+    Pruébalo gratis durante 14 días, sin compromiso. Si migras desde Excel, subimos tus datos por ti.
+  </p>
+  <div class="pill brand-grad" style="color:#fff; font-size:15px; padding:12px 28px;">cluberly.vercel.app — Empieza gratis</div>
+  <div style="margin-top:40px;">
+    <p class="muted" style="font-size:13px;">📧 iakevoapp@gmail.com</p>
+    <p class="muted" style="font-size:13px;">🌐 cluberly.vercel.app</p>
+  </div>
+  <div class="foot"><span>cluberly · El club bien llevado</span><span>8 / 8</span></div>
+</div>
+
+</body>
+</html>
