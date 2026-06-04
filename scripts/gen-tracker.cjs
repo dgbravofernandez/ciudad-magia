@@ -36,6 +36,38 @@ const ejemplos = [
   N('Sporting Ciempozuelos', 'Ciempozuelos', 'sportingciempozuelos.es', 'Escuela base nueva — buen perfil'),
   N('CD Ciempozuelos', 'Ciempozuelos', ''),
   N('E.F. Parla', 'Parla', '', 'Verificar nombre exacto'),
+  // ── Corredor del Henares ──
+  N('Real Sociedad Deportiva Alcalá', 'Alcalá de Henares', 'rsdalcala.com', 'Grande — tiene base'),
+  N('Club DYS Sport Alcalá', 'Alcalá de Henares', ''),
+  N('CD San Fernando', 'San Fernando de Henares', ''),
+  N('AD Torrejón CF', 'Torrejón de Ardoz', ''),
+  N('CD Coslada', 'Coslada', ''),
+  // ── Zona Norte ──
+  N('Club Juventud Sanse', 'San Sebastián de los Reyes', '', '900 jugadores, +50 equipos — gran perfil'),
+  N('UD San Sebastián de los Reyes', 'San Sebastián de los Reyes', '', '600 cantera — grande'),
+  N('Academia Fútbol Alcobendas', 'Alcobendas', ''),
+  N('Alcobendas CF', 'Alcobendas', ''),
+  N('Rayo Ciudad Alcobendas CF', 'Alcobendas', ''),
+  N('AD Colmenar Viejo', 'Colmenar Viejo', ''),
+  N('EF Siete Picos', 'Colmenar Viejo', ''),
+  N('CD Fútbol Tres Cantos', 'Tres Cantos', ''),
+  N('AD Fútbol Base 3 Cantos', 'Tres Cantos', ''),
+  N('UD Tres Cantos', 'Tres Cantos', ''),
+  // ── Zona Oeste ──
+  N('Club FDE', 'Pozuelo de Alarcón', 'clubfde.com'),
+  N('AD Cala Pozuelo', 'Pozuelo de Alarcón', ''),
+  N('EF Mentema Boadilla', 'Boadilla del Monte', 'facebook.com/efmentemaboadilla'),
+  N('CD Nuevo Boadilla', 'Boadilla del Monte', ''),
+  N('Las Rozas CF', 'Las Rozas', ''),
+  N('CD Majadahonda', 'Majadahonda', ''),
+  N('AD Villaviciosa de Odón - Amistad', 'Villaviciosa de Odón', ''),
+  // ── Sur ampliado ──
+  N('CD Sitio de Aranjuez', 'Aranjuez', ''),
+  N('Real Aranjuez CF', 'Aranjuez', ''),
+  N('CDM Arroyomolinos', 'Arroyomolinos', ''),
+  N('CDA Navalcarnero', 'Navalcarnero', ''),
+  N('EF San Martín de la Vega', 'San Martín de la Vega', ''),
+  N('CD Arroyo', 'Humanes de Madrid', ''),
 ]
 const wsSeg = XLSX.utils.aoa_to_sheet([headers, ...ejemplos])
 wsSeg['!cols'] = [
@@ -121,7 +153,8 @@ const fuentes = [
   ['   · Madrid (RFFM):  https://www.rffm.es/competiciones/directorio-de-clubs'],
   ['   · Cada comunidad tiene su federación con su "directorio de clubes". Busca en Google:'],
   ['        "directorio de clubes" + [tu federación]  (ej: FCF Cataluña, RFAF Andalucía, FFCV Valencia, FGF Galicia...)'],
-  ['   · Agregador nacional por federación:  https://www.futbol-regional.es'],
+  ['   · Listado de TODOS los clubes RFFM (escudos):  https://www.futbol-regional.es/escudos.php?fed=25'],
+  ['   · Páginas Amarillas (clubes deportivos Madrid):  https://www.paginasamarillas.es/a/clubes-deportivos/madrid/'],
   [''],
   ['2) GOOGLE MAPS (rápido y con teléfono + web públicos)'],
   ['   · Busca: "club de fútbol" + provincia/ciudad  (ej: "club de futbol Getafe").'],
