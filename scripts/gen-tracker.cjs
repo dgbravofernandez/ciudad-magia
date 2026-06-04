@@ -8,17 +8,18 @@ const ESTADOS = ['Nuevo', 'Email 1', 'Email 2', 'Email 3', 'Respondió', 'Demo a
 // ── Hoja 1: Seguimiento ───────────────────────────────────────────────────────
 // IMPORTANTE: "Estado" debe quedar en la columna G (la hoja Resumen usa COUNTIF sobre G).
 const headers = [
-  'Club', 'Ubicación', 'Web', 'Email', 'Teléfono', 'Federación / Liga',
+  'Club', 'Ubicación', 'Web', 'Email', 'Teléfono', 'Deporte / Federación',
   'Estado', 'Persona contacto', 'Fecha 1er contacto', 'Emails enviados',
   'Fecha último contacto', 'Próxima acción', 'Fecha próx. acción', 'Notas',
 ]
 // Helper para una fila "Nuevo": email/tel a verificar (NUNCA inventados).
-const N = (club, ubi, web, notas = '') =>
-  [club, ubi, web || 'verificar', 'verificar (web/rffm.es)', 'verificar', 'RFFM', 'Nuevo', '', '', '0', '', 'Enviar Email 1', '', notas]
+// deporte por defecto fútbol; pásalo para otros deportes (Cluberly es multideporte).
+const N = (club, ubi, web, notas = '', deporte = 'Fútbol · RFFM') =>
+  [club, ubi, web || 'verificar', 'verificar (web)', 'verificar', deporte, 'Nuevo', '', '', '0', '', 'Enviar Email 1', '', notas]
 
 // Semilla real ZONA SUR DE MADRID (web verificada donde se encontró; contactos a verificar)
 const ejemplos = [
-  ['E.F. Ciudad de Getafe', 'Getafe', 'efciudaddegetafe.com', 'info@efciudaddegetafe.com', '', 'RFFM', 'Cliente', 'Diego', '', '', '', '—', '', 'CLIENTE / caso de éxito'],
+  ['E.F. Ciudad de Getafe', 'Getafe', 'efciudaddegetafe.com', 'info@efciudaddegetafe.com', '', 'Fútbol · RFFM', 'Cliente', 'Diego', '', '', '', '—', '', 'CLIENTE / caso de éxito'],
   N('Escuela Fútbol Pachón y López', 'Getafe', 'facebook.com/EFPachonLopez', 'Escuela base'),
   N('Tecnificación El Bercial', 'Getafe (El Bercial)', 'tecnificacionelbercial.com'),
   N('Getafe CF', 'Getafe', 'getafecf.com', 'Grande/pro — baja prioridad'),
@@ -68,6 +69,22 @@ const ejemplos = [
   N('CDA Navalcarnero', 'Navalcarnero', ''),
   N('EF San Martín de la Vega', 'San Martín de la Vega', ''),
   N('CD Arroyo', 'Humanes de Madrid', ''),
+  // ── BALONCESTO (FBM) ──
+  N('CB Pozuelo', 'Pozuelo de Alarcón', '', '38 equipos, 460 jugadores — gran perfil', 'Baloncesto · FBM'),
+  N('CB Fuenlabrada', 'Fuenlabrada', '', 'Cantera reconocida', 'Baloncesto · FBM'),
+  N('CB Getafe', 'Getafe', '', 'Gran cantera zona sur', 'Baloncesto · FBM'),
+  N('Baloncesto Alcobendas', 'Alcobendas', '', '', 'Baloncesto · FBM'),
+  // ── FÚTBOL SALA ──
+  N('CDE Móstoles Futsal', 'Móstoles', '', '', 'Fútbol sala · RFFM'),
+  N('FSF Móstoles', 'Móstoles', 'fsfmostoles.webnode.es', 'Femenino, base desde 8 años', 'Fútbol sala · RFFM'),
+  N('Carnicer Torrejón FS', 'Torrejón de Ardoz', '', '', 'Fútbol sala · RFFM'),
+  N('Marsanz Torrejón FS', 'Torrejón de Ardoz', '', '', 'Fútbol sala · RFFM'),
+  N('CD Leganés FS', 'Leganés', '', '', 'Fútbol sala · RFFM'),
+  // ── VOLEIBOL (FM Voley) ──
+  N('Club Voleibol Leganés', 'Leganés', 'cvleganes.com', 'Gran cantera', 'Voleibol · FM Voley'),
+  N('Club Voleibol Alcobendas', 'Alcobendas', '', '', 'Voleibol · FM Voley'),
+  N('VP Madrid', 'Madrid', 'vpmadrid.com', 'Muchos equipos — buen perfil', 'Voleibol · FM Voley'),
+  N('Club Stars Sport Madrid', 'Madrid', 'clubstarssportmadrid.com', '', 'Voleibol · FM Voley'),
 ]
 const wsSeg = XLSX.utils.aoa_to_sheet([headers, ...ejemplos])
 wsSeg['!cols'] = [
@@ -155,6 +172,13 @@ const fuentes = [
   ['        "directorio de clubes" + [tu federación]  (ej: FCF Cataluña, RFAF Andalucía, FFCV Valencia, FGF Galicia...)'],
   ['   · Listado de TODOS los clubes RFFM (escudos):  https://www.futbol-regional.es/escudos.php?fed=25'],
   ['   · Páginas Amarillas (clubes deportivos Madrid):  https://www.paginasamarillas.es/a/clubes-deportivos/madrid/'],
+  [''],
+  ['1b) OTROS DEPORTES — Cluberly es MULTIDEPORTE (no te limites a fútbol):'],
+  ['   · Baloncesto (FBM):  https://fbm.es/es/resultados-clubes'],
+  ['   · Voleibol (FM Voley):  https://fmvoley.com/clubes'],
+  ['   · Fútbol sala:  dentro de RFFM + Páginas Amarillas (/clubes-de-futbol-sala/madrid/)'],
+  ['   · Balonmano, natación, tenis, pádel...: cada deporte tiene su federación madrileña con listado de clubes.'],
+  ['   · Multideporte: las "escuelas deportivas municipales" de cada ayuntamiento agrupan TODOS los deportes.'],
   [''],
   ['2) GOOGLE MAPS (rápido y con teléfono + web públicos)'],
   ['   · Busca: "club de fútbol" + provincia/ciudad  (ej: "club de futbol Getafe").'],
