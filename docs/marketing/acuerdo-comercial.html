@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 0; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  body { font-family:'Helvetica Neue',Arial,sans-serif; color:#1e293b; }
+  .page { width:210mm; height:297mm; padding:20mm; position:relative; page-break-after:always; overflow:hidden; display:flex; flex-direction:column; }
+  .page:last-child { page-break-after:auto; }
+  .brand-grad { background:linear-gradient(135deg,#6366F1 0%,#8B5CF6 50%,#EC4899 100%); }
+  .accent { color:#6366F1; }
+  .muted { color:#64748B; }
+  h1 { font-size:34px; font-weight:800; letter-spacing:-0.03em; line-height:1.1; }
+  h2 { font-size:24px; font-weight:800; letter-spacing:-0.02em; margin-bottom:5mm; }
+  h3 { font-size:15px; font-weight:700; }
+  p { font-size:13.5px; line-height:1.6; }
+  .eyebrow { font-size:11px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:8px; }
+  .logo-row { display:flex; align-items:center; gap:10px; }
+  .logo-mark { width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; }
+  .card { border:1px solid #E2E8F0; border-radius:12px; padding:5mm; }
+  .hl { background:#EEF2FF; border:1px solid #C7D2FE; border-radius:12px; padding:5mm; }
+  .hl-green { background:#F0FDF4; border:1px solid #BBF7D0; border-radius:12px; padding:5mm; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th { background:#F1F5F9; text-align:left; padding:7px 10px; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:#475569; }
+  td { padding:7px 10px; border-bottom:1px solid #EEF2F6; }
+  .foot { position:absolute; bottom:10mm; left:20mm; right:20mm; display:flex; justify-content:space-between; font-size:10px; color:#94A3B8; }
+  .big { font-size:30px; font-weight:800; }
+  ul.clean { list-style:none; }
+  ul.clean li { padding:3px 0 3px 18px; position:relative; font-size:13px; }
+  ul.clean li::before { content:'✓'; position:absolute; left:0; color:#6366F1; font-weight:800; }
+</style>
+</head>
+<body>
+
+<!-- PÁGINA 1 — PORTADA -->
+<div class="page brand-grad" style="color:#fff; justify-content:center;">
+  <div class="logo-row" style="margin-bottom:36px;">
+    <div class="logo-mark" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3);">
+      <svg width="24" height="24" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="18" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/><path d="M23 5 C12.5 5 5 13 5 23 C5 33 12.5 41 23 41" stroke="white" stroke-width="3" stroke-linecap="round"/><circle cx="23" cy="23" r="4" fill="white"/></svg>
+    </div>
+    <div style="font-size:20px; font-weight:800;">cluberly</div>
+  </div>
+  <h1 style="color:#fff; max-width:150mm;">Propuesta de colaboración comercial</h1>
+  <p style="color:rgba(255,255,255,0.9); font-size:16px; margin-top:16px; max-width:135mm;">
+    Vende Cluberly a clubes deportivos y construye una renta recurrente que crece sola — más una prima si vendemos la empresa.
+  </p>
+  <div style="margin-top:36px; background:rgba(255,255,255,0.12); border-radius:12px; padding:6mm; max-width:140mm;">
+    <p style="color:#fff; font-size:15px;"><strong>Lo esencial en una frase:</strong> te llevas el <strong>50% del beneficio</strong> de cada club que cierres, <strong>para siempre</strong> mientras siga activo, y el <strong>10% del precio de venta</strong> el día que vendamos.</p>
+  </div>
+  <p style="color:rgba(255,255,255,0.6); font-size:11px; margin-top:auto;">Documento de trabajo · los términos definitivos se firman en contrato aparte.</p>
+</div>
+
+<!-- PÁGINA 2 — CÓMO GANAS DINERO -->
+<div class="page">
+  <div class="eyebrow accent">El trato</div>
+  <h2>Cómo ganas dinero</h2>
+  <div class="hl" style="margin-bottom:6mm;">
+    <p><strong>50% del beneficio neto</strong> (suscripciones + implantación, menos los costes de infraestructura) de <strong>los clientes que tú cierres</strong>, cada mes, mientras el club siga activo.</p>
+  </div>
+
+  <h3 style="margin-bottom:8px;">Ejemplo con un club Pro (89 €/mes):</h3>
+  <div style="display:flex; gap:5mm; margin-bottom:6mm;">
+    <div class="card" style="flex:1; text-align:center;">
+      <div class="muted" style="font-size:11px; text-transform:uppercase; font-weight:700;">Al cerrarlo</div>
+      <div class="big accent">~125 €</div>
+      <div class="muted" style="font-size:12px;">tu 50% de la implantación</div>
+    </div>
+    <div class="card" style="flex:1; text-align:center;">
+      <div class="muted" style="font-size:11px; text-transform:uppercase; font-weight:700;">Cada mes, para siempre</div>
+      <div class="big accent">~40 €</div>
+      <div class="muted" style="font-size:12px;">tu 50% de la cuota neta</div>
+    </div>
+  </div>
+
+  <div class="hl-green" style="margin-bottom:6mm;">
+    <p style="color:#166534;"><strong>La clave: el residual se acumula.</strong> Si cierras 30 clubes Pro, son ~1.200 €/mes que cobras <strong>aunque no vendas nada nuevo</strong>. Cada club que sumas se queda contigo.</p>
+  </div>
+
+  <h3 style="margin-bottom:8px;">Y cuando vendamos la empresa:</h3>
+  <div class="card">
+    <p><strong>10% del precio neto de venta</strong>, siempre que sigas activo como comercial en ese momento. Si Cluberly se vende por 300.000-420.000 € (escenario realista en 2028-2029), son <strong>30.000-42.000 € de golpe</strong> para ti, encima de todo lo cobrado antes.</p>
+  </div>
+  <div class="foot"><span>cluberly · colaboración comercial</span><span>2 / 6</span></div>
+</div>
+
+<!-- PÁGINA 3 — OBJETIVOS Y PLUSES -->
+<div class="page">
+  <div class="eyebrow accent">Objetivos y pluses</div>
+  <h2>Bonos por encima de la comisión</h2>
+  <p class="muted" style="margin-bottom:6mm;">La comisión es tuya siempre. Estos bonos son extra, para premiar el arranque, el volumen y la retención.</p>
+
+  <table style="margin-bottom:6mm;">
+    <thead><tr><th>Plus</th><th>Cómo se consigue</th><th style="text-align:right;">Bono</th></tr></thead>
+    <tbody>
+      <tr><td>🚀 Arranque</td><td>Primeros 5 clubes en los primeros 60 días</td><td style="text-align:right; font-weight:700;">+300 €</td></tr>
+      <tr><td>📈 Hito 15</td><td>Llegar a 15 clubes activos</td><td style="text-align:right; font-weight:700;">+500 €</td></tr>
+      <tr><td>🏆 Hito 30</td><td>Llegar a 30 clubes activos</td><td style="text-align:right; font-weight:700;">+1.000 €</td></tr>
+      <tr><td>🔒 Retención</td><td>Menos del 5% de bajas al cierre del año</td><td style="text-align:right; font-weight:700;">+1.000 €</td></tr>
+      <tr><td>💰 Venta</td><td>10% del precio neto si vendemos la empresa</td><td style="text-align:right; font-weight:700;">10%</td></tr>
+    </tbody>
+  </table>
+
+  <div class="hl">
+    <p><strong>Por qué la retención importa tanto:</strong> tú cobras mientras el club siga. Si cuidas a los clientes y no se van, tu renta crece sin parar. Tu interés y el de Cluberly son el mismo: clubes contentos que se quedan.</p>
+  </div>
+
+  <h3 style="margin:7mm 0 8px;">Tu objetivo del primer año</h3>
+  <div style="display:flex; gap:5mm;">
+    <div class="card" style="flex:1; text-align:center;"><div class="big accent">26+</div><div class="muted" style="font-size:12px;">clubes en 12 meses</div></div>
+    <div class="card" style="flex:1; text-align:center;"><div class="big accent">&lt;5%</div><div class="muted" style="font-size:12px;">de bajas</div></div>
+    <div class="card" style="flex:1; text-align:center;"><div class="big accent">~10.800 €</div><div class="muted" style="font-size:12px;">tu ingreso año 1 (comisión + bonos)</div></div>
+  </div>
+  <div class="foot"><span>cluberly · colaboración comercial</span><span>3 / 6</span></div>
+</div>
+
+<!-- PÁGINA 4 — METAS INTERMEDIAS (EMBUDO) -->
+<div class="page">
+  <div class="eyebrow accent">El camino</div>
+  <h2>Metas intermedias: cómo llegamos</h2>
+  <p class="muted" style="margin-bottom:5mm;">Trabajando media jornada, esta es la cadencia realista. La clave es la constancia, no los milagros.</p>
+
+  <div class="card" style="margin-bottom:5mm; background:#F8FAFC;">
+    <p style="font-size:12.5px;"><strong>El embudo (números reales de venta B2B):</strong><br>
+    De cada <strong>~25 contactos</strong> sale <strong>1 demo</strong>. De cada <strong>4 demos</strong> sale <strong>1 cliente</strong>. → ~100 contactos por club.<br>
+    <span class="accent" style="font-weight:700;">Con referencias y acuerdos de federación, el cierre sube al 40% y hacen falta la mitad de contactos.</span></p>
+  </div>
+
+  <table style="margin-bottom:5mm;">
+    <thead><tr><th>Periodo</th><th>Contactos</th><th>Demos</th><th>Cierres</th><th>Clubes acum.</th><th style="text-align:right;">Tu comisión acum.</th></tr></thead>
+    <tbody>
+      <tr><td>Mes 1-3</td><td>450</td><td>24</td><td>6</td><td>6</td><td style="text-align:right;">~1.500 €</td></tr>
+      <tr><td>Mes 4-6</td><td>500</td><td>28</td><td>7</td><td>13</td><td style="text-align:right;">~3.500 €</td></tr>
+      <tr><td>Mes 7-9</td><td>500</td><td>28</td><td>7</td><td>20</td><td style="text-align:right;">~6.000 €</td></tr>
+      <tr><td>Mes 10-12</td><td>450</td><td>24</td><td>6</td><td>26</td><td style="text-align:right;">~9.000 €</td></tr>
+    </tbody>
+  </table>
+
+  <h3 style="margin-bottom:6px;">Rutina semanal (media jornada)</h3>
+  <ul class="clean">
+    <li>~10 contactos/día por email (automatizado, secuencia de 3 toques que para al responder).</li>
+    <li>2 demos a la semana de 20 minutos (Zoom), cerrando en la misma llamada con prueba gratis.</li>
+    <li>El atajo: contactar federaciones y ligas locales — un solo acuerdo trae 10-30 clubes calientes.</li>
+  </ul>
+  <div class="foot"><span>cluberly · colaboración comercial</span><span>4 / 6</span></div>
+</div>
+
+<!-- PÁGINA 5 — CUÁNTO PUEDES GANAR -->
+<div class="page">
+  <div class="eyebrow accent">El potencial</div>
+  <h2>Cuánto puedes ganar (3 años)</h2>
+  <p class="muted" style="margin-bottom:6mm;">La gracia del residual: cada año cobras lo nuevo + todo lo acumulado de antes.</p>
+
+  <table style="margin-bottom:6mm;">
+    <thead><tr><th>Año</th><th>Clubes activos</th><th>De dónde sale</th><th style="text-align:right;">Tu ingreso anual</th></tr></thead>
+    <tbody>
+      <tr><td>Año 1</td><td>~26</td><td>Comisión + bonos de arranque</td><td style="text-align:right; font-weight:700;">~10.800 €</td></tr>
+      <tr><td>Año 2</td><td>~55</td><td>Residual creciente + nuevos cierres</td><td style="text-align:right; font-weight:700;">~18.000-22.000 €</td></tr>
+      <tr><td>Año 3</td><td>~85</td><td>Residual + nuevos</td><td style="text-align:right; font-weight:700;">~28.000-38.000 €</td></tr>
+    </tbody>
+  </table>
+
+  <div class="hl-green" style="margin-bottom:6mm;">
+    <p style="color:#166534;"><strong>El premio gordo — la venta.</strong> Si Cluberly se vende en 2028-2029 por 300.000-420.000 €, tu 10% son <strong>30.000-42.000 € de una vez</strong>. Por eso te interesa que la empresa crezca y los clubes se queden, igual que a nosotros.</p>
+  </div>
+
+  <div class="hl">
+    <p><strong>En año 3 cobras ~2.500-3.000 €/mes aunque no cierres ni un cliente nuevo.</strong> Eso es lo que construyes cerrando rápido los primeros meses: una renta que trabaja por ti.</p>
+  </div>
+  <div class="foot"><span>cluberly · colaboración comercial</span><span>5 / 6</span></div>
+</div>
+
+<!-- PÁGINA 6 — REGLAS Y FIRMA -->
+<div class="page">
+  <div class="eyebrow accent">Las reglas, claras</div>
+  <h2>Para que no haya dudas</h2>
+  <ul class="clean" style="margin-bottom:7mm;">
+    <li>La comisión es el <strong>50% del beneficio neto</strong> (ingresos menos costes de infraestructura y herramientas) de los clientes que tú cierres.</li>
+    <li>La cobras <strong>mientras el cliente siga activo</strong>. Si se da de baja, cesa esa comisión.</li>
+    <li>Es <strong>solo comisión</strong> (sin fijo), con tope de ingresos <strong>ilimitado</strong> y los bonos de arranque para los primeros meses.</li>
+    <li>El <strong>10% de la venta</strong> se cobra solo si sigues activo como comercial en el momento de vender.</li>
+    <li>Transparencia total: verás la facturación real de tus clientes en una hoja compartida, actualizada cada mes.</li>
+    <li>Los datos de los clubes son confidenciales (RGPD). El comercial firma un compromiso de confidencialidad.</li>
+  </ul>
+
+  <div style="display:flex; gap:8mm; margin-top:auto; margin-bottom:8mm;">
+    <div style="flex:1;">
+      <div style="border-top:1px solid #94A3B8; padding-top:6px; font-size:12px; color:#64748B;">Por Cluberly</div>
+      <div style="font-size:12px; color:#64748B; margin-top:4px;">Fecha: ____________</div>
+    </div>
+    <div style="flex:1;">
+      <div style="border-top:1px solid #94A3B8; padding-top:6px; font-size:12px; color:#64748B;">El comercial</div>
+      <div style="font-size:12px; color:#64748B; margin-top:4px;">Fecha: ____________</div>
+    </div>
+  </div>
+
+  <div class="brand-grad" style="border-radius:12px; padding:6mm; text-align:center; color:#fff;">
+    <p style="color:#fff; font-size:15px;"><strong>El club bien llevado.</strong> Construyamos algo que valga dinero — juntos.</p>
+  </div>
+  <div class="foot"><span>cluberly · colaboración comercial</span><span>6 / 6</span></div>
+</div>
+
+</body>
+</html>
