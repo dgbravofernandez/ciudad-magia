@@ -6,20 +6,41 @@ const fs = require('fs')
 const ESTADOS = ['Nuevo', 'Email 1', 'Email 2', 'Email 3', 'Respondió', 'Demo agendada', 'En prueba', 'Cliente', 'Descartado']
 
 // ── Hoja 1: Seguimiento ───────────────────────────────────────────────────────
+// IMPORTANTE: "Estado" debe quedar en la columna G (la hoja Resumen usa COUNTIF sobre G).
 const headers = [
-  'Club', 'Federación / Liga', 'Persona contacto', 'Cargo', 'Email', 'Teléfono',
-  'Estado', 'Fecha 1er contacto', 'Emails enviados', 'Fecha último contacto',
-  'Próxima acción', 'Fecha próx. acción', 'Resultado', 'Notas',
+  'Club', 'Ubicación', 'Web', 'Email', 'Teléfono', 'Federación / Liga',
+  'Estado', 'Persona contacto', 'Fecha 1er contacto', 'Emails enviados',
+  'Fecha último contacto', 'Próxima acción', 'Fecha próx. acción', 'Notas',
 ]
+// Helper para una fila "Nuevo": email/tel a verificar (NUNCA inventados).
+const N = (club, ubi, web, notas = '') =>
+  [club, ubi, web || 'verificar', 'verificar (web/rffm.es)', 'verificar', 'RFFM', 'Nuevo', '', '', '0', '', 'Enviar Email 1', '', notas]
+
+// Semilla real ZONA SUR DE MADRID (web verificada donde se encontró; contactos a verificar)
 const ejemplos = [
-  ['E.F. Ciudad de Getafe', 'RFFM', 'Diego', 'Dirección', 'info@efciudaddegetafe.com', '', 'Cliente', '', '', '', '—', '', 'Referencia / caso de éxito', 'Cliente piloto'],
-  ['CD Ejemplo', 'RFFM', 'Nombre Apellido', 'Secretario', 'secretaria@cdejemplo.es', '600000000', 'Email 1', '01/06/2026', '1', '01/06/2026', 'Enviar Email 2', '04/06/2026', '', 'Sin respuesta aún'],
-  ['Club Demo', 'FFCM', '', 'Presidente', 'presi@clubdemo.es', '', 'Nuevo', '', '0', '', 'Enviar Email 1', '', '', ''],
+  ['E.F. Ciudad de Getafe', 'Getafe', 'efciudaddegetafe.com', 'info@efciudaddegetafe.com', '', 'RFFM', 'Cliente', 'Diego', '', '', '', '—', '', 'CLIENTE / caso de éxito'],
+  N('Escuela Fútbol Pachón y López', 'Getafe', 'facebook.com/EFPachonLopez', 'Escuela base'),
+  N('Tecnificación El Bercial', 'Getafe (El Bercial)', 'tecnificacionelbercial.com'),
+  N('Getafe CF', 'Getafe', 'getafecf.com', 'Grande/pro — baja prioridad'),
+  N('Móstoles CF', 'Móstoles', '', 'Buen perfil base'),
+  N('CD Móstoles', 'Móstoles', ''),
+  N('GM Football Academy', 'Móstoles', 'facebook.com/gmfacademy'),
+  N('CF Fuenlabrada', 'Fuenlabrada', 'cffuenlabrada.es'),
+  N('CD Fuenlabrada Falcons', 'Fuenlabrada', '', '12 equipos, 215 jugadores — buen perfil'),
+  N('CDE Fuenlabrada El Naranjo', 'Fuenlabrada', 'cdefuenlabradaelnaranjo.com'),
+  N('CD Leganés', 'Leganés', 'cdleganes.com', 'Grande/pro — baja prioridad'),
+  N('AD Alcorcón', 'Alcorcón', '', 'Grande/pro — baja prioridad'),
+  N('Escuela Municipal Fútbol Valdemoro', 'Valdemoro', ''),
+  N('A.D.Y.C. Pinto', 'Pinto', ''),
+  N('Atlético de Pinto', 'Pinto', ''),
+  N('Sporting Ciempozuelos', 'Ciempozuelos', 'sportingciempozuelos.es', 'Escuela base nueva — buen perfil'),
+  N('CD Ciempozuelos', 'Ciempozuelos', ''),
+  N('E.F. Parla', 'Parla', '', 'Verificar nombre exacto'),
 ]
 const wsSeg = XLSX.utils.aoa_to_sheet([headers, ...ejemplos])
 wsSeg['!cols'] = [
-  { wch: 24 }, { wch: 16 }, { wch: 18 }, { wch: 14 }, { wch: 28 }, { wch: 13 },
-  { wch: 15 }, { wch: 16 }, { wch: 15 }, { wch: 18 }, { wch: 20 }, { wch: 16 }, { wch: 22 }, { wch: 30 },
+  { wch: 30 }, { wch: 16 }, { wch: 28 }, { wch: 24 }, { wch: 13 }, { wch: 14 },
+  { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 34 },
 ]
 wsSeg['!autofilter'] = { ref: 'A1:N1' }
 wsSeg['!freeze'] = { xSplit: 0, ySplit: 1 }
