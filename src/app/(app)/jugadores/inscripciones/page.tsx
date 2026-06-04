@@ -110,6 +110,36 @@ export default async function InscripcionesPage() {
   const trialLetterPlayerIds = await getTrialLetterPlayerIds(clubId)
   const trialLetterIds = Array.from(trialLetterPlayerIds)
 
+  // ── Pagos 26/27: qué ha pagado cada jugador ───────────────────────────────
+  // La BD puede guardar la temporada como '2026/27' o '2026-27' — buscamos ambas
+  const nextSeasonDb = nextSeason.replace('/', '-')   // "2026-27" para la BD
+  const { data: nextSeasonPayments } = nextSeason
+    ? await sb
+        .from('quota_payments')
+        .select('player_id, concept, amount_paid, status')
+        .eq('club_id', clubId)
+        .or(`season.eq.${nextSeason},season.eq.${nextSeasonDb}`)
+        .eq('status', 'paid')
+    : { data: [] }
+
+  // Construir mapas: jugador → conceptos pagados
+  const paidConcepts: Record<string, Set<string>> = {}
+  for (const p of (nextSeasonPayments ?? [])) {
+    if (!paidConcepts[p.player_id]) paidConcepts[p.player_id] = new Set()
+    paidConcepts[p.player_id].add((p.concept ?? '').toLowerCase())
+  }
+  // paid26Status: 'none' | 'reserva' | 'cuota' (cuota = pagó algo más que reserva)
+  const paid26Status: Record<string, 'none' | 'reserva' | 'cuota'> = {}
+  for (const player of players) {
+    const concepts = paidConcepts[player.id]
+    if (!concepts || concepts.size === 0) {
+      paid26Status[player.id] = 'none'
+    } else {
+      const hasNonReserva = [...concepts].some(c => !c.includes('reserva'))
+      paid26Status[player.id] = hasNonReserva ? 'cuota' : 'reserva'
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
       <Topbar title="Seguimiento de inscripciones" />
@@ -121,6 +151,8 @@ export default async function InscripcionesPage() {
           coachMap={coachMap}
           isAdmin={isAdmin}
           trialLetterPlayerIds={trialLetterIds}
+          paid26Status={paid26Status}
+          nextSeason={nextSeason}
         />
       </div>
     </div>

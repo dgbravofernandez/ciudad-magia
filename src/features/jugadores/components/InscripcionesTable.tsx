@@ -75,6 +75,8 @@ export function InscripcionesTable({
   coachMap = {},
   isAdmin = false,
   trialLetterPlayerIds = [],
+  paid26Status = {},
+  nextSeason = '',
 }: {
   players: PlayerWithTeam[]
   teams: { id: string; name: string }[]
@@ -83,10 +85,14 @@ export function InscripcionesTable({
   coachMap?: Record<string, string>
   isAdmin?: boolean
   trialLetterPlayerIds?: string[]
+  /** Estado de pago en la próxima temporada por player_id: 'none' | 'reserva' | 'cuota' */
+  paid26Status?: Record<string, 'none' | 'reserva' | 'cuota'>
+  nextSeason?: string
 }) {
   const [search, setSearch] = useState('')
   const [filterTeam, setFilterTeam] = useState('')
   const [filterStatus, setFilterStatus] = useState<'' | InscriptionStatus>('')
+  const [filterPaid26, setFilterPaid26] = useState<'' | 'none' | 'reserva' | 'cuota'>('')
   const [filterEmailSent, setFilterEmailSent] = useState<'' | 'sent' | 'not_sent'>('')
   const [filterNextTeams, setFilterNextTeams] = useState<Set<string>>(new Set())
   const [sortDate, setSortDate] = useState<'newest' | 'oldest' | ''>('')
@@ -134,6 +140,7 @@ export function InscripcionesTable({
           p.tutor_email?.toLowerCase().includes(search.toLowerCase())) &&
         (!filterTeam || p.team_id === filterTeam) &&
         (!filterStatus || status === filterStatus) &&
+        (!filterPaid26 || (paid26Status[p.id] ?? 'none') === filterPaid26) &&
         (!filterEmailSent || (filterEmailSent === 'sent' ? p.email_team_assignment_sent === true : !p.email_team_assignment_sent)) &&
         passNextTeam
       )
@@ -146,7 +153,7 @@ export function InscripcionesTable({
       })
     }
     return result
-  }, [players, search, filterTeam, filterStatus, filterEmailSent, filterNextTeams, sortDate])
+  }, [players, search, filterTeam, filterStatus, filterPaid26, filterEmailSent, filterNextTeams, sortDate, paid26Status])
 
   const selectableIds = useMemo(
     () => filtered.filter(p => getStatus(p) !== 'dismissed').map(p => p.id),
@@ -495,6 +502,35 @@ export function InscripcionesTable({
           <option value="oldest">Más antiguos primero</option>
         </select>
 
+        {/* Pago 26/27 filter */}
+        {nextSeason && Object.keys(paid26Status).length > 0 && (
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+            {([
+              ['', 'Todos'],
+              ['cuota', '✓ Cuota'],
+              ['reserva', '◐ Reserva'],
+              ['none', '✗ Sin pago'],
+            ] as const).map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setFilterPaid26(val)}
+                className={cn(
+                  'px-2 py-1 text-xs rounded-md transition-colors',
+                  filterPaid26 === val
+                    ? val === 'cuota'   ? 'bg-white text-green-700 font-semibold shadow-sm'
+                    : val === 'reserva' ? 'bg-white text-amber-700 font-semibold shadow-sm'
+                    : val === 'none'    ? 'bg-white text-red-700 font-semibold shadow-sm'
+                    : 'bg-white text-slate-900 font-medium shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+                title={`Filtrar por pago ${nextSeason}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Email asignación filter */}
         <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
           <button
@@ -680,9 +716,24 @@ export function InscripcionesTable({
 
                     {/* Estado badge */}
                     <td className="px-3 py-2 text-center">
-                      <span className={cn('badge text-xs', STATUS_BADGE[status])}>
-                        {STATUS_LABEL[status]}
-                      </span>
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={cn('badge text-xs', STATUS_BADGE[status])}>
+                          {STATUS_LABEL[status]}
+                        </span>
+                        {nextSeason && (() => {
+                          const ps = paid26Status[player.id] ?? 'none'
+                          return (
+                            <span className={cn(
+                              'text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
+                              ps === 'cuota'   ? 'bg-green-100 text-green-700'
+                            : ps === 'reserva' ? 'bg-amber-100 text-amber-700'
+                            :                    'bg-red-100 text-red-600'
+                            )}>
+                              {ps === 'cuota' ? '✓ Cuota' : ps === 'reserva' ? '◐ Reserva' : '✗ Sin pago'}
+                            </span>
+                          )
+                        })()}
+                      </div>
                     </td>
 
                     {/* Continúa (wants_to_continue) */}

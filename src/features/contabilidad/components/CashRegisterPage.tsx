@@ -6,6 +6,7 @@ import {
   Lock, CheckCircle, AlertTriangle, FileText, Download,
   Unlock, Pencil, Trash2, X, FileDown, Wallet, ChevronDown, Save,
   CreditCard, Banknote, ArrowLeftRight, Filter, BadgeCheck, BadgeAlert,
+  PlusCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils/currency'
@@ -18,6 +19,7 @@ import {
   updateCashRegisterFloat,
   getClosedPeriodMovements,
   reclassifyMovement,
+  registerExternalIncome,
 } from '@/features/contabilidad/actions/accounting.actions'
 import { useRouter } from 'next/navigation'
 
@@ -296,6 +298,31 @@ export function CashRegisterPage({
   }
 
   const isSuperUser = userEmail === SUPER_EMAIL
+
+  // ── Ingreso externo ───────────────────────────────────────────────────────────
+  const [showExternalIncome, setShowExternalIncome] = useState(false)
+  const [extConcept, setExtConcept] = useState('')
+  const [extAmount, setExtAmount]   = useState('')
+  const [extMethod, setExtMethod]   = useState<'cash' | 'card' | 'transfer'>('cash')
+  const [extDate, setExtDate]       = useState(new Date().toISOString().slice(0, 10))
+
+  function handleExternalIncome() {
+    const amount = parseFloat(extAmount)
+    if (!extConcept.trim()) { toast.error('El concepto es obligatorio'); return }
+    if (!amount || amount <= 0) { toast.error('Importe inválido'); return }
+    startTransition(async () => {
+      const res = await registerExternalIncome({ concept: extConcept, amount, method: extMethod, date: extDate })
+      if (res.success) {
+        toast.success('Ingreso registrado en caja')
+        setShowExternalIncome(false)
+        setExtConcept(''); setExtAmount(''); setExtMethod('cash')
+        setExtDate(new Date().toISOString().slice(0, 10))
+        router.refresh()
+      } else {
+        toast.error(res.error ?? 'Error al registrar')
+      }
+    })
+  }
 
   // ── Panel de gestión de cierre histórico ─────────────────────────────────────
   const [managingClose, setManagingClose]     = useState<CashClose | null>(null)
@@ -773,6 +800,14 @@ export function CashRegisterPage({
                 <h3 className="font-semibold">Detalle de ingresos del periodo</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">Puedes modificar o borrar pagos antes de cerrar la caja</p>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowExternalIncome(true)}
+                className="flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+              >
+                <PlusCircle className="w-4 h-4" />
+                Ingreso externo
+              </button>
               {/* Filters */}
               <div className="flex items-center gap-2 flex-wrap">
                 <Filter className="w-3.5 h-3.5 text-muted-foreground" />
@@ -1212,6 +1247,90 @@ export function CashRegisterPage({
                 disabled={isPending}
               >
                 {isPending ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Ingreso externo ── */}
+      {showExternalIncome && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowExternalIncome(false)}>
+          <div className="bg-background rounded-xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Ingreso externo</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Donativo, patrocinio, alquiler, etc. — se añade al cierre de caja</p>
+              </div>
+              <button type="button" onClick={() => setShowExternalIncome(false)} className="p-1 rounded hover:bg-muted text-muted-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <label className="label">Concepto *</label>
+              <input
+                type="text"
+                className="input w-full"
+                placeholder="Ej: Patrocinio Empresa X, Alquiler campo, Donativo..."
+                value={extConcept}
+                onChange={e => setExtConcept(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="label">Importe (€)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  inputMode="decimal"
+                  className="input w-full"
+                  placeholder="0,00"
+                  value={extAmount}
+                  onChange={e => setExtAmount(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="label">Fecha</label>
+                <input
+                  type="date"
+                  className="input w-full"
+                  value={extDate}
+                  onChange={e => setExtDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="label">Forma de pago</label>
+              <div className="grid grid-cols-3 gap-2">
+                {PAYMENT_METHODS.map(m => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => setExtMethod(m.value as 'cash' | 'card' | 'transfer')}
+                    className={cn(
+                      'p-2 rounded-lg border text-sm font-medium transition-colors',
+                      extMethod === m.value
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:border-muted-foreground'
+                    )}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setShowExternalIncome(false)} className="btn-secondary flex-1" disabled={isPending}>
+                Cancelar
+              </button>
+              <button type="button" onClick={handleExternalIncome} className="btn-primary flex-1" disabled={isPending || !extConcept.trim() || !extAmount}>
+                {isPending ? 'Registrando…' : 'Registrar ingreso'}
               </button>
             </div>
           </div>
