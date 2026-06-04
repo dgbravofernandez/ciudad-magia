@@ -90,11 +90,41 @@ const guia = [
 const wsGuia = XLSX.utils.aoa_to_sheet(guia)
 wsGuia['!cols'] = [{ wch: 95 }]
 
+// ── Hoja 4: Fuentes de clubes (de dónde sacar 100-200 reales) ─────────────────
+const fuentes = [
+  ['DE DÓNDE SACAR 100-200 CLUBES REALES (CON WEB, EMAIL Y TELÉFONO)'],
+  [''],
+  ['⚠️ No inventes correos ni teléfonos: rebotan, queman tu dominio y es spam. Usa solo datos verificados de estas fuentes.'],
+  [''],
+  ['1) DIRECTORIOS DE FEDERACIONES (la mejor fuente — clubes federados con contacto)'],
+  ['   · Madrid (RFFM):  https://www.rffm.es/competiciones/directorio-de-clubs'],
+  ['   · Cada comunidad tiene su federación con su "directorio de clubes". Busca en Google:'],
+  ['        "directorio de clubes" + [tu federación]  (ej: FCF Cataluña, RFAF Andalucía, FFCV Valencia, FGF Galicia...)'],
+  ['   · Agregador nacional por federación:  https://www.futbol-regional.es'],
+  [''],
+  ['2) GOOGLE MAPS (rápido y con teléfono + web públicos)'],
+  ['   · Busca: "club de fútbol" + provincia/ciudad  (ej: "club de futbol Getafe").'],
+  ['   · Cada ficha trae nombre, web y teléfono. El email suele estar en la web del club (sección Contacto).'],
+  ['   · Para exportar en bloque a CSV usa la extensión gratis de Chrome "Instant Data Scraper".'],
+  [''],
+  ['3) RFEF / FUTBOL-NET'],
+  ['   · Las webs de competición listan los clubes de cada liga; entra a cada club para su contacto.'],
+  [''],
+  ['FLUJO RECOMENDADO (≈1 hora para 100-200 clubes):'],
+  ['   a) Abre el directorio de tu federación + Google Maps de tu provincia.'],
+  ['   b) Copia a la hoja "Seguimiento": nombre, ubicación, web, email y teléfono (verificados).'],
+  ['   c) Prioriza clubes de 6-20 equipos (los que más sufren el papeleo y mejor pagan).'],
+  ['   d) Cuando tengas ~100, arranca la secuencia de emails (ver hoja "Cómo usar").'],
+]
+const wsFuentes = XLSX.utils.aoa_to_sheet(fuentes)
+wsFuentes['!cols'] = [{ wch: 110 }]
+
 // ── Construir libro ───────────────────────────────────────────────────────────
 const wb = XLSX.utils.book_new()
 XLSX.utils.book_append_sheet(wb, wsSeg, 'Seguimiento')
 XLSX.utils.book_append_sheet(wb, wsRes, 'Resumen')
 XLSX.utils.book_append_sheet(wb, wsGuia, 'Cómo usar')
+XLSX.utils.book_append_sheet(wb, wsFuentes, 'Fuentes de clubes')
 
 const outDir = path.join(__dirname, '..', 'docs', 'marketing')
 fs.mkdirSync(outDir, { recursive: true })
