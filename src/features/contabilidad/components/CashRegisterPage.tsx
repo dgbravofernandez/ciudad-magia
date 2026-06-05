@@ -20,6 +20,7 @@ import {
   getClosedPeriodMovements,
   reclassifyMovement,
   registerExternalIncome,
+  registerQuickExpense,
 } from '@/features/contabilidad/actions/accounting.actions'
 import { useRouter } from 'next/navigation'
 
@@ -317,6 +318,31 @@ export function CashRegisterPage({
         setShowExternalIncome(false)
         setExtConcept(''); setExtAmount(''); setExtMethod('cash')
         setExtDate(new Date().toISOString().slice(0, 10))
+        router.refresh()
+      } else {
+        toast.error(res.error ?? 'Error al registrar')
+      }
+    })
+  }
+
+  // ── Gasto externo ─────────────────────────────────────────────────────────────
+  const [showExternalExpense, setShowExternalExpense] = useState(false)
+  const [expConcept, setExpConcept] = useState('')
+  const [expAmount, setExpAmount]   = useState('')
+  const [expMethod, setExpMethod]   = useState<'cash' | 'card' | 'transfer'>('cash')
+  const [expDate, setExpDate]       = useState(new Date().toISOString().slice(0, 10))
+
+  function handleExternalExpense() {
+    const amount = parseFloat(expAmount)
+    if (!expConcept.trim()) { toast.error('El concepto es obligatorio'); return }
+    if (!amount || amount <= 0) { toast.error('Importe inválido'); return }
+    startTransition(async () => {
+      const res = await registerQuickExpense({ concept: expConcept, amount, method: expMethod, date: expDate })
+      if (res.success) {
+        toast.success('Gasto registrado en caja')
+        setShowExternalExpense(false)
+        setExpConcept(''); setExpAmount(''); setExpMethod('cash')
+        setExpDate(new Date().toISOString().slice(0, 10))
         router.refresh()
       } else {
         toast.error(res.error ?? 'Error al registrar')
@@ -800,14 +826,24 @@ export function CashRegisterPage({
                 <h3 className="font-semibold">Detalle de ingresos del periodo</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">Puedes modificar o borrar pagos antes de cerrar la caja</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowExternalIncome(true)}
-                className="flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
-              >
-                <PlusCircle className="w-4 h-4" />
-                Ingreso externo
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowExternalIncome(true)}
+                  className="flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Ingreso externo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowExternalExpense(true)}
+                  className="flex items-center gap-1.5 text-sm font-medium text-destructive hover:text-destructive/80 transition-colors"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Gasto externo
+                </button>
+              </div>
               {/* Filters */}
               <div className="flex items-center gap-2 flex-wrap">
                 <Filter className="w-3.5 h-3.5 text-muted-foreground" />
@@ -1331,6 +1367,90 @@ export function CashRegisterPage({
               </button>
               <button type="button" onClick={handleExternalIncome} className="btn-primary flex-1" disabled={isPending || !extConcept.trim() || !extAmount}>
                 {isPending ? 'Registrando…' : 'Registrar ingreso'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Gasto externo ── */}
+      {showExternalExpense && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowExternalExpense(false)}>
+          <div className="bg-background rounded-xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">Gasto externo</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Material, arbitrajes, desplazamientos, suministros, etc. — se descuenta de caja</p>
+              </div>
+              <button type="button" onClick={() => setShowExternalExpense(false)} className="p-1 rounded hover:bg-muted text-muted-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <label className="label">Concepto *</label>
+              <input
+                type="text"
+                className="input w-full"
+                placeholder="Ej: Material entrenamiento, Árbitro partido, Gasolina..."
+                value={expConcept}
+                onChange={e => setExpConcept(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="label">Importe (€)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  inputMode="decimal"
+                  className="input w-full"
+                  placeholder="0,00"
+                  value={expAmount}
+                  onChange={e => setExpAmount(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="label">Fecha</label>
+                <input
+                  type="date"
+                  className="input w-full"
+                  value={expDate}
+                  onChange={e => setExpDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="label">Forma de pago</label>
+              <div className="grid grid-cols-3 gap-2">
+                {PAYMENT_METHODS.map(m => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => setExpMethod(m.value as 'cash' | 'card' | 'transfer')}
+                    className={cn(
+                      'p-2 rounded-lg border text-sm font-medium transition-colors',
+                      expMethod === m.value
+                        ? 'border-destructive bg-destructive/10 text-destructive'
+                        : 'border-border hover:border-muted-foreground'
+                    )}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button type="button" onClick={() => setShowExternalExpense(false)} className="btn-secondary flex-1" disabled={isPending}>
+                Cancelar
+              </button>
+              <button type="button" onClick={handleExternalExpense} className="btn-primary flex-1 bg-destructive hover:bg-destructive/90 border-destructive" disabled={isPending || !expConcept.trim() || !expAmount}>
+                {isPending ? 'Registrando…' : 'Registrar gasto'}
               </button>
             </div>
           </div>

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { toast } from 'sonner'
-import { formatCurrency } from '@/lib/utils/currency'
+import { formatCurrency, getActiveSeasons } from '@/lib/utils/currency'
 import type { TeamOption, CuotasSummary } from '@/features/informes/actions/informes.actions'
 import {
   getPlayerMinutes, getPlayerGoals, getPlayerAttendance, getInjuredPlayers,
@@ -60,9 +60,10 @@ export function InformesExplorer({
   teams: TeamOption[]
   currentSeason: string
 }) {
+  const seasons = getActiveSeasons()
   const [selectedView, setSelectedView] = useState<ViewId>('minutos')
   const [selectedTeam, setSelectedTeam] = useState<string>('')
-  const [selectedSeason] = useState(currentSeason)
+  const [selectedSeason, setSelectedSeason] = useState(currentSeason)
   const [data, setData] = useState<any[]>([])
   const [cuotasSummary, setCuotasSummary] = useState<CuotasSummary | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -120,6 +121,13 @@ export function InformesExplorer({
     setData([])
   }
 
+  function handleSeasonChange(season: string) {
+    setSelectedSeason(season)
+    setLoaded(false)
+    setData([])
+    setSelectedForReminder(new Set())
+  }
+
   function handleSendReminderFromInformes() {
     const ids = Array.from(selectedForReminder)
     if (ids.length === 0) return
@@ -148,6 +156,16 @@ export function InformesExplorer({
       <div className="bg-card border border-border rounded-lg overflow-hidden h-fit lg:sticky lg:top-4">
         {/* Filtros globales */}
         <div className="p-3 border-b border-border space-y-2">
+          <label className="text-xs font-medium text-muted-foreground">Temporada</label>
+          <select
+            value={selectedSeason}
+            onChange={(e) => handleSeasonChange(e.target.value)}
+            className="w-full text-sm border border-border rounded-md px-2 py-1.5 bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            {seasons.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
           <label className="text-xs font-medium text-muted-foreground">Equipo</label>
           <select
             value={selectedTeam}
@@ -206,6 +224,9 @@ export function InformesExplorer({
               return <Icon className="w-5 h-5 text-muted-foreground" />
             })()}
             <h2 className="font-semibold text-foreground">{currentViewDef.label}</h2>
+            <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-mono">
+              {selectedSeason}
+            </span>
             {selectedTeam && (
               <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                 {teams.find(t => t.id === selectedTeam)?.name}

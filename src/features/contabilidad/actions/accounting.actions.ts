@@ -455,6 +455,49 @@ export async function registerExternalIncome(data: {
   }
 }
 
+/**
+ * Registra un gasto externo libre en caja (sin vincular a proveedor ni presupuesto).
+ * Útil para: material, arbitrajes, desplazamientos, suministros, etc.
+ */
+export async function registerQuickExpense(data: {
+  concept: string
+  amount: number
+  method: 'cash' | 'card' | 'transfer'
+  date: string
+  notes?: string
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { sb, clubId, memberId, roles } = await resolveClubAndMember()
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    if (!data.concept.trim()) return { success: false, error: 'El concepto es obligatorio' }
+    if (!data.amount || data.amount <= 0) return { success: false, error: 'El importe debe ser mayor que 0' }
+
+    const lockCheck = await assertNotLocked(data.date, clubId)
+    if (!lockCheck.ok) return { success: false, error: lockCheck.error }
+
+    const dbMethod = toDbMethod(data.method)
+    const { error } = await sb.from('cash_movements').insert({
+      club_id: clubId,
+      type: 'expense',
+      amount: data.amount,
+      payment_method: dbMethod,
+      description: data.concept.trim(),
+      movement_date: data.date,
+      source: 'gasto',
+      registered_by: memberId ?? null,
+    })
+    if (error) return { success: false, error: error.message }
+
+    revalidatePath('/contabilidad/caja')
+    revalidatePath('/contabilidad/gastos')
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
 export async function getLinkedItems() {
   const { sb, clubId } = await resolveClubAndMember()
 
