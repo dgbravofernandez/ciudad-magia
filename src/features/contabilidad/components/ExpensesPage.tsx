@@ -199,9 +199,9 @@ export function ExpensesPage({ expenses, totalExpensesThisMonth }: Props) {
               </div>
               <div className="space-y-1">
                 <label className="label">Método de pago</label>
-                <select name="method" defaultValue="transfer" className="input w-full">
-                  <option value="transfer">Transferencia</option>
+                <select name="method" defaultValue="cash" className="input w-full">
                   <option value="cash">Efectivo</option>
+                  <option value="transfer">Transferencia</option>
                   <option value="card">Tarjeta</option>
                 </select>
               </div>
