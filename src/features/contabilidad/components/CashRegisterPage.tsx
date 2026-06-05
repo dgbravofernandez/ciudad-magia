@@ -416,20 +416,20 @@ export function CashRegisterPage({
   const [filterMethod, setFilterMethod] = useState<'all' | 'cash' | 'card' | 'transfer'>('all')
   const [filterDate, setFilterDate]     = useState('')
 
-  const filteredIncomeMovements = useMemo(() => {
-    return incomeMovements.filter(m => {
+  const filteredMovements = useMemo(() => {
+    return movements.filter(m => {
       if (filterMethod !== 'all' && m.payment_method !== filterMethod) return false
       if (filterDate && m.movement_date !== filterDate) return false
       return true
     })
-  }, [incomeMovements, filterMethod, filterDate])
+  }, [movements, filterMethod, filterDate])
 
-  const filteredTotal = filteredIncomeMovements.reduce((s, m) => s + m.amount, 0)
+  const filteredTotal = filteredMovements.reduce((s, m) => s + (m.type === 'income' ? m.amount : -m.amount), 0)
 
   // ── Day-by-day breakdown ─────────────────────────────────────────────────────
   const dayBreakdown = useMemo(() => {
     const map: Record<string, { cash: number; card: number; transfer: number; total: number }> = {}
-    for (const m of incomeMovements) {
+    for (const m of movements) {
       if (!map[m.movement_date]) map[m.movement_date] = { cash: 0, card: 0, transfer: 0, total: 0 }
       const sign = m.type === 'income' ? 1 : -1
       if (m.payment_method === 'cash')     map[m.movement_date].cash     += sign * m.amount
@@ -440,7 +440,7 @@ export function CashRegisterPage({
     return Object.entries(map)
       .sort(([a], [b]) => b.localeCompare(a)) // Most recent first
       .map(([date, vals]) => ({ date, ...vals }))
-  }, [incomeMovements])
+  }, [movements])
 
   function exportCSV() {
     const BOM    = '﻿'
@@ -598,7 +598,7 @@ export function CashRegisterPage({
       )}
 
       {/* Desglose día a día */}
-      {incomeMovements.length > 0 && (
+      {movements.length > 0 && (
         <div className="card overflow-hidden">
           <button
             type="button"
@@ -818,13 +818,13 @@ export function CashRegisterPage({
       )}
 
       {/* Movement detail table */}
-      {incomeMovements.length > 0 && (
+      {movements.length > 0 && (
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h3 className="font-semibold">Detalle de ingresos del periodo</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">Puedes modificar o borrar pagos antes de cerrar la caja</p>
+                <h3 className="font-semibold">Detalle de movimientos del periodo</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Ingresos y gastos — puedes modificar o borrar antes de cerrar la caja</p>
               </div>
               <div className="flex items-center gap-3">
                 <button
@@ -888,8 +888,8 @@ export function CashRegisterPage({
             {/* Filtered total pill */}
             {(filterMethod !== 'all' || filterDate) && (
               <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">Mostrando {filteredIncomeMovements.length} movimientos —</span>
-                <span className="text-sm font-bold text-green-700">{formatCurrency(filteredTotal)}</span>
+                <span className="text-xs text-muted-foreground">Mostrando {filteredMovements.length} movimientos —</span>
+                <span className={cn('text-sm font-bold', filteredTotal >= 0 ? 'text-green-700' : 'text-red-600')}>{formatCurrency(filteredTotal)}</span>
               </div>
             )}
           </div>
@@ -907,29 +907,35 @@ export function CashRegisterPage({
                 </tr>
               </thead>
               <tbody>
-                {filteredIncomeMovements.length === 0 && (
+                {filteredMovements.length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground text-sm">
                       No hay movimientos para el filtro seleccionado
                     </td>
                   </tr>
                 )}
-                {filteredIncomeMovements.map((m) => {
+                {filteredMovements.map((m) => {
                   const detail = m.related_payment_id ? detailMap[m.related_payment_id] : null
                   const actDetail = m.related_activity_charge_id ? activityDetailMap[m.related_activity_charge_id] : null
                   const sourceLabel = SOURCE_LABELS[m.source ?? ''] ?? (m.source ?? 'Otro')
                   const displayName = actDetail?.player_name || detail?.player_name || m.description
                   const displayTeam = actDetail ? actDetail.activity_name : (detail?.team_name || '—')
+                  const isExpense = m.type === 'expense'
                   return (
-                    <tr key={m.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                    <tr key={m.id} className={cn('border-b last:border-0 hover:bg-muted/20 transition-colors', isExpense && 'bg-red-50/30')}>
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                          {sourceLabel}
+                        <span className={cn(
+                          'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
+                          isExpense ? 'bg-red-100 text-red-700' : 'bg-blue-50 text-blue-700'
+                        )}>
+                          {isExpense ? '↓ Gasto' : sourceLabel}
                         </span>
                       </td>
                       <td className="px-4 py-3 font-medium">{displayName}</td>
                       <td className="px-4 py-3 text-muted-foreground">{displayTeam}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-green-600">{formatCurrency(m.amount)}</td>
+                      <td className={cn('px-4 py-3 text-right font-semibold', isExpense ? 'text-red-600' : 'text-green-600')}>
+                        {isExpense ? '−' : ''}{formatCurrency(m.amount)}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">{METHOD_LABELS[m.payment_method] ?? m.payment_method}</td>
                       <td className="px-4 py-3 text-muted-foreground">{formatDate(m.movement_date)}</td>
                       <td className="px-4 py-3">
