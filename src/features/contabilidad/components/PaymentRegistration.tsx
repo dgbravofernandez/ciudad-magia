@@ -38,6 +38,8 @@ import {
   toggleQuotaSpecialCase,
   getLinkedItems,
 } from '@/features/contabilidad/actions/accounting.actions'
+
+type ReminderRecord = { lastSent: string; count: number; history: string[] }
 import { EMAIL_BATCH_CAP } from '@/lib/contabilidad/constants'
 import Link from 'next/link'
 
@@ -87,6 +89,7 @@ interface Props {
   }
   seasonFees?: Array<{ team_id: string | null; concept: string; amount: number }>
   teams?: { id: string; name: string }[]
+  reminderHistory?: Record<string, ReminderRecord>
 }
 
 const PAYMENT_METHODS = [
@@ -114,6 +117,7 @@ export function PaymentRegistration({
   quotaAmounts,
   seasonFees,
   teams = [],
+  reminderHistory = {},
 }: Props) {
   const [search, setSearch] = useState('')
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null)
@@ -1242,6 +1246,7 @@ export function PaymentRegistration({
                     Esp.
                   </th>
                 )}
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Avisos</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Comentario</th>
                 {canRegisterPayments && <th className="w-10 px-2 py-3"></th>}
               </tr>
@@ -1338,6 +1343,24 @@ export function PaymentRegistration({
                           </button>
                         </td>
                       )}
+                      <td className="px-3 py-2">
+                        {(() => {
+                          const rec = reminderHistory[player.id]
+                          if (!rec) return <span className="text-xs text-muted-foreground/40">—</span>
+                          const lastDate = new Date(rec.lastSent).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })
+                          return (
+                            <div className="text-xs space-y-0.5">
+                              <div className="flex items-center gap-1">
+                                <Mail className="w-3 h-3 text-blue-500 shrink-0" />
+                                <span className="font-medium text-foreground">{lastDate}</span>
+                              </div>
+                              {rec.count > 1 && (
+                                <span className="text-muted-foreground">{rec.count} avisos</span>
+                              )}
+                            </div>
+                          )
+                        })()}
+                      </td>
                       <td className="px-4 py-2 min-w-[180px]">
                         {player.firstPendingPaymentId && (
                           editingCommentId === player.firstPendingPaymentId ? (

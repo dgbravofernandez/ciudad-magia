@@ -4,16 +4,18 @@ import { useState, useTransition, useCallback } from 'react'
 import {
   Timer, Target, CalendarCheck, HeartPulse, Calendar,
   Trophy, CreditCard, TrendingUp, MessageSquare, Download,
-  ChevronRight, Loader2,
+  ChevronRight, Loader2, BadgeEuro, Mail, CheckSquare, Square,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { toast } from 'sonner'
-import type { TeamOption } from '@/features/informes/actions/informes.actions'
+import { formatCurrency } from '@/lib/utils/currency'
+import type { TeamOption, CuotasSummary } from '@/features/informes/actions/informes.actions'
 import {
   getPlayerMinutes, getPlayerGoals, getPlayerAttendance, getInjuredPlayers,
   getSessions, getMatchResults, getPendingPayments, getIncomeByMonth,
-  getCoachObservations,
+  getCoachObservations, getCuotasNextSeason,
 } from '@/features/informes/actions/informes.actions'
+import { sendPendingReminders } from '@/features/contabilidad/actions/accounting.actions'
 
 // ─────────────────────────────────────────────
 // TIPOS DE VISTA
@@ -22,6 +24,7 @@ import {
 type ViewId =
   | 'minutos' | 'goles' | 'asistencia' | 'lesiones'
   | 'sesiones' | 'resultados' | 'pagos_pend' | 'ingresos' | 'observaciones'
+  | 'cuotas_sig'
 
 type ViewDef = {
   id: ViewId
@@ -38,6 +41,7 @@ const VIEWS: ViewDef[] = [
   { id: 'lesiones', label: 'Lesionados actuales', icon: HeartPulse, group: 'Jugadores' },
   { id: 'sesiones', label: 'Sesiones planificadas', icon: Calendar, group: 'Equipo' },
   { id: 'resultados', label: 'Últimos resultados', icon: Trophy, group: 'Equipo' },
+  { id: 'cuotas_sig', label: 'Cuotas sig. temporada', icon: BadgeEuro, group: 'Pagos' },
   { id: 'pagos_pend', label: 'Pagos pendientes', icon: CreditCard, group: 'Pagos' },
   { id: 'ingresos', label: 'Ingresos por mes', icon: TrendingUp, group: 'Pagos' },
   { id: 'observaciones', label: 'Observaciones técnicas', icon: MessageSquare, group: 'Técnico' },
@@ -60,13 +64,26 @@ export function InformesExplorer({
   const [selectedTeam, setSelectedTeam] = useState<string>('')
   const [selectedSeason] = useState(currentSeason)
   const [data, setData] = useState<any[]>([])
+  const [cuotasSummary, setCuotasSummary] = useState<CuotasSummary | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [selectedForReminder, setSelectedForReminder] = useState<Set<string>>(new Set())
 
   const loadData = useCallback((viewId: ViewId) => {
     startTransition(async () => {
       setLoaded(false)
       const filters = { teamId: selectedTeam || undefined, season: selectedSeason }
+
+      if (viewId === 'cuotas_sig') {
+        const result = await getCuotasNextSeason()
+        if (result.success && result.data) {
+          setCuotasSummary(result.data)
+          setLoaded(true)
+        } else {
+          toast.error(result.error ?? 'Error al cargar cuotas')
+        }
+        return
+      }
 
       let result: any
       switch (viewId) {
@@ -93,6 +110,7 @@ export function InformesExplorer({
 
   function handleSelectView(viewId: ViewId) {
     setSelectedView(viewId)
+    setSelectedForReminder(new Set())
     loadData(viewId)
   }
 
@@ -100,6 +118,26 @@ export function InformesExplorer({
     setSelectedTeam(teamId)
     setLoaded(false)
     setData([])
+  }
+
+  function handleSendReminderFromInformes() {
+    const ids = Array.from(selectedForReminder)
+    if (ids.length === 0) return
+    if (!confirm(`Enviar aviso de cuota pendiente a ${ids.length} familia(s)?`)) return
+    startTransition(async () => {
+      const r = await sendPendingReminders(ids)
+      if (r.success || (r.sent && r.sent > 0)) {
+        const parts: string[] = []
+        if (r.sent) parts.push(`${r.sent} enviado(s)`)
+        if (r.skippedNoEmail) parts.push(`${r.skippedNoEmail} sin email`)
+        if (r.skippedSpecial) parts.push(`${r.skippedSpecial} caso especial`)
+        if (r.failed) parts.push(`${r.failed} fallidos`)
+        toast.success(`Avisos: ${parts.join(' · ')}`)
+        setSelectedForReminder(new Set())
+      } else {
+        toast.error(r.error ?? 'Error al enviar avisos')
+      }
+    })
   }
 
   const currentViewDef = VIEWS.find(v => v.id === selectedView)!
@@ -176,6 +214,16 @@ export function InformesExplorer({
           </div>
 
           <div className="flex items-center gap-2">
+            {selectedView === 'pagos_pend' && selectedForReminder.size > 0 && (
+              <button
+                onClick={handleSendReminderFromInformes}
+                disabled={isPending}
+                className="btn-secondary text-sm h-8 px-3 flex items-center gap-1.5"
+              >
+                <Mail className="w-3.5 h-3.5" aria-hidden="true" />
+                Enviar aviso ({selectedForReminder.size})
+              </button>
+            )}
             {!loaded && (
               <button
                 onClick={() => loadData(selectedView)}
@@ -217,7 +265,19 @@ export function InformesExplorer({
               <p className="text-sm">No hay datos disponibles para esta selección</p>
             </div>
           ) : (
-            <ViewTable viewId={selectedView} data={data} />
+            <ViewTable
+              viewId={selectedView}
+              data={data}
+              selectedForReminder={selectedForReminder}
+              onToggleReminder={(id) => setSelectedForReminder(prev => {
+                const next = new Set(prev)
+                if (next.has(id)) next.delete(id); else next.add(id)
+                return next
+              })}
+              onToggleAllReminder={(ids) => setSelectedForReminder(prev =>
+                prev.size === ids.length ? new Set() : new Set(ids)
+              )}
+            />
           )}
         </div>
 
@@ -235,7 +295,15 @@ export function InformesExplorer({
 // TABLAS POR VISTA
 // ─────────────────────────────────────────────
 
-function ViewTable({ viewId, data }: { viewId: ViewId; data: any[] }) {
+function ViewTable({
+  viewId, data, selectedForReminder, onToggleReminder, onToggleAllReminder,
+}: {
+  viewId: ViewId
+  data: any[]
+  selectedForReminder: Set<string>
+  onToggleReminder: (id: string) => void
+  onToggleAllReminder: (ids: string[]) => void
+}) {
   switch (viewId) {
     case 'minutos': return <MinutosTable data={data} />
     case 'goles': return <GolesTable data={data} />
@@ -243,7 +311,14 @@ function ViewTable({ viewId, data }: { viewId: ViewId; data: any[] }) {
     case 'lesiones': return <LesionesTable data={data} />
     case 'sesiones': return <SesionesTable data={data} />
     case 'resultados': return <ResultadosTable data={data} />
-    case 'pagos_pend': return <PagosPendTable data={data} />
+    case 'pagos_pend': return (
+      <PagosPendTable
+        data={data}
+        selected={selectedForReminder}
+        onToggle={onToggleReminder}
+        onToggleAll={onToggleAllReminder}
+      />
+    )
     case 'ingresos': return <IngresosTable data={data} />
     case 'observaciones': return <ObservacionesTable data={data} />
     default: return null
@@ -448,35 +523,92 @@ function ResultadosTable({ data }: { data: any[] }) {
 }
 
 // ── Pagos pendientes ──
-function PagosPendTable({ data }: { data: any[] }) {
+function PagosPendTable({
+  data,
+  selected,
+  onToggle,
+  onToggleAll,
+}: {
+  data: any[]
+  selected: Set<string>
+  onToggle: (id: string) => void
+  onToggleAll: (ids: string[]) => void
+}) {
   const total = data.reduce((sum: number, r: any) => sum + r.total_pending, 0)
+  const allIds = data.map((r: any) => r.player_id)
+  const allSelected = allIds.length > 0 && allIds.every((id: string) => selected.has(id))
+
   return (
     <>
       <table className="w-full">
         <thead><tr>
-          <Th>Jugador</Th><Th>Equipo</Th><Th>Meses pendientes</Th><Th center>Total</Th>
+          <th className="px-3 py-3 w-8 bg-muted/30 border-b border-border">
+            <button onClick={() => onToggleAll(allIds)} title="Seleccionar todos">
+              {allSelected
+                ? <CheckSquare className="w-4 h-4 text-primary" />
+                : <Square className="w-4 h-4 text-muted-foreground" />}
+            </button>
+          </th>
+          <Th>Jugador</Th><Th>Equipo</Th><Th>Meses</Th><Th>Contacto</Th><Th center>Estado pago</Th>
         </tr></thead>
         <tbody>
-          {data.map((row) => (
-            <tr key={row.player_id} className="hover:bg-muted/20 transition-colors">
-              <Td><span className="font-medium">{row.player_name}</span></Td>
-              <Td><span className="text-muted-foreground">{row.team_name}</span></Td>
-              <Td>
-                <div className="flex gap-1 flex-wrap">
-                  {row.pending_months.map((m: string) => (
-                    <span key={m} className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-xs">{m}</span>
-                  ))}
-                </div>
-              </Td>
-              <Td center>
-                <span className="font-semibold text-red-600 font-mono">{row.total_pending.toFixed(2)}€</span>
-              </Td>
-            </tr>
-          ))}
+          {data.map((row) => {
+            const hasPending = row.total_pending > 0
+            const isSelected = selected.has(row.player_id)
+            return (
+              <tr key={row.player_id} className={cn(
+                'hover:bg-muted/20 transition-colors',
+                isSelected && 'bg-primary/5'
+              )}>
+                <td className="px-3 py-3 text-center">
+                  <button onClick={() => onToggle(row.player_id)}>
+                    {isSelected
+                      ? <CheckSquare className="w-4 h-4 text-primary" />
+                      : <Square className="w-4 h-4 text-muted-foreground" />}
+                  </button>
+                </td>
+                <Td><span className="font-medium">{row.player_name}</span></Td>
+                <Td><span className="text-muted-foreground">{row.team_name}</span></Td>
+                <Td>
+                  <div className="flex gap-1 flex-wrap">
+                    {row.pending_months.map((m: string) => (
+                      <span key={m} className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-xs font-medium">{m}</span>
+                    ))}
+                  </div>
+                </Td>
+                <Td>
+                  <div className="space-y-0.5 text-xs">
+                    {row.tutor_email
+                      ? <a href={`mailto:${row.tutor_email}`} className="text-muted-foreground hover:text-primary flex items-center gap-1 truncate max-w-[180px]">
+                          <Mail className="w-3 h-3 shrink-0" /><span className="truncate">{row.tutor_email}</span>
+                        </a>
+                      : <span className="text-muted-foreground/40">Sin email</span>}
+                    {row.tutor_phone && (
+                      <a href={`tel:${row.tutor_phone}`} className="text-muted-foreground hover:text-primary block">{row.tutor_phone}</a>
+                    )}
+                  </div>
+                </Td>
+                <Td center>
+                  {hasPending ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                        ✗ Pendiente
+                      </span>
+                      <span className="font-mono text-xs font-bold text-red-600">{row.total_pending.toFixed(2)}€</span>
+                    </div>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                      ✓ Al corriente
+                    </span>
+                  )}
+                </Td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
       <div className="px-4 py-3 bg-muted/30 border-t border-border flex items-center justify-between text-sm font-semibold">
-        <span className="text-muted-foreground">Total pendiente</span>
+        <span className="text-muted-foreground">{data.length} jugadores con deuda · Total pendiente</span>
         <span className="text-red-600 font-mono">{total.toFixed(2)}€</span>
       </div>
     </>

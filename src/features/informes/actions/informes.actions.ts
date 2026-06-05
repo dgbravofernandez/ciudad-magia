@@ -517,6 +517,8 @@ export type PendingPaymentRow = {
   team_name: string
   pending_months: string[]
   total_pending: number
+  tutor_email: string | null
+  tutor_phone: string | null
 }
 
 export async function getPendingPayments(filters: {
@@ -549,7 +551,7 @@ export async function getPendingPayments(filters: {
     const playerIds = Array.from(new Set(pendings.map((p: { player_id: string }) => p.player_id)))
     const { data: players } = await sb
       .from('players')
-      .select('id, first_name, last_name, team_id')
+      .select('id, first_name, last_name, team_id, tutor_email, tutor_phone')
       .eq('club_id', clubId)
       .in('id', playerIds)
 
@@ -564,8 +566,8 @@ export async function getPendingPayments(filters: {
     const teamMap = new Map<string, string>(
       (teams ?? []).map((t: { id: string; name: string }) => [t.id, t.name])
     )
-    const playerMap = new Map<string, { id: string; first_name: string; last_name: string; team_id: string | null }>(
-      (players ?? []).map((p: { id: string; first_name: string; last_name: string; team_id: string | null }) => [p.id, p])
+    const playerMap = new Map<string, { id: string; first_name: string; last_name: string; team_id: string | null; tutor_email: string | null; tutor_phone: string | null }>(
+      (players ?? []).map((p: { id: string; first_name: string; last_name: string; team_id: string | null; tutor_email: string | null; tutor_phone: string | null }) => [p.id, p])
     )
 
     // 4. Agregar por jugador, aplicando filtro de equipo
@@ -592,6 +594,8 @@ export async function getPendingPayments(filters: {
           team_name: player.team_id ? (teamMap.get(player.team_id) ?? '—') : '—',
           pending_months: [monthLabel],
           total_pending: amount,
+          tutor_email: player.tutor_email ?? null,
+          tutor_phone: player.tutor_phone ?? null,
         })
       }
     }
@@ -737,4 +741,68 @@ export async function getCoachObservations(filters: {
   } catch (e) {
     return { success: false, error: (e as Error).message }
   }
+}
+
+// ─────────────────────────────────────────────
+// 10. CUOTAS PRÓXIMA TEMPORADA (26/27)
+// ─────────────────────────────────────────────
+
+export type CuotasTeamRow = {
+  team_id: string; team_name: string; total_players: number
+  paid_cuota: number; paid_reserva_only: number; no_payment: number
+  total_collected: number; reserva_collected: number; cuota_collected: number
+}
+
+export type CuotasSummary = {
+  nextSeason: string; totalPlayers: number; paidCuota: number
+  paidReservaOnly: number; noPayment: number; totalCollected: number
+  reservaCollected: number; cuotaCollected: number; byTeam: CuotasTeamRow[]
+}
+
+export async function getCuotasNextSeason(): Promise<{ success: boolean; data?: CuotasSummary; error?: string }> {
+  try {
+    const { clubId } = await getCtx()
+    const sb = createAdminClient() as any
+    const { data: settingsRow } = await sb.from('club_settings').select('current_season').eq('club_id', clubId).single()
+    const cs: string = settingsRow?.current_season ?? '2025/26'
+    const mm = cs.match(/^(\d{4})\/(\d{2})$/)
+    const ns = mm ? `${parseInt(mm[1])+1}/${String(parseInt(mm[2])+1).padStart(2,'0')}` : '2026/27'
+    const nsDb = ns.replace('/', '-')
+
+    const { data: players } = await sb.from('players').select('id, next_team_id').eq('club_id', clubId).eq('status', 'active').not('next_team_id', 'is', null)
+    if (!players?.length) return { success: true, data: { nextSeason: ns, totalPlayers: 0, paidCuota: 0, paidReservaOnly: 0, noPayment: 0, totalCollected: 0, reservaCollected: 0, cuotaCollected: 0, byTeam: [] } }
+
+    const nextTeamIds = [...new Set(players.map((p: any) => p.next_team_id))]
+    const { data: teams } = await sb.from('teams').select('id, name').eq('club_id', clubId).in('id', nextTeamIds)
+    const teamMap = new Map<string, string>((teams ?? []).map((t: any) => [t.id, t.name]))
+
+    const playerIds = players.map((p: any) => p.id)
+    const { data: payments } = await sb.from('quota_payments').select('player_id, concept, amount_paid').eq('club_id', clubId).in('player_id', playerIds).in('season', [ns, nsDb]).eq('status', 'paid')
+
+    const playerPaid = new Map<string, { concepts: Set<string>; total: number; reserva: number; cuota: number }>()
+    for (const pmt of (payments ?? [])) {
+      if (!playerPaid.has(pmt.player_id)) playerPaid.set(pmt.player_id, { concepts: new Set(), total: 0, reserva: 0, cuota: 0 })
+      const e = playerPaid.get(pmt.player_id)!
+      e.concepts.add((pmt.concept ?? '').toLowerCase())
+      const amt = Number(pmt.amount_paid ?? 0); e.total += amt
+      if ((pmt.concept ?? '').toLowerCase().includes('reserva')) e.reserva += amt; else e.cuota += amt
+    }
+
+    const byTeamMap = new Map<string, CuotasTeamRow>()
+    for (const tid of nextTeamIds) byTeamMap.set(tid as string, { team_id: tid as string, team_name: teamMap.get(tid as string) ?? (tid as string), total_players: 0, paid_cuota: 0, paid_reserva_only: 0, no_payment: 0, total_collected: 0, reserva_collected: 0, cuota_collected: 0 })
+
+    let paidCuota=0, paidReservaOnly=0, noPayment=0, totalCollected=0, reservaCollected=0, cuotaCollected=0
+    for (const player of players) {
+      const row = byTeamMap.get(player.next_team_id); if (!row) continue; row.total_players++
+      const paid = playerPaid.get(player.id)
+      if (!paid) { row.no_payment++; noPayment++ }
+      else {
+        const hasNR = [...paid.concepts].some(c => !c.includes('reserva'))
+        if (hasNR) { row.paid_cuota++; paidCuota++ } else { row.paid_reserva_only++; paidReservaOnly++ }
+        row.total_collected += paid.total; row.reserva_collected += paid.reserva; row.cuota_collected += paid.cuota
+        totalCollected += paid.total; reservaCollected += paid.reserva; cuotaCollected += paid.cuota
+      }
+    }
+    return { success: true, data: { nextSeason: ns, totalPlayers: players.length, paidCuota, paidReservaOnly, noPayment, totalCollected, reservaCollected, cuotaCollected, byTeam: Array.from(byTeamMap.values()).filter(r => r.total_players > 0).sort((a, b) => b.total_players - a.total_players) } }
+  } catch (e) { return { success: false, error: (e as Error).message } }
 }

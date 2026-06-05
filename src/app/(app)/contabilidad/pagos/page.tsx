@@ -6,6 +6,7 @@ import { PaymentRegistration } from '@/features/contabilidad/components/PaymentR
 import { SeasonSelector } from '@/features/contabilidad/components/SeasonSelector'
 import { Topbar } from '@/components/layout/Topbar'
 import { getActiveSeasons, getCurrentSeason } from '@/lib/utils/currency'
+import { getReminderHistory } from '@/features/contabilidad/actions/accounting.actions'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Pagos de Cuotas' }
@@ -150,6 +151,9 @@ export default async function PagosPage({
     .eq('season', season)
     .order('created_at', { ascending: false })
 
+  // Historial de avisos de cuota enviados
+  const reminderHistory = await getReminderHistory().catch(() => ({}))
+
   // Cuotas por temporada (season_fees) — fuente principal
   const { data: seasonFees } = await sb
     .from('season_fees')
@@ -215,6 +219,7 @@ export default async function PagosPage({
           quotaAmounts={quotaAmounts}
           seasonFees={(seasonFees ?? []) as Array<{ team_id: string | null; concept: string; amount: number }>}
           teams={(teams ?? []) as { id: string; name: string }[]}
+          reminderHistory={reminderHistory}
         />
       </div>
     </div>

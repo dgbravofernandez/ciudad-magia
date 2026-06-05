@@ -32,6 +32,14 @@ function fullName(p: Player | null, notes: string | null): string {
 
 interface Props { pedidos: Order[]; players: PlayerOption[]; clubId: string; catalog: ClothingCatalogItem[] }
 
+function buildPhoneMap(players: PlayerOption[]): Map<string, string> {
+  const m = new Map<string, string>()
+  for (const p of players) {
+    if (p.tutor_phone) m.set(p.id, p.tutor_phone)
+  }
+  return m
+}
+
 const ADULT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 const KID_SIZES = ['128', '140', '152', '164']
 const SIZES = [...ADULT_SIZES, ...KID_SIZES]
@@ -45,6 +53,7 @@ const STATUS_CONFIG = {
 export function RopaPage({ pedidos, players, clubId: _clubId, catalog: initialCatalog }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const phoneMap = buildPhoneMap(players)
   const [filter, setFilter] = useState<'all' | 'pending' | 'partial' | 'paid' | 'cancelled'>('all')
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState({ playerName: '', description: '', size: 'M', quantity: 1, price: 0, notes: '' })
@@ -286,7 +295,7 @@ export function RopaPage({ pedidos, players, clubId: _clubId, catalog: initialCa
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {['Jugador', 'Descripción', 'Artículos', 'Total', 'Estado', 'Fecha', ''].map(h => (
+                {['Jugador', 'Teléfono', 'Descripción', 'Artículos', 'Total', 'Estado', 'Fecha', ''].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -301,6 +310,11 @@ export function RopaPage({ pedidos, players, clubId: _clubId, catalog: initialCa
                   <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <span className="font-medium text-gray-900">{fullName(p.player, p.notes)}</span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">
+                      {p.player_id && phoneMap.get(p.player_id)
+                        ? <a href={`tel:${phoneMap.get(p.player_id)}`} className="hover:text-blue-600 font-medium">{phoneMap.get(p.player_id)}</a>
+                        : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-gray-500">{p.description ?? '-'}</td>
                     <td className="px-4 py-3 text-gray-500">{p.clothing_order_items?.[0]?.count ?? 0} artículos</td>

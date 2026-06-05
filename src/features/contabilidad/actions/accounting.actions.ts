@@ -601,20 +601,58 @@ export async function sendPendingReminders(playerIds: string[]) {
     if (p.is_special_case) byPlayer[p.player_id].specialCase = true
   }
 
-  // 2. Obtener nombre del club + datos de contacto/banco desde club_settings
+  // Importe ya pagado por jugador (registros status=paid)
+  const { data: paidRecords } = await sb
+    .from('quota_payments')
+    .select('player_id, amount_paid')
+    .eq('club_id', clubId)
+    .eq('status', 'paid')
+    .in('player_id', playerIds)
+  const paidByPlayer: Record<string, number> = {}
+  for (const p of (paidRecords ?? [])) {
+    paidByPlayer[p.player_id] = (paidByPlayer[p.player_id] ?? 0) + Number(p.amount_paid)
+  }
+
+  // 2. Obtener nombre del club + datos de contacto/banco + plazos de pago
   const { data: clubData } = await sb
     .from('clubs').select('name').eq('id', clubId).single()
   const clubName = clubData?.name ?? 'El Club'
 
   const { data: settingsData } = await sb
     .from('club_settings')
-    .select('contact_email, bank_iban, bank_titular, bank_name')
+    .select('contact_email, bank_iban, bank_titular, bank_name, quota_amounts, current_season')
     .eq('club_id', clubId)
     .single()
   const contactEmail = settingsData?.contact_email ?? ''
   const bankIban     = settingsData?.bank_iban     ?? CLUB_IBAN
   const bankTitular  = settingsData?.bank_titular  ?? clubName
   const bankName     = settingsData?.bank_name     ?? ''
+
+  // Calcular importe "al día" según plazos vencidos
+  const installments: Array<{ amount: number; deadline: string; label: string }> =
+    settingsData?.quota_amounts?.installments ?? []
+  const currentSeason: string = settingsData?.current_season ?? ''
+  // Año de inicio de temporada: "2025/26" o "2025-26" → 2025
+  const seasonStartYear = (() => {
+    const m = currentSeason.match(/^(\d{4})/)
+    return m ? parseInt(m[1]) : new Date().getFullYear()
+  })()
+
+  function computeAmountDueNow(totalPending: number, alreadyPaid: number): number {
+    if (!installments.length) return totalPending
+    const today = new Date()
+    let dueByNow = 0
+    for (const inst of installments) {
+      const [mm, dd] = (inst.deadline ?? '').split('-').map(Number)
+      if (!mm || !dd) continue
+      const deadlineDate = new Date(seasonStartYear, mm - 1, dd)
+      if (deadlineDate <= today) dueByNow += Number(inst.amount)
+    }
+    // Lo que el jugador debería haber pagado ya, descontando lo que pagó
+    const shouldPayNow = Math.max(0, dueByNow - alreadyPaid)
+    // No superar el total pendiente real
+    return Math.min(totalPending, shouldPayNow > 0 ? shouldPayNow : totalPending)
+  }
 
   let sent = 0
   let skippedSpecial = 0
@@ -635,7 +673,9 @@ export async function sendPendingReminders(playerIds: string[]) {
 
     const tutorName = (player.tutor_name ?? '').trim() || 'familia'
     const playerName = `${player.first_name} ${player.last_name}`.trim()
-    const debtStr = formatCurrency(info.total)
+    const alreadyPaid = paidByPlayer[player.id] ?? 0
+    const amountDueNow = computeAmountDueNow(info.total, alreadyPaid)
+    const debtStr = formatCurrency(amountDueNow)
 
     const html = buildReminderHtml({
       tutorName, playerName, debtStr, clubName,
@@ -646,7 +686,8 @@ export async function sendPendingReminders(playerIds: string[]) {
     const text = [
       `Estimada ${tutorName},`,
       '',
-      `Le informamos que ${playerName} tiene una cuota pendiente de ${debtStr} con ${clubName}.`,
+      `Le informamos que ${playerName} tiene cuotas pendientes con ${clubName}.`,
+      `Para estar al corriente de pago, el importe a abonar es: ${debtStr}.`,
       '',
       'MÉTODOS DE PAGO:',
       `  · Transferencia bancaria: ${bankIban} (${bankTitular || clubName})`,
@@ -731,10 +772,11 @@ function buildReminderHtml(opts: {
       Le escribimos para recordarle que <strong>${opts.playerName}</strong> tiene <strong>cuotas pendientes</strong> de pago correspondientes a la temporada actual.
     </p>
 
-    <!-- Importe pendiente destacado -->
+    <!-- Importe para estar al corriente -->
     <div style="background:#fffbe6;border-left:4px solid #ffcc00;border-radius:6px;padding:18px 20px;margin:24px 0;">
-      <p style="margin:0 0 8px;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">Importe pendiente</p>
+      <p style="margin:0 0 8px;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">Importe para estar al corriente</p>
       <p style="margin:0;font-size:26px;font-weight:bold;color:#b76e00;">${opts.debtStr}</p>
+      <p style="margin:6px 0 0;font-size:12px;color:#888;">Calculado según los plazos de pago de la temporada vigente.</p>
     </div>
 
     <!-- Aviso plaza próxima temporada -->
@@ -1131,4 +1173,40 @@ function getCurrentSeason(): string {
   const month = now.getMonth() + 1
   if (month >= 9) return `${year}-${String(year + 1).slice(2)}`
   return `${year - 1}-${String(year).slice(2)}`
+}
+
+// ── getReminderHistory ───────────────────────────────────────────────────────
+// Devuelve el historial de avisos de cuota enviados a cada jugador.
+// Consulta la tabla communications buscando subject que empiece con "Cuota pendiente".
+export async function getReminderHistory(): Promise<
+  Record<string, { lastSent: string; count: number; history: string[] }>
+> {
+  const { sb, clubId } = await resolveClubAndMember()
+
+  const { data } = await sb
+    .from('communications')
+    .select('recipient_ids, sent_at')
+    .eq('club_id', clubId)
+    .like('subject', 'Cuota pendiente%')
+    .not('sent_at', 'is', null)
+    .order('sent_at', { ascending: false })
+    .limit(500)
+
+  const result: Record<string, { lastSent: string; count: number; history: string[] }> = {}
+
+  for (const row of (data ?? [])) {
+    const ids: string[] = row.recipient_ids ?? []
+    for (const playerId of ids) {
+      if (!result[playerId]) {
+        result[playerId] = { lastSent: row.sent_at, count: 0, history: [] }
+      }
+      result[playerId].count++
+      result[playerId].history.push(row.sent_at)
+      if (row.sent_at > result[playerId].lastSent) {
+        result[playerId].lastSent = row.sent_at
+      }
+    }
+  }
+
+  return result
 }
