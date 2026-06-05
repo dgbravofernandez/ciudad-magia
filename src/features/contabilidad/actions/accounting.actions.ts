@@ -28,13 +28,29 @@ async function resolveClubAndMember() {
   if (!clubId) {
     clubId = (await getClubId()) ?? ''
   }
+
+  // Fallback: si los headers no traen roles (ej. server action directo sin middleware completo),
+  // consultamos club_member_roles y el campo legacy club_members.role
+  if (roles.length === 0 && memberId) {
+    const { data: roleRows } = await sb
+      .from('club_member_roles').select('role').eq('member_id', memberId)
+    roles = (roleRows ?? []).map((r: { role: string }) => r.role)
+
+    if (roles.length === 0) {
+      const { data: memberRow } = await sb
+        .from('club_members').select('role').eq('id', memberId).single()
+      if (memberRow?.role) roles = [memberRow.role]
+    }
+  }
+
   if (!clubId) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: member } = await sb
-        .from('club_members').select('club_id').eq('user_id', user.id).eq('active', true).limit(1).single()
+        .from('club_members').select('club_id, role').eq('user_id', user.id).eq('active', true).limit(1).single()
       clubId = member?.club_id ?? ''
+      if (roles.length === 0 && member?.role) roles = [member.role]
     }
   }
 
