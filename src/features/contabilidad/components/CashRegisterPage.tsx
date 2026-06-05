@@ -206,11 +206,19 @@ export function CashRegisterPage({
     })
   }
 
+  // Netos por método calculados desde movements (fuente única de verdad)
+  const netCash     = movements.filter(m => m.payment_method === 'cash')
+    .reduce((s, m) => s + (m.type === 'income' ? m.amount : -m.amount), 0)
+  const netCard     = movements.filter(m => m.payment_method === 'card')
+    .reduce((s, m) => s + (m.type === 'income' ? m.amount : -m.amount), 0)
+  const netTransfer = movements.filter(m => m.payment_method !== 'cash' && m.payment_method !== 'card')
+    .reduce((s, m) => s + (m.type === 'income' ? m.amount : -m.amount), 0)
+
   const realCashNum  = parseFloat(realCash) || 0
   const floatNum     = parseFloat(floatValue) || 0
   const realCardNum  = parseFloat(realCard) || 0
-  const diffCash     = realCashNum - systemCash
-  const diffCard     = realCardNum - systemCard
+  const diffCash     = realCashNum - netCash
+  const diffCard     = realCardNum - netCard
   const cashBalanced = Math.abs(diffCash) < 0.01
   const cardBalanced = Math.abs(diffCard) < 0.01
   const fullyBalanced = cashBalanced && cardBalanced
@@ -253,9 +261,9 @@ export function CashRegisterPage({
         clubId,
         periodStart,
         periodEnd,
-        systemCash,
+        systemCash: netCash,
         realCash: realCashNum,
-        systemCard,
+        systemCard: netCard,
         realCard: realCardNum,
         notes,
         closedBy: memberId,
@@ -461,8 +469,8 @@ export function CashRegisterPage({
       '',
       `"TOTAL INGRESOS",,${totalIncome.toFixed(2)},,,`,
       `"TOTAL GASTOS",,${totalExpense.toFixed(2)},,,`,
-      `"EFECTIVO (SISTEMA)",,${systemCash.toFixed(2)},,,`,
-      `"TARJETA (SISTEMA)",,${systemCard.toFixed(2)},,,`,
+      `"EFECTIVO (SISTEMA)",,${netCash.toFixed(2)},,,`,
+      `"TARJETA (SISTEMA)",,${netCard.toFixed(2)},,,`,
       `"PERIODO","${periodStart} a ${periodEnd}",,,,`,
     ].join('\n')
 
@@ -512,11 +520,11 @@ export function CashRegisterPage({
           </div>
           <div className="bg-blue-50 rounded-lg p-3 text-center">
             <p className="text-xs text-blue-700">Efectivo (sistema)</p>
-            <p className="text-xl font-bold text-blue-600">{formatCurrency(systemCash)}</p>
+            <p className="text-xl font-bold text-blue-600">{formatCurrency(netCash)}</p>
           </div>
           <div className="bg-purple-50 rounded-lg p-3 text-center">
             <p className="text-xs text-purple-700">Tarjeta (sistema)</p>
-            <p className="text-xl font-bold text-purple-600">{formatCurrency(systemCard)}</p>
+            <p className="text-xl font-bold text-purple-600">{formatCurrency(netCard)}</p>
           </div>
         </div>
       </div>
@@ -531,7 +539,7 @@ export function CashRegisterPage({
           >
             <div className="flex items-center gap-2">
               <ChevronDown className={cn('w-4 h-4 text-muted-foreground transition-transform', showBreakdown && 'rotate-180')} />
-              <span className="font-medium text-sm">Desglose por fuente — ¿de dónde vienen los {formatCurrency(systemCash)} en efectivo?</span>
+              <span className="font-medium text-sm">Desglose por fuente — ¿de dónde vienen los {formatCurrency(netCash)} en efectivo?</span>
             </div>
             <span className="text-xs text-muted-foreground">
               {SOURCES.filter(s => sourceBreakdown[s].count > 0).length} fuentes activas
@@ -572,17 +580,10 @@ export function CashRegisterPage({
                   <tr className="border-t bg-muted/30 font-semibold">
                     <td className="px-4 py-2.5 text-xs text-muted-foreground uppercase tracking-wide">TOTAL</td>
                     <td className="px-4 py-2.5 text-right text-muted-foreground">{movements.length}</td>
-                    <td className="px-4 py-2.5 text-right text-blue-700">{formatCurrency(systemCash)}</td>
-                    <td className="px-4 py-2.5 text-right text-purple-700">{formatCurrency(systemCard)}</td>
+                    <td className="px-4 py-2.5 text-right text-blue-700">{formatCurrency(netCash)}</td>
+                    <td className="px-4 py-2.5 text-right text-purple-700">{formatCurrency(netCard)}</td>
                     <td className="px-4 py-2.5 text-right">
-                      {formatCurrency(
-                        movements.reduce((s, m) => {
-                          if (m.payment_method !== 'cash' && m.payment_method !== 'card') {
-                            return s + (m.type === 'income' ? m.amount : -m.amount)
-                          }
-                          return s
-                        }, 0)
-                      )}
+                      {formatCurrency(netTransfer)}
                     </td>
                   </tr>
                 </tbody>
@@ -665,12 +666,14 @@ export function CashRegisterPage({
                   ))}
                   <tr className="border-t bg-muted/30 font-semibold">
                     <td className="px-4 py-2.5 text-xs text-muted-foreground uppercase tracking-wide">TOTAL</td>
-                    <td className="px-4 py-2.5 text-right text-blue-700">{formatCurrency(systemCash)}</td>
-                    <td className="px-4 py-2.5 text-right text-purple-700">{formatCurrency(systemCard)}</td>
+                    <td className="px-4 py-2.5 text-right text-blue-700">{formatCurrency(netCash)}</td>
+                    <td className="px-4 py-2.5 text-right text-purple-700">{formatCurrency(netCard)}</td>
                     <td className="px-4 py-2.5 text-right">
-                      {formatCurrency(movements.filter(m => m.payment_method !== 'cash' && m.payment_method !== 'card' && m.type === 'income').reduce((s, m) => s + m.amount, 0))}
+                      {formatCurrency(netTransfer)}
                     </td>
-                    <td className="px-4 py-2.5 text-right text-green-700">{formatCurrency(totalIncome)}</td>
+                    <td className={cn('px-4 py-2.5 text-right', (netCash + netCard + netTransfer) >= 0 ? 'text-green-700' : 'text-red-600')}>
+                      {formatCurrency(netCash + netCard + netTransfer)}
+                    </td>
                     <td />
                   </tr>
                 </tbody>
@@ -982,8 +985,8 @@ export function CashRegisterPage({
         <div className="bg-muted/40 rounded-lg p-4">
           <p className="text-sm font-medium text-muted-foreground mb-2">Totales del sistema</p>
           <div className="flex gap-6 text-sm">
-            <span>Efectivo: <strong>{formatCurrency(systemCash)}</strong></span>
-            <span>Tarjeta: <strong>{formatCurrency(systemCard)}</strong></span>
+            <span>Efectivo: <strong>{formatCurrency(netCash)}</strong></span>
+            <span>Tarjeta: <strong>{formatCurrency(netCard)}</strong></span>
           </div>
         </div>
 
@@ -1048,7 +1051,7 @@ export function CashRegisterPage({
               inputMode="decimal"
               min="0"
               className="input w-full"
-              placeholder={`Sistema: ${formatCurrency(systemCash)}`}
+              placeholder={`Sistema: ${formatCurrency(netCash)}`}
               value={realCash}
               onChange={(e) => setRealCash(e.target.value)}
             />
@@ -1067,7 +1070,7 @@ export function CashRegisterPage({
               inputMode="decimal"
               min="0"
               className="input w-full"
-              placeholder={`Sistema: ${formatCurrency(systemCard)}`}
+              placeholder={`Sistema: ${formatCurrency(netCard)}`}
               value={realCard}
               onChange={(e) => setRealCard(e.target.value)}
             />
