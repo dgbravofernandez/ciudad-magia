@@ -1,7 +1,7 @@
 import { getTeamsForFilter } from '@/features/informes/actions/informes.actions'
 import { getClubContext } from '@/lib/supabase/get-club-id'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { InformesExplorer } from '@/features/informes/components/InformesExplorer'
+import { getCurrentSeason } from '@/lib/utils/currency'
 import { BarChart3 } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -11,16 +11,14 @@ export const metadata = {
 }
 
 export default async function InformesPage() {
-  const { clubId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
+  await getClubContext() // valida que el usuario tiene acceso al club
 
-  const [teams, { data: settings }] = await Promise.all([
+  const [teams] = await Promise.all([
     getTeamsForFilter(),
-    sb.from('club_settings').select('current_season').eq('club_id', clubId).single(),
   ])
 
-  const currentSeason = settings?.current_season ?? '2025/26'
+  // Usar siempre el formato con guión (ej. '2025-26') que coincide con quota_payments
+  const currentSeason = getCurrentSeason()
 
   return (
     <div className="p-6 space-y-6">
@@ -32,7 +30,7 @@ export default async function InformesPage() {
         <div>
           <h1 className="text-xl font-semibold text-foreground">Informes</h1>
           <p className="text-sm text-muted-foreground">
-            Explorador de datos del club — temporada {currentSeason}
+            Explorador de datos del club
           </p>
         </div>
       </div>
