@@ -325,17 +325,32 @@ export async function updatePayment(data: {
 const SUPER_EMAIL = 'dgbravofernandez@gmail.com'
 
 /**
+ * Obtiene el email del usuario autenticado a partir del memberId,
+ * usando el admin client (funciona correctamente en Server Actions).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getMemberEmail(sb: any, memberId: string): Promise<string | null> {
+  if (!memberId) return null
+  const { data: member } = await sb
+    .from('club_members')
+    .select('user_id')
+    .eq('id', memberId)
+    .single()
+  if (!member?.user_id) return null
+  const { data: authData } = await sb.auth.admin.getUserById(member.user_id)
+  return authData?.user?.email ?? null
+}
+
+/**
  * Carga todos los movimientos de un período cerrado para revisión/edición.
  * Restringido al superusuario.
  */
 export async function getClosedPeriodMovements(periodStart: string, periodEnd: string) {
   try {
-    const { sb, clubId } = await resolveClubAndMember()
+    const { sb, clubId, memberId } = await resolveClubAndMember()
     // Restricción: solo el superusuario
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = createAdminClient() as any
-    const { data: { user } } = await (await import('@/lib/supabase/server')).createClient().then(c => c.auth.getUser())
-    if (!user || user.email !== SUPER_EMAIL) return { success: false, error: 'Sin acceso' }
+    const memberEmail = await getMemberEmail(sb, memberId)
+    if (memberEmail !== SUPER_EMAIL) return { success: false, error: 'Sin acceso' }
 
     const { data: movements, error } = await sb
       .from('cash_movements')
@@ -380,7 +395,6 @@ export async function getClosedPeriodMovements(periodStart: string, periodEnd: s
       payment_concept: m.related_payment_id ? (paymentMap[m.related_payment_id]?.concept ?? '') : '',
     }))
 
-    void supabase // suppress unused warning
     return { success: true, movements: enriched }
   } catch (e) {
     return { success: false, error: (e as Error).message }
@@ -400,10 +414,10 @@ export async function reclassifyMovement(data: {
   newConcept?: string
 }) {
   try {
-    const { sb } = await resolveClubAndMember()
+    const { sb, memberId } = await resolveClubAndMember()
     // Restricción: solo el superusuario
-    const { data: { user } } = await (await import('@/lib/supabase/server')).createClient().then(c => c.auth.getUser())
-    if (!user || user.email !== SUPER_EMAIL) return { success: false, error: 'Sin acceso' }
+    const memberEmail = await getMemberEmail(sb, memberId)
+    if (memberEmail !== SUPER_EMAIL) return { success: false, error: 'Sin acceso' }
 
     // Actualizar cash_movement
     const { error: movErr } = await sb
