@@ -75,9 +75,9 @@ export async function registerPayment(data: {
   const { sb, clubId, memberId } = await resolveClubAndMember()
   const dbMethod = toDbMethod(data.method)
 
-  // Buscar registro pendiente existente para este jugador y temporada
+  // Buscar TODOS los registros pendientes del jugador para esta temporada (orden cronológico)
   const season = data.season ?? getCurrentSeason()
-  const { data: pendingRec } = await sb
+  const { data: pendingRecs } = await sb
     .from('quota_payments')
     .select('id, amount_due, amount_paid')
     .eq('club_id', clubId)
@@ -85,25 +85,47 @@ export async function registerPayment(data: {
     .eq('season', season)
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
 
   let paymentId: string | null = null
 
-  if (pendingRec) {
-    // Actualizar el registro pendiente existente → pagado
-    const { error: updateErr } = await sb.from('quota_payments').update({
-      amount_paid: data.amount,
-      amount_due: Number(pendingRec.amount_due), // preservar la deuda original (no máx con el pago parcial)
-      payment_date: data.date,
-      payment_method: dbMethod,
-      status: 'paid',
-      notes: data.notes || null,
-      email_sent: false,
-      registered_by: memberId || null,
-    }).eq('id', pendingRec.id)
-    if (updateErr) return { success: false, error: updateErr.message }
-    paymentId = pendingRec.id
+  if (pendingRecs && pendingRecs.length > 0) {
+    // Aplicar el pago secuencialmente sobre los registros pendientes (orden cronológico)
+    // hasta agotar el importe. Así un pago de 450€ cubre Reserva+Cuota1+Cuota2+Cuota3
+    // en lugar de dejar 3 registros pendientes.
+    let remaining = data.amount
+    for (const rec of pendingRecs) {
+      if (remaining <= 0) break
+      const due = Number(rec.amount_due) - Number(rec.amount_paid)
+      if (due <= 0) continue
+
+      if (remaining >= due) {
+        // Pago completo de este registro
+        const { error: updateErr } = await sb.from('quota_payments').update({
+          amount_paid: Number(rec.amount_due), // pago total = deuda original
+          payment_date: data.date,
+          payment_method: dbMethod,
+          status: 'paid',
+          notes: data.notes || null,
+          email_sent: false,
+          registered_by: memberId || null,
+        }).eq('id', rec.id)
+        if (updateErr) return { success: false, error: updateErr.message }
+        remaining -= due
+      } else {
+        // Pago parcial — actualizar amount_paid, mantener status 'pending'
+        const { error: updateErr } = await sb.from('quota_payments').update({
+          amount_paid: Number(rec.amount_paid) + remaining,
+          payment_date: data.date,
+          payment_method: dbMethod,
+          notes: data.notes || null,
+          registered_by: memberId || null,
+        }).eq('id', rec.id)
+        if (updateErr) return { success: false, error: updateErr.message }
+        remaining = 0
+      }
+      // El primer registro actualizado es el "principal" para el movimiento de caja
+      if (!paymentId) paymentId = rec.id
+    }
   } else {
     // Anti-duplicado: comprobar si ya existe un pago idéntico (mismo jugador + temporada + concepto + importe + fecha)
     // Evita doble registro por doble clic o doble envío del formulario

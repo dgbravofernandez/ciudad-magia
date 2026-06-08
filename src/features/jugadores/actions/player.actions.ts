@@ -5,6 +5,62 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { sendHtmlEmail } from '@/lib/email/send'
 import { generateTrialLetterPDF } from '@/lib/pdf/generate-trial-letter'
+import { getNextSeason } from '@/lib/utils/currency'
+
+/**
+ * Genera los registros de cuotas pendientes para un jugador en la próxima temporada
+ * basándose en las tarifas definidas en season_fees para su equipo.
+ * Si ya tiene pendientes para esa temporada, no hace nada (idempotente).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function generatePendingFeesForPlayer(sb: any, clubId: string, playerId: string, teamId: string): Promise<void> {
+  const nextSeason = getNextSeason()       // ej: '2026-27'
+  const feesSeason = nextSeason.replace('-', '/')  // ej: '2026/27' (formato de season_fees)
+
+  // Idempotencia: si ya tiene pendientes para esta temporada, no duplicar
+  const { count } = await sb
+    .from('quota_payments')
+    .select('id', { count: 'exact', head: true })
+    .eq('club_id', clubId)
+    .eq('player_id', playerId)
+    .eq('season', nextSeason)
+    .eq('status', 'pending')
+
+  if ((count ?? 0) > 0) return
+
+  // Leer tarifas del equipo para la próxima temporada
+  const { data: fees } = await sb
+    .from('season_fees')
+    .select('concept, amount, sort_order')
+    .eq('club_id', clubId)
+    .eq('team_id', teamId)
+    .eq('season', feesSeason)
+    .neq('concept', 'Pago Completo')  // no crear pendiente para pago completo (es solo referencia)
+    .order('sort_order', { ascending: true })
+
+  if (!fees || fees.length === 0) return
+
+  // Meses aproximados para cada concepto (no crítico, solo para orden visual)
+  const monthMap: Record<string, number> = {
+    'Reserva': 9,
+    'Cuota 1': 10,
+    'Cuota 2': 2,
+    'Cuota 3': 5,
+  }
+
+  const records = fees.map((f: { concept: string; amount: string; sort_order: number }) => ({
+    club_id: clubId,
+    player_id: playerId,
+    season: nextSeason,
+    month: monthMap[f.concept] ?? 10,
+    concept: f.concept,
+    amount_due: parseFloat(f.amount),
+    amount_paid: 0,
+    status: 'pending',
+  }))
+
+  await sb.from('quota_payments').insert(records)
+}
 
 export async function updateInscriptionStatus(
   playerId: string,
@@ -48,6 +104,13 @@ export async function updateInscriptionStatus(
   // Auto-send confirmation/rejection email
   if (autoEmailType) {
     await sendEmail(playerId, autoEmailType)
+  }
+
+  // Si se está asignando equipo de próxima temporada, generar cuotas pendientes automáticamente
+  if (data.next_team_id && clubId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sbAdmin = createAdminClient() as any
+    await generatePendingFeesForPlayer(sbAdmin, clubId, playerId, data.next_team_id)
   }
 
   revalidatePath('/jugadores/inscripciones')
@@ -462,6 +525,13 @@ export async function createPlayer(formData: FormData) {
     } catch {
       // non-fatal
     }
+  }
+
+  // Generar cuotas pendientes automáticamente si tiene equipo de próxima temporada asignado
+  if (player?.id && player?.next_team_id && clubId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sbAdmin = createAdminClient() as any
+    await generatePendingFeesForPlayer(sbAdmin, clubId, player.id, player.next_team_id)
   }
 
   revalidatePath('/jugadores')
