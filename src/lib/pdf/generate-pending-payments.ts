@@ -74,8 +74,10 @@ export interface PendingPaymentsPDFParams {
   rows: PendingPaymentRow[]
   season: string
   filters: {
-    teams: string[]      // nombres de equipos seleccionados (vacío = todos)
-    concepts: string[]   // conceptos seleccionados (vacío = todos)
+    teams: string[]        // nombres de equipos seleccionados (vacío = todos)
+    concepts: string[]     // conceptos seleccionados (vacío = todos)
+    categories?: string[]  // categorías seleccionadas (vacío = todas)
+    amountMin?: number     // importe mínimo pendiente
   }
   clubName: string
   primaryColor?: string
@@ -348,6 +350,12 @@ export async function generatePendingPaymentsPDF(params: PendingPaymentsPDFParam
       }
       if (params.filters.concepts.length > 0) {
         filterParts.push(`Concepto: ${params.filters.concepts.join(', ')}`)
+      }
+      if (params.filters.categories && params.filters.categories.length > 0) {
+        filterParts.push(`Categoría: ${params.filters.categories.join(', ')}`)
+      }
+      if (params.filters.amountMin && params.filters.amountMin > 0) {
+        filterParts.push(`Deuda mín.: ${eur(params.filters.amountMin)}`)
       }
       page.drawText(`Filtros — ${filterParts.join('   ·   ')}`, {
         x: ML, y: filtersY, size: 8.5, font: italic, color: COLOR_MID,

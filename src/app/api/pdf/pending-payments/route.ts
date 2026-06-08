@@ -31,8 +31,27 @@ export async function GET(req: NextRequest) {
   const season = url.searchParams.get('season') ?? '2025-26'
   const teamIdsParam = url.searchParams.get('teams') ?? ''   // CSV de IDs (vacío = todos)
   const conceptsParam = url.searchParams.get('concepts') ?? '' // CSV de conceptos
+  const categoriesParam = url.searchParams.get('categories') ?? '' // CSV de categorías
+  const amountMinParam = url.searchParams.get('amountMin') ?? '' // importe mínimo
   const teamIds = teamIdsParam ? teamIdsParam.split(',').filter(Boolean) : []
   const concepts = conceptsParam ? conceptsParam.split(',').filter(Boolean) : []
+  const categories = categoriesParam ? categoriesParam.split(',').filter(Boolean) : []
+  const amountMin = amountMinParam ? parseFloat(amountMinParam) : null
+
+  // Helper: categoría por año de nacimiento
+  function getCategory(birthDate: string | null | undefined): string {
+    if (!birthDate) return '—'
+    const birthYear = new Date(birthDate).getFullYear()
+    const seasonYear = parseInt(season.split('-')[0])
+    const age = seasonYear - birthYear
+    if (age <= 5) return 'Prebenjamín'
+    if (age <= 7) return 'Benjamín'
+    if (age <= 9) return 'Alevín'
+    if (age <= 11) return 'Infantil'
+    if (age <= 13) return 'Cadete'
+    if (age <= 15) return 'Juvenil'
+    return 'Sénior'
+  }
 
   // Aceptar season en formato dash (2025-26) y slash (2025/26)
   const seasonAlt = season.includes('/') ? season.replace('/', '-') : season.replace('-', '/')
@@ -50,14 +69,14 @@ export async function GET(req: NextRequest) {
   const { data: pendings } = await pq
 
   if (!pendings || pendings.length === 0) {
-    return await buildEmptyPdfResponse(sb, clubId, season, [], [])
+    return await buildEmptyPdfResponse(sb, clubId, season, [], [], [], undefined)
   }
 
   // ── 2. Jugadores referenciados ─────────────────────────────────────
   const playerIds = Array.from(new Set(pendings.map((p: { player_id: string }) => p.player_id)))
   const { data: players } = await sb
     .from('players')
-    .select('id, first_name, last_name, team_id, tutor_email, tutor_phone')
+    .select('id, first_name, last_name, team_id, tutor_email, tutor_phone, birth_date')
     .eq('club_id', clubId)
     .in('id', playerIds)
 
@@ -93,14 +112,15 @@ export async function GET(req: NextRequest) {
     player_id: string; amount_due: number | string; amount_paid: number | string;
     payment_date: string | null; admin_comment: string | null; is_special_case: boolean | null
   }
-  const playerMap = new Map<string, { id: string; first_name: string; last_name: string; team_id: string | null; tutor_email: string | null; tutor_phone: string | null }>(
-    (players ?? []).map((p: { id: string; first_name: string; last_name: string; team_id: string | null; tutor_email: string | null; tutor_phone: string | null }) => [p.id, p])
+  const playerMap = new Map<string, { id: string; first_name: string; last_name: string; team_id: string | null; tutor_email: string | null; tutor_phone: string | null; birth_date: string | null }>(
+    (players ?? []).map((p: { id: string; first_name: string; last_name: string; team_id: string | null; tutor_email: string | null; tutor_phone: string | null; birth_date: string | null }) => [p.id, p])
   )
 
   for (const row of pendings as PendingRowDb[]) {
     const player = playerMap.get(row.player_id)
     if (!player) continue
     if (teamIds.length > 0 && (!player.team_id || !teamIds.includes(player.team_id))) continue
+    if (categories.length > 0 && !categories.includes(getCategory(player.birth_date))) continue
 
     const amount = (Number(row.amount_due) || 0) - (Number(row.amount_paid) || 0)
     if (amount <= 0) continue
@@ -124,7 +144,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const rows = Array.from(byPlayer.values()).sort((a, b) => b.pending_amount - a.pending_amount)
+  let rows = Array.from(byPlayer.values()).sort((a, b) => b.pending_amount - a.pending_amount)
+  if (amountMin !== null && !isNaN(amountMin) && amountMin > 0) {
+    rows = rows.filter((r) => r.pending_amount >= amountMin)
+  }
 
   // ── 6. Branding ────────────────────────────────────────────────────
   const { data: clubData } = await sb
@@ -138,7 +161,7 @@ export async function GET(req: NextRequest) {
   const pdfBytes = await generatePendingPaymentsPDF({
     rows,
     season,
-    filters: { teams: teamNamesSelected, concepts },
+    filters: { teams: teamNamesSelected, concepts, categories, amountMin: amountMin ?? undefined },
     clubName: clubData?.name ?? 'Escuela de Fútbol Ciudad de Getafe',
     primaryColor: clubData?.primary_color ?? undefined,
     logoUrl: clubData?.logo_url ?? null,
@@ -157,14 +180,14 @@ export async function GET(req: NextRequest) {
 
 async function buildEmptyPdfResponse(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sb: any, clubId: string, season: string, teamNamesSelected: string[], concepts: string[]
+  sb: any, clubId: string, season: string, teamNamesSelected: string[], concepts: string[], categories: string[], amountMin: number | undefined
 ) {
   const { data: clubData } = await sb
     .from('clubs').select('name, logo_url, primary_color').eq('id', clubId).single()
   const pdfBytes = await generatePendingPaymentsPDF({
     rows: [],
     season,
-    filters: { teams: teamNamesSelected, concepts },
+    filters: { teams: teamNamesSelected, concepts, categories, amountMin },
     clubName: clubData?.name ?? 'Escuela de Fútbol Ciudad de Getafe',
     primaryColor: clubData?.primary_color ?? undefined,
     logoUrl: clubData?.logo_url ?? null,
