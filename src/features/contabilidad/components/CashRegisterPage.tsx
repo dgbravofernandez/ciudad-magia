@@ -90,7 +90,7 @@ interface CashClose {
 interface Props {
   clubId: string
   memberId: string
-  userEmail?: string
+  isSuperUser?: boolean
   systemCash: number
   systemCard: number
   periodStart: string
@@ -103,7 +103,6 @@ interface Props {
   cashRegisterFloat: number
 }
 
-const SUPER_EMAIL = 'dgbravofernandez@gmail.com'
 
 const SOURCE_OPTIONS = [
   { value: 'cuota',     label: 'Cuota' },
@@ -119,7 +118,7 @@ type ClosedMovement = any
 export function CashRegisterPage({
   clubId,
   memberId,
-  userEmail,
+  isSuperUser = false,
   systemCash,
   systemCard,
   periodStart,
@@ -306,7 +305,7 @@ export function CashRegisterPage({
     sourceBreakdown[src].count++
   }
 
-  const isSuperUser = userEmail === SUPER_EMAIL
+  // isSuperUser viene calculado por el Server Component (nunca exponer el email en el cliente)
 
   // ── Ingreso externo ───────────────────────────────────────────────────────────
   const [showExternalIncome, setShowExternalIncome] = useState(false)
@@ -1534,7 +1533,7 @@ export function CashRegisterPage({
             </div>
 
             <div className="px-6 py-3 border-t bg-muted/20 text-xs text-muted-foreground">
-              Solo visible para <strong>dgbravofernandez@gmail.com</strong> — los cambios de fuente no afectan los totales del arqueo cerrado
+              Solo visible para superadministradores — los cambios de fuente no afectan los totales del arqueo cerrado
             </div>
           </div>
         </div>

@@ -4,19 +4,9 @@ import { PlayerList } from '@/features/jugadores/components/PlayerList'
 import { Topbar } from '@/components/layout/Topbar'
 import { headers } from 'next/headers'
 import type { Metadata } from 'next'
+import { bumpSeason } from '@/lib/utils/season'
 
 export const metadata: Metadata = { title: 'Jugadores' }
-
-function bumpSeason(season: string): string {
-  const m = season.match(/^(\d{4})\/(\d{2})$/)
-  if (m) {
-    const y1 = parseInt(m[1]) + 1
-    const y2short = parseInt(m[2])
-    const y2full = y2short >= 90 ? 1900 + y2short : 2000 + y2short
-    return `${y1}/${String(y2full + 1).slice(-2)}`
-  }
-  return season
-}
 
 export default async function JugadoresPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

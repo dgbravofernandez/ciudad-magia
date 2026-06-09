@@ -10,6 +10,7 @@ import { sendHtmlEmail } from '@/lib/email/send'
 import { assertNotLocked } from '@/lib/accounting/lock'
 import { logger } from '@/lib/logger'
 import { formatCurrency } from '@/lib/utils/currency'
+import { applyPaymentToRecords } from '@/lib/contabilidad/apply-payment'
 
 
 async function resolveClubAndMember() {
@@ -89,42 +90,33 @@ export async function registerPayment(data: {
   let paymentId: string | null = null
 
   if (pendingRecs && pendingRecs.length > 0) {
-    // Aplicar el pago secuencialmente sobre los registros pendientes (orden cronológico)
-    // hasta agotar el importe. Así un pago de 450€ cubre Reserva+Cuota1+Cuota2+Cuota3
-    // en lugar de dejar 3 registros pendientes.
-    let remaining = data.amount
-    for (const rec of pendingRecs) {
-      if (remaining <= 0) break
-      const due = Number(rec.amount_due) - Number(rec.amount_paid)
-      if (due <= 0) continue
+    // Calcular distribución con lógica pura (testeable) y luego ejecutar en BD
+    const applications = applyPaymentToRecords(pendingRecs, data.amount)
 
-      if (remaining >= due) {
-        // Pago completo de este registro
-        const { error: updateErr } = await sb.from('quota_payments').update({
-          amount_paid: Number(rec.amount_due), // pago total = deuda original
-          payment_date: data.date,
-          payment_method: dbMethod,
-          status: 'paid',
-          notes: data.notes || null,
-          email_sent: false,
-          registered_by: memberId || null,
-        }).eq('id', rec.id)
-        if (updateErr) return { success: false, error: updateErr.message }
-        remaining -= due
-      } else {
-        // Pago parcial — actualizar amount_paid, mantener status 'pending'
-        const { error: updateErr } = await sb.from('quota_payments').update({
-          amount_paid: Number(rec.amount_paid) + remaining,
-          payment_date: data.date,
-          payment_method: dbMethod,
-          notes: data.notes || null,
-          registered_by: memberId || null,
-        }).eq('id', rec.id)
-        if (updateErr) return { success: false, error: updateErr.message }
-        remaining = 0
-      }
+    for (const app of applications) {
+      const updateData = app.newStatus === 'paid'
+        ? {
+            amount_paid: app.newAmountPaid,
+            payment_date: data.date,
+            payment_method: dbMethod,
+            status: 'paid' as const,
+            notes: data.notes || null,
+            email_sent: false,
+            registered_by: memberId || null,
+          }
+        : {
+            amount_paid: app.newAmountPaid,
+            payment_date: data.date,
+            payment_method: dbMethod,
+            notes: data.notes || null,
+            registered_by: memberId || null,
+          }
+
+      const { error: updateErr } = await sb.from('quota_payments').update(updateData).eq('id', app.id)
+      if (updateErr) return { success: false, error: updateErr.message }
+
       // El primer registro actualizado es el "principal" para el movimiento de caja
-      if (!paymentId) paymentId = rec.id
+      if (!paymentId) paymentId = app.id
     }
   } else {
     // Anti-duplicado: comprobar si ya existe un pago idéntico (mismo jugador + temporada + concepto + importe + fecha)
@@ -342,9 +334,12 @@ export async function updatePayment(data: {
   return { success: true }
 }
 
-// ── Gestión de períodos cerrados (solo dgbravofernandez@gmail.com) ────────────
+// ── Gestión de períodos cerrados (solo superadmin) ───────────────────────────
 
-const SUPER_EMAIL = 'dgbravofernandez@gmail.com'
+// Falla cerrado si la var no está configurada (nunca otorgar acceso implícito)
+function getSuperAdminEmail(): string | null {
+  return process.env.SUPER_ADMIN_EMAIL ?? null
+}
 
 /**
  * Obtiene el email del usuario autenticado a partir del memberId,
@@ -372,7 +367,8 @@ export async function getClosedPeriodMovements(periodStart: string, periodEnd: s
     const { sb, clubId, memberId } = await resolveClubAndMember()
     // Restricción: solo el superusuario
     const memberEmail = await getMemberEmail(sb, memberId)
-    if (memberEmail !== SUPER_EMAIL) return { success: false, error: 'Sin acceso' }
+    const superEmail = getSuperAdminEmail()
+    if (!superEmail || memberEmail !== superEmail) return { success: false, error: 'Sin acceso' }
 
     const { data: movements, error } = await sb
       .from('cash_movements')
@@ -439,7 +435,8 @@ export async function reclassifyMovement(data: {
     const { sb, memberId } = await resolveClubAndMember()
     // Restricción: solo el superusuario
     const memberEmail = await getMemberEmail(sb, memberId)
-    if (memberEmail !== SUPER_EMAIL) return { success: false, error: 'Sin acceso' }
+    const superEmail = getSuperAdminEmail()
+    if (!superEmail || memberEmail !== superEmail) return { success: false, error: 'Sin acceso' }
 
     // Actualizar cash_movement
     const { error: movErr } = await sb

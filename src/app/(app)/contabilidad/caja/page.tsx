@@ -184,10 +184,11 @@ export default async function CajaPage() {
     }
   }
 
-  // Fetch user email for superuser features
+  // Resolver si el usuario actual es superadmin (comparación server-side — nunca exponer el email al cliente)
   const supabaseUser = await createClient()
   const { data: { user: authUser } } = await supabaseUser.auth.getUser()
-  const userEmail = authUser?.email ?? ''
+  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL
+  const isSuperUser = !!(superAdminEmail && authUser?.email === superAdminEmail)
 
   return (
     <div className="flex flex-col h-full">
@@ -196,7 +197,7 @@ export default async function CajaPage() {
         <CashRegisterPage
           clubId={clubId}
           memberId={memberId}
-          userEmail={userEmail}
+          isSuperUser={isSuperUser}
           systemCash={systemCash}
           systemCard={systemCard}
           periodStart={periodStart}

@@ -2,17 +2,7 @@ import { getClubId } from '@/lib/supabase/get-club-id'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PlayerForm } from '@/features/jugadores/components/PlayerForm'
 import { Topbar } from '@/components/layout/Topbar'
-
-function bumpSeason(season: string): string {
-  const m = season.match(/^(\d{4})\/(\d{2})$/)
-  if (m) {
-    const y1 = parseInt(m[1]) + 1
-    const y2short = parseInt(m[2])
-    const y2full = y2short >= 90 ? 1900 + y2short : 2000 + y2short
-    return `${y1}/${String(y2full + 1).slice(-2)}`
-  }
-  return season
-}
+import { bumpSeason } from '@/lib/utils/season'
 
 export default async function NewPlayerPage() {
   const clubId = await getClubId()

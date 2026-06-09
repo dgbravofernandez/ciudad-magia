@@ -125,8 +125,12 @@ export function parseClubCompetitionsText(text: string, clubNameHint?: string): 
     .split(/\s+/)
     .filter(w => w.length >= 3 && !STOPWORDS.has(w) && !/^\d+$/.test(w))
 
-  // Si no hay tokens del nombre del club, fallback: buscar "GETAFE" (legacy)
-  const fallbackTokens = significantTokens.length > 0 ? significantTokens : ['GETAFE']
+  // Si no hay tokens del nombre del club (no se pasó clubNameHint y la cabecera no es legible),
+  // no hay forma de identificar equipos — devolvemos resultado vacío antes de construir el regex.
+  if (significantTokens.length === 0) {
+    return { clubName: null, season: null, rows: [], unparsed: [] }
+  }
+  const fallbackTokens = significantTokens
 
   // Patrón: cualquier secuencia de palabras (incluyendo abreviaturas con puntos)
   // que contenga TODOS los tokens significativos del club, opcionalmente seguido

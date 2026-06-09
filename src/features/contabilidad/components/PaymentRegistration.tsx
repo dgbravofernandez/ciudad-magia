@@ -150,14 +150,13 @@ export function PaymentRegistration({
 
   // Filtros y ordenación de pendientes
   const [pendingTeamFilters, setPendingTeamFilters] = useState<Set<string>>(new Set())  // nombres de equipo
-  const [pendingConceptFilters, setPendingConceptFilters] = useState<Set<string>>(new Set())  // conceptos
+  const [pendingPctFilter, setPendingPctFilter] = useState<'' | 'zero' | 'lt50' | 'gte50'>('')  // % pagado
+  const [pendingAmountBucket, setPendingAmountBucket] = useState<'' | 'lt200' | '200to349' | 'gte350'>('')  // tramo de deuda
   const [pendingCategoryFilters, setPendingCategoryFilters] = useState<Set<string>>(new Set())  // categorías
   const [pendingSearch, setPendingSearch] = useState<string>('')
-  const [pendingAmountMin, setPendingAmountMin] = useState<string>('')  // importe mínimo
   const [pendingSort, setPendingSort] = useState<'name' | 'amount_desc' | 'amount_asc' | 'last_payment'>('amount_desc')
   const [filterComment, setFilterComment] = useState<'' | 'with' | 'without'>('')
   const [teamFilterOpen, setTeamFilterOpen] = useState(false)
-  const [conceptFilterOpen, setConceptFilterOpen] = useState(false)
   const [categoryFilterOpen, setCategoryFilterOpen] = useState(false)
 
   // Edición inline de equipo/importe en pendientes
@@ -272,15 +271,6 @@ export function PaymentRegistration({
     return Array.from(teamSet).sort()
   }, [pendingPlayers])
 
-  // Conceptos disponibles para filtrar
-  const pendingConcepts = useMemo(() => {
-    const set = new Set<string>()
-    for (const p of payments) {
-      if (p.status === 'pending' && p.concept) set.add(p.concept)
-    }
-    return Array.from(set).sort()
-  }, [payments])
-
   // Categorías disponibles en pendientes (ordenadas por edad)
   const pendingCategories = useMemo(() => {
     const catOrder = ['Prebenjamín', 'Benjamín', 'Alevín', 'Infantil', 'Cadete', 'Juvenil', 'Sénior']
@@ -293,17 +283,24 @@ export function PaymentRegistration({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPlayers, season])
 
-  // Mapa de jugador → conceptos pendientes (para filtrar por concepto)
-  const playerConceptsMap = useMemo(() => {
-    const m: Record<string, Set<string>> = {}
+  // Mapa de jugador → % de cuota total ya pagado para la temporada actual
+  // IMPORTANTE: filtrar por season para no incluir pagos de temporadas anteriores
+  const playerPaidPctMap = useMemo(() => {
+    const currentSeason = season  // prop de la temporada visualizada
+    const totalDue: Record<string, number> = {}
+    const totalPaid: Record<string, number> = {}
     for (const p of payments) {
-      if (p.status === 'pending' && p.concept) {
-        if (!m[p.player_id]) m[p.player_id] = new Set()
-        m[p.player_id].add(p.concept)
-      }
+      if (p.season !== currentSeason) continue  // solo la temporada activa
+      totalDue[p.player_id] = (totalDue[p.player_id] ?? 0) + Number(p.amount_due)
+      totalPaid[p.player_id] = (totalPaid[p.player_id] ?? 0) + Number(p.amount_paid)
+    }
+    const m: Record<string, number> = {}
+    for (const pid of Object.keys(totalDue)) {
+      const due = totalDue[pid]
+      m[pid] = due > 0 ? Math.round((totalPaid[pid] / due) * 100) : 0
     }
     return m
-  }, [payments])
+  }, [payments, season])
 
   // Pendientes filtrados y ordenados
   const filteredPendingPlayers = useMemo(() => {
@@ -311,14 +308,22 @@ export function PaymentRegistration({
     if (pendingTeamFilters.size > 0) {
       result = result.filter((pl) => pl.teams?.name && pendingTeamFilters.has(pl.teams.name))
     }
-    if (pendingConceptFilters.size > 0) {
+    if (pendingPctFilter) {
       result = result.filter((pl) => {
-        const playerConcepts = playerConceptsMap[pl.id]
-        if (!playerConcepts) return false
-        for (const c of pendingConceptFilters) {
-          if (playerConcepts.has(c)) return true
-        }
-        return false
+        const pct = playerPaidPctMap[pl.id] ?? 0
+        if (pendingPctFilter === 'zero') return pct === 0
+        if (pendingPctFilter === 'lt50') return pct > 0 && pct < 50
+        if (pendingPctFilter === 'gte50') return pct >= 50
+        return true
+      })
+    }
+    if (pendingAmountBucket) {
+      result = result.filter((pl) => {
+        const amt = pl.pendingAmount
+        if (pendingAmountBucket === 'lt200') return amt < 200
+        if (pendingAmountBucket === '200to349') return amt >= 200 && amt < 350
+        if (pendingAmountBucket === 'gte350') return amt >= 350
+        return true
       })
     }
     if (pendingCategoryFilters.size > 0) {
@@ -329,10 +334,6 @@ export function PaymentRegistration({
       result = result.filter((pl) =>
         `${pl.first_name} ${pl.last_name}`.toLowerCase().includes(q)
       )
-    }
-    const amountMin = pendingAmountMin ? parseFloat(pendingAmountMin) : null
-    if (amountMin !== null && !isNaN(amountMin) && amountMin > 0) {
-      result = result.filter((pl) => pl.pendingAmount >= amountMin)
     }
     if (filterComment === 'with') {
       result = result.filter((pl) => pl.adminComment && pl.adminComment.trim() !== '')
@@ -352,7 +353,7 @@ export function PaymentRegistration({
       return `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingPlayers, pendingTeamFilters, pendingConceptFilters, pendingCategoryFilters, pendingSearch, pendingAmountMin, pendingSort, filterComment, playerConceptsMap, season])
+  }, [pendingPlayers, pendingTeamFilters, pendingPctFilter, pendingAmountBucket, pendingCategoryFilters, pendingSearch, pendingSort, filterComment, playerPaidPctMap, season])
 
   // Search results — only players with assigned team
   const searchResults = useMemo(() => {
@@ -630,15 +631,8 @@ export function PaymentRegistration({
     const params = new URLSearchParams()
     if (season) params.set('season', season)
     if (teamIds.length > 0) params.set('teams', teamIds.join(','))
-    if (pendingConceptFilters.size > 0) {
-      params.set('concepts', Array.from(pendingConceptFilters).join(','))
-    }
     if (pendingCategoryFilters.size > 0) {
       params.set('categories', Array.from(pendingCategoryFilters).join(','))
-    }
-    const amountMin = pendingAmountMin ? parseFloat(pendingAmountMin) : null
-    if (amountMin !== null && !isNaN(amountMin) && amountMin > 0) {
-      params.set('amountMin', amountMin.toString())
     }
     // Abrir en nueva pestaña — el navegador maneja la descarga
     window.open(`/api/pdf/pending-payments?${params.toString()}`, '_blank')
@@ -1126,7 +1120,7 @@ export function PaymentRegistration({
             <div className="relative">
               <button
                 type="button"
-                onClick={() => { setTeamFilterOpen(o => !o); setConceptFilterOpen(false); setCategoryFilterOpen(false) }}
+                onClick={() => { setTeamFilterOpen(o => !o); setCategoryFilterOpen(false) }}
                 className="input text-sm py-1.5 px-3 w-52 text-left flex items-center justify-between hover:border-primary/40"
               >
                 <span className="truncate">
@@ -1184,70 +1178,34 @@ export function PaymentRegistration({
               )}
             </div>
 
-            {/* Multi-select conceptos */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => { setConceptFilterOpen(o => !o); setTeamFilterOpen(false); setCategoryFilterOpen(false) }}
-                className="input text-sm py-1.5 px-3 w-52 text-left flex items-center justify-between hover:border-primary/40"
-                disabled={pendingConcepts.length === 0}
-              >
-                <span className="truncate">
-                  {pendingConceptFilters.size === 0
-                    ? `Todas las cuotas${pendingConcepts.length === 0 ? '' : ` (${pendingConcepts.length})`}`
-                    : pendingConceptFilters.size === 1
-                      ? Array.from(pendingConceptFilters)[0]
-                      : `${pendingConceptFilters.size} cuotas`}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0 ml-1" />
-              </button>
-              {conceptFilterOpen && pendingConcepts.length > 0 && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setConceptFilterOpen(false)} />
-                  <div className="absolute z-20 mt-1 w-72 max-h-72 overflow-auto bg-background border rounded-md shadow-lg">
-                    <div className="sticky top-0 bg-background border-b px-3 py-2 flex items-center justify-between text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setPendingConceptFilters(new Set(pendingConcepts))}
-                        className="text-primary hover:underline"
-                      >Seleccionar todos</button>
-                      <button
-                        type="button"
-                        onClick={() => setPendingConceptFilters(new Set())}
-                        className="text-muted-foreground hover:underline"
-                      >Limpiar</button>
-                    </div>
-                    {pendingConcepts.map(c => {
-                      const checked = pendingConceptFilters.has(c)
-                      return (
-                        <label key={c} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/40 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => {
-                              setPendingConceptFilters(prev => {
-                                const next = new Set(prev)
-                                if (checked) next.delete(c)
-                                else next.add(c)
-                                return next
-                              })
-                            }}
-                            className="rounded"
-                          />
-                          <span className="truncate">{c}</span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
+            {/* Filtro por % pagado */}
+            <div className="flex items-center gap-1 bg-muted rounded-lg p-1" title="Filtrar por porcentaje de cuota pagado">
+              {([
+                ['', 'Todos'],
+                ['zero', 'Sin pagar'],
+                ['lt50', '1-49%'],
+                ['gte50', '≥50%'],
+              ] as ['' | 'zero' | 'lt50' | 'gte50', string][]).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setPendingPctFilter(val)}
+                  className={`px-2 py-1 text-xs rounded-md transition-colors whitespace-nowrap ${
+                    pendingPctFilter === val
+                      ? 'bg-white text-slate-900 font-medium shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
             {/* Multi-select categoría */}
             <div className="relative">
               <button
                 type="button"
-                onClick={() => { setCategoryFilterOpen(o => !o); setTeamFilterOpen(false); setConceptFilterOpen(false) }}
+                onClick={() => { setCategoryFilterOpen(o => !o); setTeamFilterOpen(false) }}
                 className="input text-sm py-1.5 px-3 w-44 text-left flex items-center justify-between hover:border-primary/40"
                 disabled={pendingCategories.length === 0}
               >
@@ -1302,19 +1260,27 @@ export function PaymentRegistration({
               )}
             </div>
 
-            {/* Importe mínimo */}
-            <div className="relative flex items-center">
-              <span className="absolute left-2.5 text-muted-foreground text-sm">€</span>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                className="input text-sm py-1.5 pl-7 pr-3 w-28"
-                placeholder="Min. deuda"
-                value={pendingAmountMin}
-                onChange={(e) => setPendingAmountMin(e.target.value)}
-                title="Filtrar por importe mínimo pendiente"
-              />
+            {/* Filtro por tramo de deuda */}
+            <div className="flex items-center gap-1 bg-muted rounded-lg p-1" title="Filtrar por importe pendiente">
+              {([
+                ['', 'Todos'],
+                ['lt200', '<200€'],
+                ['200to349', '200-349€'],
+                ['gte350', '350€+'],
+              ] as ['' | 'lt200' | '200to349' | 'gte350', string][]).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setPendingAmountBucket(val)}
+                  className={`px-2 py-1 text-xs rounded-md transition-colors whitespace-nowrap ${
+                    pendingAmountBucket === val
+                      ? 'bg-white text-slate-900 font-medium shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
             <select
@@ -1355,15 +1321,15 @@ export function PaymentRegistration({
               </button>
             </div>
 
-            {(pendingTeamFilters.size > 0 || pendingConceptFilters.size > 0 || pendingCategoryFilters.size > 0 || pendingSearch || pendingAmountMin || filterComment) && (
+            {(pendingTeamFilters.size > 0 || pendingPctFilter || pendingAmountBucket || pendingCategoryFilters.size > 0 || pendingSearch || filterComment) && (
               <button
                 type="button"
                 onClick={() => {
                   setPendingTeamFilters(new Set())
-                  setPendingConceptFilters(new Set())
+                  setPendingPctFilter('')
+                  setPendingAmountBucket('')
                   setPendingCategoryFilters(new Set())
                   setPendingSearch('')
-                  setPendingAmountMin('')
                   setFilterComment('')
                 }}
                 className="text-xs text-muted-foreground hover:text-foreground underline"
@@ -1446,7 +1412,14 @@ export function PaymentRegistration({
                         )}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{player.teams?.name ?? <span className="text-amber-600 text-xs font-medium">Sin equipo</span>}</td>
-                      <td className="px-4 py-3 text-red-600 font-semibold">{formatCurrency(player.pendingAmount)}</td>
+                      <td className="px-4 py-3">
+                        <div className="text-red-600 font-semibold">{formatCurrency(player.pendingAmount)}</div>
+                        {(playerPaidPctMap[player.id] ?? 0) > 0 && (
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            {playerPaidPctMap[player.id]}% pagado
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">{player.lastPayment ? formatDate(player.lastPayment) : '—'}</td>
                       <td className="px-4 py-3 text-xs">
                         <div className="space-y-0.5">
