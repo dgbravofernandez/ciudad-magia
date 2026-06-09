@@ -227,8 +227,11 @@ export function PaymentRegistration({
       adminComment: string | null
       specialCase: boolean
     }> = {}
+    // Calcular pendiente como sum(amount_due) - sum(amount_paid), sin depender del campo status.
+    // Esto detecta registros corruptos donde status='paid' pero el pago no cubre el total.
     for (const p of payments) {
-      if (p.status === 'pending') {
+      const remaining = Number(p.amount_due) - Number(p.amount_paid)
+      if (remaining > 0) {
         if (!pendingByPlayer[p.player_id]) {
           pendingByPlayer[p.player_id] = {
             amount: 0,
@@ -238,7 +241,7 @@ export function PaymentRegistration({
             specialCase: false,
           }
         }
-        pendingByPlayer[p.player_id].amount += p.amount_due - p.amount_paid
+        pendingByPlayer[p.player_id].amount += remaining
         if (p.is_special_case) pendingByPlayer[p.player_id].specialCase = true
       }
     }
