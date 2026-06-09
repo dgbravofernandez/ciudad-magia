@@ -106,6 +106,10 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
   const [addingAttendee, setAddingAttendee] = useState(false)
   const [newAttendee, setNewAttendee] = useState({ playerId: '', amountDue: 0 })
 
+  // Buscador en la tabla de asistentes
+  const [searchAttendee, setSearchAttendee] = useState('')
+  const [onlyPending, setOnlyPending] = useState(false)
+
   // Bulk add desde equipos
   const [showBulk, setShowBulk] = useState(false)
   const [bulkAmount, setBulkAmount] = useState('')
@@ -312,6 +316,16 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
     })
   }
 
+  const filteredAttendees = useMemo(() => {
+    const q = searchAttendee.trim().toLowerCase()
+    return attendees.filter(a => {
+      const name = `${a.player.first_name} ${a.player.last_name}`.toLowerCase()
+      if (q && !name.includes(q)) return false
+      if (onlyPending && a.payment_status !== 'pending' && a.payment_status !== 'partial') return false
+      return true
+    })
+  }, [attendees, searchAttendee, onlyPending])
+
   const budgetDirty =
     Number(bForm.organizerCost) !== Number(budget?.organizer_cost ?? 0) ||
     Number(bForm.marginPct) !== Number(budget?.margin_pct ?? 10) ||
@@ -469,6 +483,39 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
         {attendees.length === 0 ? (
           <p className="text-sm text-gray-400">Sin jugadores apuntados aún.</p>
         ) : (
+          <>
+            {/* Buscador + filtro rápido */}
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <div className="relative flex-1 min-w-[180px]">
+                <input
+                  type="text"
+                  placeholder="Buscar jugador…"
+                  value={searchAttendee}
+                  onChange={e => setSearchAttendee(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                </svg>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOnlyPending(v => !v)}
+                className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+                  onlyPending
+                    ? 'bg-yellow-50 border-yellow-300 text-yellow-800'
+                    : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                Solo pendientes
+              </button>
+              {(searchAttendee || onlyPending) && (
+                <span className="text-xs text-gray-400">
+                  {filteredAttendees.length} de {attendees.length}
+                </span>
+              )}
+            </div>
+
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
@@ -478,7 +525,7 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {attendees.map(a => {
+              {filteredAttendees.map(a => {
                 const isPaid = a.payment_status === 'paid'
                 const isPartial = a.payment_status === 'partial'
                 const isCancelled = a.payment_status === 'cancelled'
@@ -556,6 +603,12 @@ export function TorneoExternoDetail({ torneo, budget, items, attendees, allPlaye
               </tr>
             </tfoot>
           </table>
+          {filteredAttendees.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-6">
+              {searchAttendee ? `No hay jugadores que coincidan con "${searchAttendee}"` : 'Ningún jugador pendiente'}
+            </p>
+          )}
+          </>
         )}
       </section>
 
