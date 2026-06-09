@@ -18,10 +18,12 @@ const STATUSES = [
 export function PlayerForm({
   player,
   teams,
+  nextTeams,
   nextSeason,
 }: {
   player?: Player
   teams: { id: string; name: string }[]
+  nextTeams?: { id: string; name: string }[]
   nextSeason?: string
 }) {
   const router = useRouter()
@@ -236,9 +238,9 @@ export function PlayerForm({
                 <label className="label">
                   Equipo {nextSeason ? <span className="text-muted-foreground text-xs ml-1">(temporada {nextSeason})</span> : ''}
                 </label>
-                <select name="next_team_id" className="input w-full" defaultValue=''>
+                <select name="next_team_id" className="input w-full" defaultValue={(player as any)?.next_team_id ?? ''}>
                   <option value="">Sin equipo</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {(nextTeams ?? teams).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </>
             )}
