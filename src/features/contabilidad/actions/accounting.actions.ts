@@ -76,16 +76,21 @@ export async function registerPayment(data: {
   const { sb, clubId, memberId } = await resolveClubAndMember()
   const dbMethod = toDbMethod(data.method)
 
-  // Buscar TODOS los registros pendientes del jugador para esta temporada (orden cronológico)
+  // Buscar TODOS los registros con deuda real del jugador para esta temporada (orden cronológico).
+  // Por diferencia (amount_due - amount_paid), NO por status — igual que la UI de pendientes.
+  // Detecta registros desalineados (ej. status='paid' con pago incompleto) que antes se saltaban.
   const season = data.season ?? getCurrentSeason()
-  const { data: pendingRecs } = await sb
+  const { data: seasonRecs } = await sb
     .from('quota_payments')
     .select('id, amount_due, amount_paid')
     .eq('club_id', clubId)
     .eq('player_id', data.playerId)
     .eq('season', season)
-    .eq('status', 'pending')
+    .neq('status', 'refunded')
     .order('created_at', { ascending: true })
+
+  const pendingRecs = ((seasonRecs ?? []) as { id: string; amount_due: number; amount_paid: number }[])
+    .filter(r => Number(r.amount_due) - Number(r.amount_paid) > 0)
 
   let paymentId: string | null = null
 
@@ -117,6 +122,32 @@ export async function registerPayment(data: {
 
       // El primer registro actualizado es el "principal" para el movimiento de caja
       if (!paymentId) paymentId = app.id
+    }
+
+    // Si el pago excede la deuda pendiente, registrar el sobrante como pago nuevo.
+    // Antes el exceso se perdía: la caja registraba el importe completo pero
+    // quota_payments solo lo aplicado → descuadre entre caja y cuotas.
+    const totalDue = pendingRecs.reduce(
+      (sum, r) => sum + Number(r.amount_due) - Number(r.amount_paid), 0,
+    )
+    const remainder = parseFloat((data.amount - totalDue).toFixed(2))
+    if (remainder > 0) {
+      const { error: remainderErr } = await sb.from('quota_payments').insert({
+        club_id: clubId,
+        player_id: data.playerId,
+        season,
+        month: data.month ?? new Date(data.date).getMonth() + 1,
+        concept: data.concept ?? 'Cuota mensual',
+        amount_due: remainder,
+        amount_paid: remainder,
+        payment_date: data.date,
+        payment_method: dbMethod,
+        status: 'paid',
+        notes: data.notes || null,
+        email_sent: false,
+        registered_by: memberId || null,
+      })
+      if (remainderErr) return { success: false, error: remainderErr.message }
     }
   } else {
     // Anti-duplicado: comprobar si ya existe un pago idéntico (mismo jugador + temporada + concepto + importe + fecha)

@@ -213,9 +213,15 @@ export function PaymentRegistration({
     return map
   }, [players])
 
-  // Recent paid payments for receipt history
+  // Recent paid payments for receipt history.
+  // Incluye pagos parciales (status sigue 'pending' pero hay importe abonado) y
+  // ordena por fecha de pago — no por created_at: un pago aplicado a un registro
+  // pendiente antiguo debe aparecer arriba, no enterrado por su fecha de creación.
   const recentPaidPayments = useMemo(() => {
-    return payments.filter(p => p.status === 'paid').slice(0, 20)
+    return payments
+      .filter(p => p.status !== 'refunded' && Number(p.amount_paid) > 0 && p.payment_date)
+      .sort((a, b) => (b.payment_date ?? '').localeCompare(a.payment_date ?? ''))
+      .slice(0, 20)
   }, [payments])
 
   // Pending players for table
@@ -1028,7 +1034,12 @@ export function PaymentRegistration({
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{player?.teams?.name ?? '—'}</td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{p.concept ?? 'Cuota'}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-green-600">{formatCurrency(p.amount_paid)}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-green-600">
+                        {formatCurrency(p.amount_paid)}
+                        {Number(p.amount_paid) < Number(p.amount_due) && (
+                          <span className="ml-1.5 text-[10px] font-medium text-amber-600 align-middle">Parcial</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">{METHOD_LABELS[p.payment_method ?? ''] ?? p.payment_method ?? '—'}</td>
                       <td className="px-4 py-3 text-muted-foreground">{p.payment_date ? formatDate(p.payment_date) : '—'}</td>
                       <td className="px-4 py-3 text-center">

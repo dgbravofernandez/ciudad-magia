@@ -86,31 +86,25 @@ export default async function PagosPage({
     0,
   )
 
-  // KPI: total pending en la temporada seleccionada
+  // KPI: total pending y deudores en la temporada seleccionada.
+  // Por diferencia real (amount_due - amount_paid), no por status — alineado con
+  // la lista de pendientes del componente y con registerPayment.
   const { data: pendingPayments } = await sb
     .from('quota_payments')
-    .select('amount_due, amount_paid')
+    .select('player_id, amount_due, amount_paid')
     .eq('club_id', clubId)
     .eq('season', season)
-    .eq('status', 'pending')
+    .neq('status', 'refunded')
 
-  const totalPending = (pendingPayments ?? []).reduce(
-    (sum: number, p: { amount_due: number; amount_paid: number }) =>
-      sum + ((p.amount_due ?? 0) - (p.amount_paid ?? 0)),
+  const debtRows = ((pendingPayments ?? []) as { player_id: string; amount_due: number; amount_paid: number }[])
+    .filter(p => ((p.amount_due ?? 0) - (p.amount_paid ?? 0)) > 0)
+
+  const totalPending = debtRows.reduce(
+    (sum, p) => sum + ((p.amount_due ?? 0) - (p.amount_paid ?? 0)),
     0,
   )
 
-  // KPI: players with debt
-  const { data: playersWithDebt } = await sb
-    .from('quota_payments')
-    .select('player_id')
-    .eq('club_id', clubId)
-    .eq('season', season)
-    .eq('status', 'pending')
-
-  const uniqueDebtors = new Set(
-    (playersWithDebt ?? []).map((p: { player_id: string }) => p.player_id),
-  ).size
+  const uniqueDebtors = new Set(debtRows.map(p => p.player_id)).size
 
   // Jugadores — incluir next_team_id para vista 26/27 + teléfono tutor
   const { data: players } = await sb
