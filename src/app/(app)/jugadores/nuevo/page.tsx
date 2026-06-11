@@ -12,11 +12,12 @@ export default async function NewPlayerPage() {
   // Temporada actual → calcular la siguiente
   const { data: settings } = await sb
     .from('club_settings')
-    .select('current_season')
+    .select('current_season, inscription_form_link')
     .eq('club_id', clubId)
     .single()
 
   const currentSeason: string = settings?.current_season ?? '2025/26'
+  const defaultFormsLink: string = settings?.inscription_form_link ?? ''
   const nextSeason = bumpSeason(currentSeason)
 
   // Equipos de la próxima temporada (borrador, active=false)
@@ -43,7 +44,7 @@ export default async function NewPlayerPage() {
     <div className="flex flex-col h-full">
       <Topbar title="Nuevo jugador" />
       <div className="flex-1 p-6">
-        <PlayerForm teams={teams} nextSeason={nextSeason} />
+        <PlayerForm teams={teams} nextSeason={nextSeason} defaultFormsLink={defaultFormsLink} />
       </div>
     </div>
   )

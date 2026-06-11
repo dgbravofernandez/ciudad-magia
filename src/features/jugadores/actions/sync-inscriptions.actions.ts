@@ -445,12 +445,14 @@ export async function previewInscriptionSync(
   mainRows: string[][],
   formRows1: string[][] = [],
   formRows2: string[][] = [],
+  clubIdOverride?: string,
 ): Promise<InscriptionSyncPreview> {
   try {
     const { createAdminClient } = await import('@/lib/supabase/admin')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = createAdminClient() as any
-    const clubId = await getClubId()
+    // clubIdOverride lo usa el cron (sin sesión); el flujo manual usa getClubId()
+    const clubId = clubIdOverride || await getClubId()
     if (!clubId) return { matches: [], unmatched: 0, unmatchedDetails: [], error: 'no_club' }
 
     const { data: players } = await supabase
@@ -728,13 +730,14 @@ export async function createPlayerFromUnmatched(
 }
 
 export async function applyInscriptionSync(
-  matches: InscriptionSyncPreview['matches']
+  matches: InscriptionSyncPreview['matches'],
+  clubIdOverride?: string,
 ): Promise<{ updated: number; error?: string }> {
   try {
     const { createAdminClient } = await import('@/lib/supabase/admin')
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = createAdminClient() as any
-    const clubId = await getClubId()
+    const clubId = clubIdOverride || await getClubId()
     if (!clubId) return { updated: 0, error: 'no_club' }
 
     const BATCH = 10

@@ -17,7 +17,6 @@ import {
   previewCoachSync,
   applyCoachSync,
 } from '@/features/jugadores/actions/sync-inscriptions.actions'
-import { COACHES_SHEET_ID, COACHES_GID } from '@/features/jugadores/constants'
 import { driveImageUrl } from '@/lib/utils/drive'
 
 type CoachWithDetails = {
@@ -55,11 +54,16 @@ export function CoachesGrid({
   allTeams,
   isAdmin,
   clubId,
+  coachesSheetId = null,
+  coachesGid = null,
 }: {
   coaches: CoachWithDetails[]
   allTeams: { id: string; name: string }[]
   isAdmin: boolean
   clubId?: string
+  /** Hoja de entrenadores de ESTE club (null = no configurada → sync deshabilitado) */
+  coachesSheetId?: string | null
+  coachesGid?: string | null
 }) {
   const router = useRouter()
   const [search, setSearch] = useState('')
@@ -78,6 +82,10 @@ export function CoachesGrid({
   })
 
   async function handleSyncCoaches() {
+    if (!coachesSheetId || !coachesGid) {
+      toast.error('Este club no tiene hoja de entrenadores configurada. Configúrala en Configuración → Integraciones.')
+      return
+    }
     setSyncingCoaches(true)
     try {
       function parseCSV(text: string): string[][] {
@@ -96,7 +104,7 @@ export function CoachesGrid({
       }
 
       const res = await fetch(
-        `https://docs.google.com/spreadsheets/d/${COACHES_SHEET_ID}/export?format=csv&gid=${COACHES_GID}`
+        `https://docs.google.com/spreadsheets/d/${coachesSheetId}/export?format=csv&gid=${coachesGid}`
       )
       if (!res.ok) throw new Error('No se pudo descargar la hoja de entrenadores')
       const rows = parseCSV(await res.text())
@@ -161,9 +169,11 @@ export function CoachesGrid({
           {isAdmin && (
             <button
               onClick={handleSyncCoaches}
-              disabled={syncingCoaches}
-              className="btn-secondary flex items-center gap-2 text-sm"
-              title="Sincronizar inscripciones de entrenadores desde Google Sheets"
+              disabled={syncingCoaches || !coachesSheetId || !coachesGid}
+              className="btn-secondary flex items-center gap-2 text-sm disabled:opacity-50"
+              title={!coachesSheetId || !coachesGid
+                ? 'Configura la hoja de entrenadores en Configuración → Integraciones'
+                : 'Sincronizar inscripciones de entrenadores desde Google Sheets'}
             >
               <RefreshCw className={cn('w-4 h-4', syncingCoaches && 'animate-spin')} />
               {syncingCoaches ? 'Sincronizando...' : 'Sync Entrenadores'}

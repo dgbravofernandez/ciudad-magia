@@ -38,13 +38,18 @@ export default async function InscripcionesPage() {
     }
   }
 
-  // Fetch current_season to calculate next season
+  // Fetch current_season + hojas de Google de ESTE club (sin fallback a Getafe)
   const { data: settingsRow } = await sb
     .from('club_settings')
-    .select('current_season')
+    .select('current_season, inscriptions_sheet_id, inscriptions_form_gids, coaches_sheet_id, coaches_gid')
     .eq('club_id', clubId)
     .single()
   const currentSeason: string = settingsRow?.current_season ?? ''
+  const inscriptionsSheetId: string | null = settingsRow?.inscriptions_sheet_id ?? null
+  const inscriptionsFormGids: string[] = (settingsRow?.inscriptions_form_gids ?? '')
+    .split(',').map((s: string) => s.trim()).filter(Boolean)
+  const coachesSheetId: string | null = settingsRow?.coaches_sheet_id ?? null
+  const coachesGid: string | null = settingsRow?.coaches_gid ?? null
   // bumpSeason: "2025/26" → "2026/27"
   const nextSeason = (() => {
     const m = currentSeason.match(/^(\d{4})\/(\d{2})$/)
@@ -153,6 +158,10 @@ export default async function InscripcionesPage() {
           trialLetterPlayerIds={trialLetterIds}
           paid26Status={paid26Status}
           nextSeason={nextSeason}
+          inscriptionsSheetId={inscriptionsSheetId}
+          inscriptionsFormGids={inscriptionsFormGids}
+          coachesSheetId={coachesSheetId}
+          coachesGid={coachesGid}
         />
       </div>
     </div>

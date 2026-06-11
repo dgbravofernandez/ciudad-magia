@@ -72,6 +72,7 @@ export interface EmailPayload {
   text?: string          // versión plain text (reduce spam score)
   replyTo?: string
   attachments?: EmailAttachment[]
+  fromName?: string      // nombre del remitente por club (multi-tenant); por defecto CLUB_NAME (env)
 }
 
 export async function sendHtmlEmail(payload: EmailPayload): Promise<{ sent: boolean; error?: string }> {
@@ -94,7 +95,7 @@ export async function sendHtmlEmail(payload: EmailPayload): Promise<{ sent: bool
     const bcc = process.env.EMAIL_BCC ?? opt.fromAddress
 
     const mail: Mail.Options = {
-      from: `${CLUB_NAME} <${opt.fromAddress}>`,
+      from: `${payload.fromName || CLUB_NAME} <${opt.fromAddress}>`,
       to: payload.to,
       bcc: bcc && bcc !== payload.to ? bcc : undefined,
       subject: payload.subject,

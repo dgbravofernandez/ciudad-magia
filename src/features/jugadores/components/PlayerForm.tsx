@@ -20,11 +20,14 @@ export function PlayerForm({
   teams,
   nextTeams,
   nextSeason,
+  defaultFormsLink = '',
 }: {
   player?: Player
   teams: { id: string; name: string }[]
   nextTeams?: { id: string; name: string }[]
   nextSeason?: string
+  /** Enlace del Google Form de documentación de ESTE club (sin fallback a Getafe) */
+  defaultFormsLink?: string
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -326,10 +329,11 @@ export function PlayerForm({
             <label className="label">Enlace al formulario de documentos</label>
             <input
               name="forms_link"
+              key={defaultFormsLink}
               type="url"
               placeholder="https://forms.gle/..."
               className="input w-full"
-              defaultValue="https://docs.google.com/forms/d/e/1FAIpQLSe6f_oYxywNu4uL160w9m1ufkIJBCJghQc8rTtjxDNhAbjXWA/viewform"
+              defaultValue={defaultFormsLink}
             />
             <p className="text-xs text-muted-foreground mt-1">
               Google Forms donde el tutor sube DNI, foto, certificado médico y justificante de reserva.

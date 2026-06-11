@@ -48,6 +48,15 @@ export default async function CoachesStaffPage() {
 
   const isAdmin = memberRoles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))
 
+  // Hoja de entrenadores de ESTE club (sin fallback a Getafe)
+  const { data: sheetCfg } = await sb
+    .from('club_settings')
+    .select('coaches_sheet_id, coaches_gid')
+    .eq('club_id', clubId)
+    .single()
+  const coachesSheetId: string | null = sheetCfg?.coaches_sheet_id ?? null
+  const coachesGid: string | null = sheetCfg?.coaches_gid ?? null
+
   // Get ALL club members (staff) — not just those with entrenador/coordinador role
   const { data: coaches } = await sb
     .from('club_members')
@@ -156,7 +165,7 @@ export default async function CoachesStaffPage() {
     <div className="flex flex-col h-full">
       <Topbar title="Cuerpo técnico" />
       <div className="flex-1 p-6">
-        <CoachesGrid coaches={enrichedCoaches} allTeams={allTeams ?? []} isAdmin={isAdmin} clubId={clubId} />
+        <CoachesGrid coaches={enrichedCoaches} allTeams={allTeams ?? []} isAdmin={isAdmin} clubId={clubId} coachesSheetId={coachesSheetId} coachesGid={coachesGid} />
       </div>
     </div>
   )

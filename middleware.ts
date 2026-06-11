@@ -15,6 +15,7 @@ const PUBLIC_PREFIX = [
   '/api/auth/callback',
   '/api/webhooks',
   '/api/stripe/webhook', // Stripe llama esto sin auth de usuario
+  '/api/cron',          // crons de Vercel — protegidos por CRON_SECRET en su propio handler
   '/api/user-clubs',    // endpoint para listar clubs del usuario
 ]
 
@@ -240,14 +241,19 @@ export async function middleware(request: NextRequest) {
     !pathname.startsWith('/select-club')  // no bloquear selector de club si el club activo tiene trial expirado
 
   if (isAppRoute && memberClub) {
-    if (
-      memberClub.subscription_status === 'trial' &&
+    const status = memberClub.subscription_status as string | null
+    const trialExpired =
+      status === 'trial' &&
       memberClub.trial_ends_at &&
       new Date(memberClub.trial_ends_at) < new Date()
-    ) {
+    // Suscripción terminada → bloquear. 'past_due' se deja en gracia (Stripe reintenta el cobro).
+    // 'active'/'ltd'/'trial' válido/NULL (clubs legacy) → acceso permitido.
+    const subscriptionEnded = status === 'canceled' || status === 'unpaid'
+
+    if (trialExpired || subscriptionEnded) {
       const url = request.nextUrl.clone()
       url.pathname = '/upgrade'
-      url.searchParams.set('trial_expired', '1')
+      url.searchParams.set(trialExpired ? 'trial_expired' : 'subscription_ended', '1')
       return NextResponse.redirect(url)
     }
   }

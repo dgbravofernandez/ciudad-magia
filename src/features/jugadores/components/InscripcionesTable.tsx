@@ -21,7 +21,6 @@ import {
   createPlayerFromUnmatched,
   type UnmatchedRow,
 } from '@/features/jugadores/actions/sync-inscriptions.actions'
-import { INSCRIPTIONS_SHEET_ID, COACHES_SHEET_ID, COACHES_GID } from '@/features/jugadores/constants'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
@@ -77,6 +76,10 @@ export function InscripcionesTable({
   trialLetterPlayerIds = [],
   paid26Status = {},
   nextSeason = '',
+  inscriptionsSheetId = null,
+  inscriptionsFormGids = [],
+  coachesSheetId = null,
+  coachesGid = null,
 }: {
   players: PlayerWithTeam[]
   teams: { id: string; name: string }[]
@@ -88,6 +91,13 @@ export function InscripcionesTable({
   /** Estado de pago en la próxima temporada por player_id: 'none' | 'reserva' | 'cuota' */
   paid26Status?: Record<string, 'none' | 'reserva' | 'cuota'>
   nextSeason?: string
+  /** Hoja de Google de inscripciones de ESTE club (null = no configurada → sync deshabilitado) */
+  inscriptionsSheetId?: string | null
+  /** GIDs de las hojas de respuestas de formularios de ESTE club */
+  inscriptionsFormGids?: string[]
+  /** Hoja de entrenadores de ESTE club */
+  coachesSheetId?: string | null
+  coachesGid?: string | null
 }) {
   const [search, setSearch] = useState('')
   const [filterTeam, setFilterTeam] = useState('')
@@ -186,6 +196,10 @@ export function InscripcionesTable({
   }
 
   async function handleSyncSheet() {
+    if (!inscriptionsSheetId) {
+      toast.error('Este club no tiene hoja de inscripciones configurada. Configúrala en Configuración → Integraciones.')
+      return
+    }
     setSyncing(true)
     try {
       function parseCSV(text: string): string[][] {
@@ -203,18 +217,22 @@ export function InscripcionesTable({
         })
       }
 
-      // Fetch main sheet + both form response sheets in parallel
-      const [mainRes, form1Res, form2Res] = await Promise.all([
-        fetch(`https://docs.google.com/spreadsheets/d/${INSCRIPTIONS_SHEET_ID}/export?format=csv&gid=0`),
-        fetch(`https://docs.google.com/spreadsheets/d/${INSCRIPTIONS_SHEET_ID}/export?format=csv&gid=1234867596`),
-        fetch(`https://docs.google.com/spreadsheets/d/${INSCRIPTIONS_SHEET_ID}/export?format=csv&gid=1385952206`),
+      // Hoja principal (gid=0) + hojas de respuestas de formularios (gids del club)
+      const gids = inscriptionsFormGids.length > 0 ? inscriptionsFormGids : []
+      const [mainRes, ...formResults] = await Promise.all([
+        fetch(`https://docs.google.com/spreadsheets/d/${inscriptionsSheetId}/export?format=csv&gid=0`),
+        ...gids.map(gid =>
+          fetch(`https://docs.google.com/spreadsheets/d/${inscriptionsSheetId}/export?format=csv&gid=${gid}`)
+        ),
       ])
+      const form1Res = formResults[0]
+      const form2Res = formResults[1]
 
       if (!mainRes.ok) throw new Error('No se pudo descargar la hoja principal')
 
       const mainRows = parseCSV(await mainRes.text())
-      const formRows1 = form1Res.ok ? parseCSV(await form1Res.text()) : []
-      const formRows2 = form2Res.ok ? parseCSV(await form2Res.text()) : []
+      const formRows1 = form1Res?.ok ? parseCSV(await form1Res.text()) : []
+      const formRows2 = form2Res?.ok ? parseCSV(await form2Res.text()) : []
 
       const preview = await previewInscriptionSync(mainRows, formRows1, formRows2)
       if (preview.error) { toast.error(`Error: ${preview.error}`); return }
@@ -246,6 +264,10 @@ export function InscripcionesTable({
   }
 
   async function handleSyncCoaches() {
+    if (!coachesSheetId || !coachesGid) {
+      toast.error('Este club no tiene hoja de entrenadores configurada. Configúrala en Configuración → Integraciones.')
+      return
+    }
     setSyncingCoaches(true)
     try {
       function parseCSV(text: string): string[][] {
@@ -264,7 +286,7 @@ export function InscripcionesTable({
       }
 
       const res = await fetch(
-        `https://docs.google.com/spreadsheets/d/${COACHES_SHEET_ID}/export?format=csv&gid=${COACHES_GID}`
+        `https://docs.google.com/spreadsheets/d/${coachesSheetId}/export?format=csv&gid=${coachesGid}`
       )
       if (!res.ok) throw new Error('No se pudo descargar la hoja de entrenadores')
       const rows = parseCSV(await res.text())
@@ -415,18 +437,22 @@ export function InscripcionesTable({
           </button>
           <button
             onClick={handleSyncCoaches}
-            disabled={syncingCoaches}
-            className="btn-secondary gap-2 flex items-center text-sm"
-            title="Leer hoja de entrenadores y asignarlos a sus equipos"
+            disabled={syncingCoaches || !coachesSheetId || !coachesGid}
+            className="btn-secondary gap-2 flex items-center text-sm disabled:opacity-50"
+            title={!coachesSheetId || !coachesGid
+              ? 'Configura la hoja de entrenadores en Configuración → Integraciones'
+              : 'Leer hoja de entrenadores y asignarlos a sus equipos'}
           >
             <RefreshCw className={cn('w-4 h-4', syncingCoaches && 'animate-spin')} />
             {syncingCoaches ? 'Leyendo...' : 'Sync Entrenadores'}
           </button>
           <button
             onClick={handleSyncSheet}
-            disabled={syncing}
-            className="btn-secondary gap-2 flex items-center text-sm"
-            title="Sincronizar links de formulario y respuestas desde Google Sheets"
+            disabled={syncing || !inscriptionsSheetId}
+            className="btn-secondary gap-2 flex items-center text-sm disabled:opacity-50"
+            title={!inscriptionsSheetId
+              ? 'Configura la hoja de inscripciones en Configuración → Integraciones'
+              : 'Sincronizar links de formulario y respuestas desde Google Sheets'}
           >
             <RefreshCw className={cn('w-4 h-4', syncing && 'animate-spin')} />
             {syncing ? 'Sincronizando...' : 'Sync Sheets'}

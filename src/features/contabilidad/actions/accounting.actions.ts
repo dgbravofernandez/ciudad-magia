@@ -681,7 +681,7 @@ export async function updateQuotaPaymentComment(paymentId: string, comment: stri
  *
  * Devuelve detalle granular: sent, skipped, failed.
  */
-import { EMAIL_BATCH_CAP, CLUB_IBAN, toDbMethod } from '@/lib/contabilidad/constants'
+import { EMAIL_BATCH_CAP, toDbMethod } from '@/lib/contabilidad/constants'
 const EMAIL_DELAY_MS = 2000   // 2s entre emails — evita detección de spam por Gmail
 
 function sleep(ms: number) {
@@ -747,7 +747,8 @@ export async function sendPendingReminders(playerIds: string[]) {
     .eq('club_id', clubId)
     .single()
   const contactEmail = settingsData?.contact_email ?? ''
-  const bankIban     = settingsData?.bank_iban     ?? CLUB_IBAN
+  // SIN fallback a Getafe: si el club no configura su IBAN, no se muestra (evita cobrar a cuenta ajena)
+  const bankIban     = settingsData?.bank_iban     ?? ''
   const bankTitular  = settingsData?.bank_titular  ?? clubName
   const bankName     = settingsData?.bank_name     ?? ''
 
@@ -813,7 +814,7 @@ export async function sendPendingReminders(playerIds: string[]) {
       `Para estar al corriente de pago, el importe a abonar es: ${debtStr}.`,
       '',
       'MÉTODOS DE PAGO:',
-      `  · Transferencia bancaria: ${bankIban} (${bankTitular || clubName})`,
+      ...(bankIban ? [`  · Transferencia bancaria: ${bankIban} (${bankTitular || clubName})`] : []),
       '  · En las oficinas del club',
       '',
       'Por favor, realice el pago a la mayor brevedad posible.',
@@ -828,6 +829,7 @@ export async function sendPendingReminders(playerIds: string[]) {
         subject: `Cuota pendiente — ${playerName}`,
         html,
         text,
+        fromName: clubName,
       })
       const timeout = new Promise<void>((_, rej) =>
         setTimeout(() => rej(new Error('timeout')), 20000)
@@ -913,6 +915,7 @@ function buildReminderHtml(opts: {
     <div style="background:#f9f9f9;border:1px solid #e5e5e5;border-radius:8px;padding:20px;margin:20px 0;">
       <p style="margin:0 0 14px;font-size:13px;font-weight:bold;color:#555;text-transform:uppercase;letter-spacing:1px;">Formas de pago</p>
 
+      ${opts.bankIban ? `
       <p style="margin:0 0 6px;font-size:14px;font-weight:bold;color:#1a1a1a;">🏦 Transferencia bancaria</p>
       <table style="width:100%;font-size:14px;color:#333;border-collapse:collapse;margin-bottom:16px;">
         <tr><td style="padding:3px 0;color:#888;width:130px;">Titular</td><td><strong>${opts.bankTitular}</strong></td></tr>
@@ -921,7 +924,7 @@ function buildReminderHtml(opts: {
       </table>
       <p style="margin:0 0 16px;font-size:13px;color:#e05c00;background:#fff3e0;padding:8px 12px;border-radius:4px;">
         ⚠️ <strong>Importante:</strong> Indique en el concepto el nombre completo del jugador/a para identificar correctamente el pago.
-      </p>
+      </p>` : ''}
 
       <p style="margin:0 0 6px;font-size:14px;font-weight:bold;color:#1a1a1a;">🏢 En la oficina del club</p>
       <p style="margin:0;font-size:14px;color:#333;">También puede abonar la deuda en efectivo o con tarjeta directamente en nuestras instalaciones.</p>
