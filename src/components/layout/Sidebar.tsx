@@ -326,7 +326,9 @@ export function Sidebar() {
             )}
             <div className="min-w-0 flex-1">
               <p className="text-white font-semibold text-sm truncate">{club.name}</p>
-              <p className="text-slate-400 text-xs">CRM Club</p>
+              <a href="/select-club" className="text-slate-400 text-xs hover:text-white transition-colors">
+                Cambiar club ⇄
+              </a>
             </div>
             {/* Close button mobile */}
             <button onClick={() => setMobileOpen(false)} aria-label="Cerrar menú de navegación" className="lg:hidden text-slate-400 hover:text-white">

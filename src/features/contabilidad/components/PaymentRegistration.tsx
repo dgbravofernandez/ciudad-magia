@@ -449,6 +449,7 @@ export function PaymentRegistration({
             : ''
         toast.success(`Pago registrado correctamente.${emailMsg}`)
         setExpandedPlayerId(null)
+        router.refresh()  // refrescar para que el pago aparezca al instante en pendientes y "Últimos pagos"
       } else {
         toast.error(result.error ?? 'Error al registrar el pago')
       }
@@ -546,6 +547,7 @@ export function PaymentRegistration({
       const result = await deletePayment(p.id)
       if (result.success) {
         toast.success('Pago borrado correctamente')
+        router.refresh()
       } else {
         toast.error(result.error ?? 'Error al borrar el pago')
       }
@@ -562,7 +564,7 @@ export function PaymentRegistration({
     setRefundModal(null)
     startTransition(async () => {
       const result = await refundPayment(payment.id, method)
-      if (result.success) toast.success('Reembolso registrado')
+      if (result.success) { toast.success('Reembolso registrado'); router.refresh() }
       else toast.error(result.error ?? 'Error al reembolsar')
     })
   }
