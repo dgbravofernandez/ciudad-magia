@@ -53,6 +53,8 @@ interface PlayerRow {
   tutor_phone?: string | null
   birth_date?: string | null
   teams: { id: string; name: string } | null
+  is_special_case?: boolean | null
+  special_case_reason?: string | null
 }
 
 interface Payment {
@@ -576,6 +578,20 @@ export function PaymentRegistration({
 
     if (!confirm(`Enviar recordatorio de pago a ${ids.length} ${plural}?${batchMsg}\n\nLos marcados como "Caso especial" se omiten automáticamente.`)) {
       return
+    }
+
+    // Alerta jugador especial (a nivel de ficha): listar y pedir confirmación extra
+    const specialSelected = ids
+      .map(id => playerMap[id])
+      .filter((p): p is PlayerRow => !!p && !!p.is_special_case)
+    if (specialSelected.length > 0) {
+      const lines = specialSelected
+        .map(p => `• ${p.first_name} ${p.last_name}${p.special_case_reason ? ` — ${p.special_case_reason}` : ''}`)
+        .join('\n')
+      const ok = confirm(
+        `⚠️ ${specialSelected.length} de los seleccionados están marcados como CASO ESPECIAL:\n\n${lines}\n\n¿Enviarles igualmente el aviso de deuda?`,
+      )
+      if (!ok) return
     }
 
     startTransition(async () => {

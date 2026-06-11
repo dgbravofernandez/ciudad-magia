@@ -29,11 +29,24 @@ export function PlayerForm({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const isEditing = !!player
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [isSpecial, setIsSpecial] = useState<boolean>((player as any)?.is_special_case ?? false)
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = e.currentTarget
     const formData = new FormData(form)
+
+    // Alerta jugador especial: marcar como Baja es una acción negativa
+    if (isEditing && formData.get('status') === 'low' && formData.get('is_special_case') === 'on') {
+      const reason = (formData.get('special_case_reason') as string)?.trim()
+      const ok = confirm(
+        `⚠️ ${player!.first_name} ${player!.last_name} está marcado como CASO ESPECIAL.` +
+          (reason ? `\n\nMotivo: ${reason}` : '') +
+          `\n\n¿Seguro que quieres darlo de BAJA?`,
+      )
+      if (!ok) return
+    }
 
     startTransition(async () => {
       if (isEditing) {
@@ -222,29 +235,39 @@ export function PlayerForm({
       <div className="card p-6 space-y-4">
         <h3 className="font-semibold text-base">Equipo y estado</h3>
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            {/* Nuevos jugadores → next_team_id (son de la próxima temporada)
-                Edición → team_id (equipo de la temporada actual) */}
-            {isEditing ? (
-              <>
+          {/* Nuevos jugadores → solo next_team_id (próxima temporada).
+              Edición → ambos: team_id (actual) y next_team_id (próxima). */}
+          {isEditing ? (
+            <>
+              <div>
                 <label className="label">Equipo (temporada actual)</label>
                 <select name="team_id" className="input w-full" defaultValue={player?.team_id ?? ''}>
                   <option value="">Sin equipo</option>
                   {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
-              </>
-            ) : (
-              <>
+              </div>
+              <div>
                 <label className="label">
-                  Equipo {nextSeason ? <span className="text-muted-foreground text-xs ml-1">(temporada {nextSeason})</span> : ''}
+                  Equipo próxima temporada
+                  {nextSeason ? <span className="text-muted-foreground text-xs ml-1">({nextSeason})</span> : ''}
                 </label>
                 <select name="next_team_id" className="input w-full" defaultValue={(player as any)?.next_team_id ?? ''}>
                   <option value="">Sin equipo</option>
                   {(nextTeams ?? teams).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
-              </>
-            )}
-          </div>
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="label">
+                Equipo {nextSeason ? <span className="text-muted-foreground text-xs ml-1">(temporada {nextSeason})</span> : ''}
+              </label>
+              <select name="next_team_id" className="input w-full" defaultValue={(player as any)?.next_team_id ?? ''}>
+                <option value="">Sin equipo</option>
+                {(nextTeams ?? teams).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          )}
           {isEditing && (
             <div>
               <label className="label">Estado</label>
@@ -262,6 +285,38 @@ export function PlayerForm({
             defaultValue={player?.notes ?? ''}
           />
         </div>
+      </div>
+
+      {/* Caso especial */}
+      <div className={`card p-6 space-y-4 ${isSpecial ? 'border-amber-300 bg-amber-50/40' : ''}`}>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            name="is_special_case"
+            className="mt-1"
+            checked={isSpecial}
+            onChange={e => setIsSpecial(e.target.checked)}
+          />
+          <span>
+            <span className="font-semibold text-base flex items-center gap-2">
+              ⚠️ Marcar como caso especial
+            </span>
+            <span className="block text-xs text-muted-foreground mt-0.5">
+              Saltará una alerta al hacer acciones negativas (eliminar, dar de baja, enviar avisos de deuda).
+            </span>
+          </span>
+        </label>
+        {isSpecial && (
+          <div>
+            <label className="label">Motivo</label>
+            <textarea
+              name="special_case_reason"
+              className="input w-full min-h-16 resize-y"
+              placeholder="Ej: situación familiar delicada, beca pendiente de aprobar, acuerdo de pago especial…"
+              defaultValue={(player as { special_case_reason?: string | null } | undefined)?.special_case_reason ?? ''}
+            />
+          </div>
+        )}
       </div>
 
       {!isEditing && (

@@ -109,7 +109,7 @@ export default async function PagosPage({
   // Jugadores — incluir next_team_id para vista 26/27 + teléfono tutor
   const { data: players } = await sb
     .from('players')
-    .select('id, first_name, last_name, dni, tutor_email, tutor_name, tutor_phone, team_id, next_team_id, birth_date')
+    .select('id, first_name, last_name, dni, tutor_email, tutor_name, tutor_phone, team_id, next_team_id, birth_date, is_special_case, special_case_reason')
     .eq('club_id', clubId)
     .neq('status', 'low')
     .order('last_name')

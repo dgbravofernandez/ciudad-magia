@@ -570,9 +570,12 @@ export async function updatePlayer(playerId: string, formData: FormData) {
     height_cm: formData.get('height_cm') ? parseInt(formData.get('height_cm') as string) : null,
     weight_kg: formData.get('weight_kg') ? parseFloat(formData.get('weight_kg') as string) : null,
     team_id: (formData.get('team_id') as string) || null,
+    next_team_id: (formData.get('next_team_id') as string) || null,
     dorsal_number: formData.get('dorsal_number') ? parseInt(formData.get('dorsal_number') as string) : null,
     status: formData.get('status') as string,
     notes: (formData.get('notes') as string) || null,
+    is_special_case: formData.get('is_special_case') === 'on',
+    special_case_reason: (formData.get('special_case_reason') as string)?.trim() || null,
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

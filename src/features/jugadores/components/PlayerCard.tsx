@@ -87,7 +87,19 @@ export function PlayerCard({
   }
 
   async function handleDelete() {
-    if (!confirm(`¿Eliminar a ${player.first_name} ${player.last_name}? Esta acción no se puede deshacer.`)) return
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sp = player as any
+    if (sp.is_special_case) {
+      const reason = (sp.special_case_reason as string | null)?.trim()
+      const ok = confirm(
+        `⚠️ ${player.first_name} ${player.last_name} está marcado como CASO ESPECIAL.` +
+          (reason ? `\n\nMotivo: ${reason}` : '') +
+          `\n\n¿Seguro que quieres ELIMINARLO? Esta acción no se puede deshacer.`,
+      )
+      if (!ok) return
+    } else if (!confirm(`¿Eliminar a ${player.first_name} ${player.last_name}? Esta acción no se puede deshacer.`)) {
+      return
+    }
     setDeleting(true)
     const result = await deletePlayer(player.id)
     if (result.success) {
@@ -201,6 +213,24 @@ export function PlayerCard({
                 {trialLoading ? 'Enviando...' : 'Enviar carta'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Caso especial banner */}
+      {(player as { is_special_case?: boolean }).is_special_case && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-900">Caso especial</p>
+            {(player as { special_case_reason?: string | null }).special_case_reason && (
+              <p className="text-sm text-amber-800 mt-0.5">
+                {(player as { special_case_reason?: string | null }).special_case_reason}
+              </p>
+            )}
+            <p className="text-xs text-amber-700/80 mt-1">
+              Las acciones negativas sobre este jugador (eliminar, baja, avisos de deuda) mostrarán una alerta.
+            </p>
           </div>
         </div>
       )}

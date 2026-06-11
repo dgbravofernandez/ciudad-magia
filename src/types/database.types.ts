@@ -134,6 +134,8 @@ export type Database = {
           passport_url: string | null
           nie_url: string | null
           notes: string | null
+          is_special_case: boolean
+          special_case_reason: string | null
           created_at: string
           updated_at: string
         }
