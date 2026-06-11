@@ -47,13 +47,22 @@ export default async function CajaPage() {
     .single()
 
   const now = new Date()
+  const today = now.toISOString().slice(0, 10)
   // Period starts from day after last close, or first of month if no closes
   let periodStart: string
   let lastCloseAt: string | null = null
+  // When the last close was made today (period_end == today), don't add 1 day —
+  // the new period also starts today and we filter by created_at in JS.
+  const lastClosedToday = !!(lastClose?.period_end && lastClose.period_end >= today)
   if (lastClose?.period_end) {
-    const lastEnd = new Date(lastClose.period_end)
-    lastEnd.setDate(lastEnd.getDate() + 1)
-    periodStart = lastEnd.toISOString().slice(0, 10)
+    if (lastClosedToday) {
+      // Close happened today — start from today, JS will drop pre-close rows
+      periodStart = today
+    } else {
+      const lastEnd = new Date(lastClose.period_end + 'T00:00:00')
+      lastEnd.setDate(lastEnd.getDate() + 1)
+      periodStart = lastEnd.toISOString().slice(0, 10)
+    }
     // Timestamp exacto del cierre anterior (para display)
     if (lastClose.created_at) {
       const closeTs = new Date(lastClose.created_at)
@@ -63,7 +72,7 @@ export default async function CajaPage() {
   } else {
     periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
   }
-  const periodEnd = now.toISOString().slice(0, 10)
+  const periodEnd = today
 
   // Fetch cash movements from period start to now
   const { data: movements } = await sb
@@ -72,7 +81,7 @@ export default async function CajaPage() {
     .eq('club_id', clubId)
     .gte('movement_date', periodStart)
     .lte('movement_date', periodEnd)
-    .order('movement_date', { ascending: false })
+    .order('created_at', { ascending: false })
 
   // Fetch cash close history
   const { data: closes } = await sb
@@ -84,7 +93,11 @@ export default async function CajaPage() {
 
   // Calculate system totals — DB uses English enum values
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const movs = (movements ?? []) as any[]
+  let movs = (movements ?? []) as any[]
+  // If the last close was today, drop movements created before (or at) that close
+  if (lastClosedToday && lastClose?.created_at) {
+    movs = movs.filter((m) => m.created_at > lastClose.created_at)
+  }
   const systemCash = movs
     .filter((m) => m.payment_method === 'cash')
     .reduce((sum: number, m) => sum + (m.type === 'income' ? m.amount : -m.amount), 0)
