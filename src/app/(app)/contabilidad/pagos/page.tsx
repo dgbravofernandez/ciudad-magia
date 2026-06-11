@@ -67,9 +67,14 @@ export default async function PagosPage({
   const season = params.season && seasons.includes(params.season) ? params.season : currentSeason
   const isNextSeason = season !== currentSeason
 
+  // Límites del mes como fecha local (YYYY-MM-DD) — payment_date es DATE.
+  // Con toISOString() en UTC+2, el 1 de junio local se convertía en 31 de mayo UTC
+  // y el KPI mensual incluía pagos del mes anterior.
   const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const monthStart = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const monthEnd = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(lastDay)}`
 
   // KPI: total paid this month (en la temporada seleccionada)
   const { data: paidThisMonth } = await sb
