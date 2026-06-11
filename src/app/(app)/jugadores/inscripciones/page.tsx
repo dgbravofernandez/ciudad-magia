@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubId } from '@/lib/supabase/get-club-id'
 import { InscripcionesTable } from '@/features/jugadores/components/InscripcionesTable'
 import { Topbar } from '@/components/layout/Topbar'
 import { headers } from 'next/headers'
@@ -12,18 +12,9 @@ export default async function InscripcionesPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
 
-  // Resolve clubId
+  // Resolución robusta multi-club (header → cookie preferida → más reciente)
   const headersList = await headers()
-  let clubId = headersList.get('x-club-id') ?? ''
-  if (!clubId) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: member } = await sb
-        .from('club_members').select('club_id').eq('user_id', user.id).eq('active', true).single()
-      clubId = member?.club_id ?? ''
-    }
-  }
+  const clubId = await getClubId()
   if (!clubId) return <div className="p-6 text-muted-foreground">No se pudo determinar el club.</div>
 
   // Resolve isAdmin

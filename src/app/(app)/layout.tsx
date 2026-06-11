@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { Suspense } from 'react'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { getClubContext } from '@/lib/supabase/get-club-id'
 import { ClubProvider } from '@/context/ClubContext'
 import { UserProvider } from '@/context/UserContext'
 import { ClubThemeProvider } from '@/components/layout/ClubThemeProvider'
@@ -20,41 +20,16 @@ export default async function AppLayout({
   children: React.ReactNode
 }) {
   const headersList = await headers()
-  let clubId = headersList.get('x-club-id')
-  let memberId = headersList.get('x-member-id')
-  let rolesHeader = headersList.get('x-user-roles')
+
+  // Resolución robusta multi-club (header → cookie preferida → más reciente),
+  // idéntica a la de las páginas para que cabecera y contenido muestren el MISMO club.
+  const { clubId, memberId, roles: ctxRoles } = await getClubContext()
+  if (!clubId || !memberId) redirect('/login')
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const adminClient = createAdminClient() as any
 
-  // Fallback: if middleware headers missing, look up from session directly
-  if (!clubId || !memberId) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) redirect('/login')
-
-    const { data: memberRow } = await adminClient
-      .from('club_members')
-      .select('id, club_id')
-      .eq('user_id', user.id)
-      .eq('active', true)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-
-    if (!memberRow) redirect('/login')
-
-    const { data: roleRows } = await adminClient
-      .from('club_member_roles')
-      .select('role')
-      .eq('member_id', memberRow.id)
-
-    clubId = memberRow.club_id
-    memberId = memberRow.id
-    rolesHeader = JSON.stringify((roleRows ?? []).map((r: { role: string }) => r.role))
-  }
-
-  const roles: Role[] = rolesHeader ? JSON.parse(rolesHeader) : []
+  const roles = ctxRoles as Role[]
   const isImpersonating = headersList.get('x-impersonating') === 'true'
   const supabase = adminClient
 

@@ -1,4 +1,4 @@
-import { headers } from 'next/headers'
+import { headers, cookies } from 'next/headers'
 import { createClient } from './server'
 import { createAdminClient } from './admin'
 
@@ -6,6 +6,10 @@ import { createAdminClient } from './admin'
  * Resolves the club_id for the current user.
  * Tries middleware header first; falls back to DB lookup via verified auth session.
  * Uses getUser() (network call) for reliable session verification in Server Actions.
+ *
+ * MULTI-CLUB: si el usuario pertenece a varios clubs y no hay header, respeta la
+ * cookie `preferred_club_id` (la que fija el selector de club). Sin cookie → el más
+ * reciente. NUNCA usar `.single()` aquí: con 2+ membresías PostgREST lanza error.
  */
 async function lookupMemberBySession(): Promise<{ id: string; club_id: string } | null> {
   const supabase = await createClient()
@@ -15,16 +19,29 @@ async function lookupMemberBySession(): Promise<{ id: string; club_id: string } 
 
   const admin = createAdminClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: member } = await (admin as any)
+  const { data: members } = await (admin as any)
     .from('club_members')
     .select('id, club_id')
     .eq('user_id', user.id)
     .eq('active', true)
     .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
 
-  return member ?? null
+  const list = (members ?? []) as { id: string; club_id: string }[]
+  if (list.length === 0) return null
+  if (list.length === 1) return list[0]
+
+  // Varios clubs → respetar el club preferido (cookie del selector)
+  try {
+    const cookieStore = await cookies()
+    const preferred = cookieStore.get('preferred_club_id')?.value
+    if (preferred) {
+      const match = list.find(m => m.club_id === preferred)
+      if (match) return match
+    }
+  } catch {
+    // cookies() no disponible en algún contexto — usar el más reciente
+  }
+  return list[0]
 }
 
 export async function getClubId(): Promise<string> {

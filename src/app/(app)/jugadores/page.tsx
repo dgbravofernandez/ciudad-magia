@@ -1,8 +1,7 @@
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubId } from '@/lib/supabase/get-club-id'
 import { PlayerList } from '@/features/jugadores/components/PlayerList'
 import { Topbar } from '@/components/layout/Topbar'
-import { headers } from 'next/headers'
 import type { Metadata } from 'next'
 import { bumpSeason } from '@/lib/utils/season'
 
@@ -12,26 +11,8 @@ export default async function JugadoresPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
 
-  // 1. Resolve clubId from middleware header
-  const headersList = await headers()
-  let clubId = headersList.get('x-club-id') ?? ''
-
-  // 2. Fallback: lookup from session
-  if (!clubId) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: member } = await sb
-        .from('club_members')
-        .select('club_id')
-        .eq('user_id', user.id)
-        .eq('active', true)
-        .single()
-      clubId = member?.club_id ?? ''
-    }
-  }
-
-  // Si no hay clubId el middleware ya habría redirigido — no hacer fallback al primer club
+  // Resolución robusta multi-club (header → cookie preferida → más reciente)
+  const clubId = await getClubId()
   if (!clubId) return <div className="p-6 text-muted-foreground">No se pudo determinar el club.</div>
 
   // Temporadas
