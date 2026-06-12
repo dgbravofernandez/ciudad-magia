@@ -36,6 +36,13 @@ export default async function DashboardPage() {
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1)
   const sixMonthsAgoIso = toISODate(sixMonthsAgo)
 
+  // Fecha de creación del club (para la tarjeta de bienvenida)
+  const { data: clubMeta } = await sb
+    .from('clubs')
+    .select('created_at')
+    .eq('id', clubId)
+    .single()
+
   const [
     playersRes,
     injuriesRes,
@@ -230,6 +237,7 @@ export default async function DashboardPage() {
       monthlyChart={monthlyChart}
       upcomingSessions={upcomingSessions}
       upcomingBirthdays={upcomingBirthdays}
+      clubCreatedAt={clubMeta?.created_at ?? null}
     />
   )
 }

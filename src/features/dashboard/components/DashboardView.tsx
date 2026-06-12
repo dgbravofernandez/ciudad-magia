@@ -60,6 +60,7 @@ interface Props {
   monthlyChart: MonthEntry[]
   upcomingSessions: UpcomingSession[]
   upcomingBirthdays: Birthday[]
+  clubCreatedAt: string | null
 }
 
 function formatEuro(n: number): string {
@@ -92,6 +93,7 @@ export function DashboardView({
   monthlyChart,
   upcomingSessions,
   upcomingBirthdays,
+  clubCreatedAt,
 }: Props) {
   const today = format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })
   const balance = revenueThisMonth - expensesThisMonth
@@ -177,8 +179,10 @@ export function DashboardView({
         <p className="text-sm text-gray-500 capitalize">{today}</p>
       </div>
 
-      {/* Bienvenida para clubs nuevos sin jugadores */}
-      {totalPlayers === 0 && <WelcomeChecklist />}
+      {/* Bienvenida solo para clubs creados hace menos de 14 días con 0 jugadores */}
+      {totalPlayers === 0 && clubCreatedAt && (Date.now() - new Date(clubCreatedAt).getTime()) < 14 * 86_400_000 && (
+        <WelcomeChecklist />
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
