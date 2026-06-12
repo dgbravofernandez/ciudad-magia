@@ -12,6 +12,10 @@ import {
   Cake,
   Activity,
   Euro,
+  Upload,
+  Settings,
+  CreditCard,
+  CheckCircle2,
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import Link from 'next/link'
@@ -173,6 +177,9 @@ export function DashboardView({
         <p className="text-sm text-gray-500 capitalize">{today}</p>
       </div>
 
+      {/* Bienvenida para clubs nuevos sin jugadores */}
+      {totalPlayers === 0 && <WelcomeChecklist />}
+
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         {kpis.map((kpi) => (
@@ -323,6 +330,79 @@ export function DashboardView({
           ))}
         </div>
       </div>
+    </div>
+  )
+}
+
+function WelcomeChecklist() {
+  const steps = [
+    {
+      icon: Upload,
+      title: 'Importa tus jugadores',
+      desc: 'Arrastra el Excel de la federación en Jugadores → Importar. Se asignan categorías automáticamente.',
+      href: '/jugadores',
+      cta: 'Ir a Jugadores →',
+      color: '#6366f1',
+      bg: '#eef2ff',
+    },
+    {
+      icon: Settings,
+      title: 'Configura las cuotas',
+      desc: 'Define los importes y plazos de pago de cada categoría en Configuración → Cuotas.',
+      href: '/configuracion',
+      cta: 'Ir a Configuración →',
+      color: '#0ea5e9',
+      bg: '#f0f9ff',
+    },
+    {
+      icon: CreditCard,
+      title: 'Registra el primer cobro',
+      desc: 'Una vez configuradas las cuotas, registra el primer pago de una familia en Contabilidad → Pagos.',
+      href: '/contabilidad/pagos',
+      cta: 'Ir a Pagos →',
+      color: '#10b981',
+      bg: '#ecfdf5',
+    },
+  ]
+
+  return (
+    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100 rounded-2xl p-6">
+      <div className="flex items-start gap-3 mb-5">
+        <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0">
+          <CheckCircle2 className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h2 className="font-bold text-gray-900 text-base">¡Club creado! Empieza aquí</h2>
+          <p className="text-sm text-gray-500 mt-0.5">3 pasos para tener el club en marcha en menos de 10 minutos.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {steps.map((s, i) => (
+          <Link
+            key={s.href}
+            href={s.href}
+            className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md hover:border-indigo-200 transition-all group"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: s.bg }}
+              >
+                <s.icon className="w-4 h-4" style={{ color: s.color }} />
+              </div>
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Paso {i + 1}</span>
+            </div>
+            <p className="font-semibold text-gray-900 text-sm mb-1">{s.title}</p>
+            <p className="text-xs text-gray-500 leading-relaxed mb-3">{s.desc}</p>
+            <span className="text-xs font-medium group-hover:underline" style={{ color: s.color }}>{s.cta}</span>
+          </Link>
+        ))}
+      </div>
+
+      <p className="text-xs text-gray-400 mt-4 text-center">
+        Esta guía desaparece cuando importes tus primeros jugadores.
+      </p>
     </div>
   )
 }

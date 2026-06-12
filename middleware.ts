@@ -51,13 +51,22 @@ export async function middleware(request: NextRequest) {
   )
 
   // ─────────────────────────────────────────────
-  // SUPERADMIN: verificar si el usuario es admin de plataforma
+  // RONDA 1 (paralelo): platform_admins + club_members
+  // Antes eran 2 queries secuenciales; ahora se lanzan a la vez.
   // ─────────────────────────────────────────────
-  const { data: platformAdmin } = await adminSupabase
-    .from('platform_admins')
-    .select('user_id')
-    .eq('user_id', user.id)
-    .single()
+  const [{ data: platformAdmin }, { data: members }] = await Promise.all([
+    adminSupabase
+      .from('platform_admins')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .single(),
+    adminSupabase
+      .from('club_members')
+      .select('id, club_id')
+      .eq('user_id', user.id)
+      .eq('active', true)
+      .order('created_at', { ascending: false }),
+  ])
 
   const isSuperAdmin = !!platformAdmin
 
@@ -105,25 +114,20 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isSuperAdmin && impersonateClubId) {
-    // Verificar que el club existe
-    const { data: club } = await adminSupabase
-      .from('clubs')
-      .select('id')
-      .eq('id', impersonateClubId)
-      .single()
-
-    if (club) {
-      // Obtener o crear el registro de club_member para el superadmin en ese club
-      // Si no tiene membership, simular como admin inyectando datos sintéticos
-      const { data: member } = await adminSupabase
+    // Verificar que el club existe y obtener el memberId del superadmin en ese club (paralelo)
+    const [{ data: club }, { data: impMember }] = await Promise.all([
+      adminSupabase.from('clubs').select('id').eq('id', impersonateClubId).single(),
+      adminSupabase
         .from('club_members')
         .select('id')
         .eq('user_id', user.id)
         .eq('club_id', impersonateClubId)
         .eq('active', true)
-        .maybeSingle()
+        .maybeSingle(),
+    ])
 
-      const memberId = member?.id ?? 'superadmin-impersonating'
+    if (club) {
+      const memberId = impMember?.id ?? 'superadmin-impersonating'
 
       const requestHeaders = new Headers(request.headers)
       requestHeaders.set('x-club-id', impersonateClubId)
@@ -143,15 +147,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // ─────────────────────────────────────────────
-  // FLUJO NORMAL: buscar club membership del usuario
+  // FLUJO NORMAL: members ya obtenidos en la ronda 1
   // ─────────────────────────────────────────────
-  const { data: members } = await adminSupabase
-    .from('club_members')
-    .select('id, club_id')
-    .eq('user_id', user.id)
-    .eq('active', true)
-    .order('created_at', { ascending: false })
-
   if (!members || members.length === 0) {
     // Si es superadmin sin membership en ningún club, redirigir a su panel
     if (isSuperAdmin) {
@@ -190,13 +187,22 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Datos de los clubs del usuario (para trial check y compat de URLs viejas)
+  // ─────────────────────────────────────────────
+  // RONDA 2 (paralelo): clubs + roles
+  // Antes eran 2 queries secuenciales tras determinar el member activo.
+  // ─────────────────────────────────────────────
   const clubIds = members.map((m) => m.club_id)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: clubsData } = await (adminSupabase as any)
-    .from('clubs')
-    .select('id, slug, subscription_status, trial_ends_at')
-    .in('id', clubIds)
+  const [{ data: clubsData }, { data: roles }] = await Promise.all([
+    (adminSupabase as any)
+      .from('clubs')
+      .select('id, slug, subscription_status, trial_ends_at')
+      .in('id', clubIds),
+    adminSupabase
+      .from('club_member_roles')
+      .select('role, team_id')
+      .eq('member_id', member.id),
+  ])
 
   // ─────────────────────────────────────────────
   // COMPATIBILIDAD URLs antiguas con prefijo /{slug}/
@@ -223,12 +229,6 @@ export async function middleware(request: NextRequest) {
   // Club del member seleccionado (para trial check)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const memberClub = (clubsData as any[])?.find((c: any) => c.id === member.club_id) ?? null
-
-  // Obtener roles del member seleccionado
-  const { data: roles } = await adminSupabase
-    .from('club_member_roles')
-    .select('role, team_id')
-    .eq('member_id', member.id)
 
   const roleNames = (roles ?? []).map((r) => r.role)
 

@@ -20,7 +20,13 @@ export function LoginForm({ redirectTo }: { redirectTo?: string }) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
-      setError('Email o contraseña incorrectos')
+      if (error.message.includes('Email not confirmed')) {
+        setError('Confirma tu email antes de entrar. Revisa tu bandeja de entrada.')
+      } else if (error.message.includes('Invalid login credentials')) {
+        setError('Email o contraseña incorrectos.')
+      } else {
+        setError(error.message)
+      }
       setLoading(false)
       return
     }

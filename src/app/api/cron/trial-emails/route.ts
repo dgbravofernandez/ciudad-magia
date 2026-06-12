@@ -34,16 +34,17 @@ function buildEmail(type: TrialEmailType, clubName: string, trialEndsAt: string 
     return {
       subject: `Bienvenido a Cluberly, ${clubName} 👋`,
       html: wrap(`¡Tu club ya está en Cluberly!`, `
-        <p style="font-size:15px;line-height:1.6">Tienes 14 días de prueba con todo incluido. Para sacarle partido desde hoy, estos son los 3 primeros pasos:</p>
+        <p style="font-size:15px;line-height:1.6">Tienes 14 días de prueba con todo incluido. Para tenerlo en marcha hoy, 3 pasos:</p>
         <ol style="font-size:15px;line-height:1.8">
-          <li><strong>Sube tus jugadores</strong> — en <a href="${APP_URL}/jugadores" style="color:#6366F1">Jugadores</a> puedes darlos de alta uno a uno o pedirnos que importemos tu Excel (gratis, respondiendo a este email).</li>
-          <li><strong>Configura tus cuotas</strong> — en <a href="${APP_URL}/configuracion" style="color:#6366F1">Configuración → Cuotas</a> define importes y plazos.</li>
+          <li><strong>Importa tus jugadores desde el Excel de la federación</strong> — ve a <a href="${APP_URL}/jugadores" style="color:#6366F1">Jugadores</a>, pestaña <em>Importar</em>, y arrastra el archivo. Detecta categorías y equipos automáticamente.</li>
+          <li><strong>Configura tus cuotas</strong> — en <a href="${APP_URL}/configuracion" style="color:#6366F1">Configuración → Cuotas</a> define importes y plazos de pago.</li>
           <li><strong>Registra tu primer cobro</strong> — en <a href="${APP_URL}/contabilidad/pagos" style="color:#6366F1">Contabilidad → Pagos</a>.</li>
         </ol>
         <p style="text-align:center;margin:28px 0">
           <a href="${APP_URL}/dashboard" style="background:#6366F1;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px">Entrar a mi club</a>
-        </p>`),
-      text: `Bienvenido a Cluberly. Tienes 14 dias de prueba. Pasos: 1) Sube tus jugadores en ${APP_URL}/jugadores (o respondenos y te importamos tu Excel gratis). 2) Configura cuotas en ${APP_URL}/configuracion. 3) Registra tu primer cobro. Dudas: ${CONTACT_EMAIL}`,
+        </p>
+        <p style="font-size:14px;line-height:1.6;color:#475569">¿Tienes el Excel pero prefieres que lo hagamos nosotros? Responde a este email y lo importamos en 24h sin coste.</p>`),
+      text: `Bienvenido a Cluberly. Tienes 14 dias de prueba. Pasos: 1) Importa jugadores desde el Excel de la federacion en ${APP_URL}/jugadores (pestana Importar). 2) Configura cuotas en ${APP_URL}/configuracion. 3) Registra tu primer cobro. Si prefieres que importemos el Excel nosotros, responde a este email. Dudas: ${CONTACT_EMAIL}`,
     }
   }
   if (type === 'import_help') {
