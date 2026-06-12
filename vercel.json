@@ -17,6 +17,10 @@
       "schedule": "0 9 * * *"
     },
     {
+      "path": "/api/cron/marketing-batch",
+      "schedule": "0 10 * * 1-5"
+    },
+    {
       "path": "/api/cron/rffm-sync?type=scorers_f7",
       "schedule": "0 23 * * 0"
     },
