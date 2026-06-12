@@ -1,7 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendHtmlEmail } from '@/lib/email/send'
+import { sendMarketingEmail } from '@/lib/email/marketing-send'
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { createHmac } from 'crypto'
@@ -93,7 +93,7 @@ async function sendBatchInternal(clubIds: string[]) {
     const subject = renderTemplate(tpl.subject, vars)
     const html = renderTemplate(tpl.body_html, vars)
 
-    const result = await sendHtmlEmail({
+    const result = await sendMarketingEmail({
       to: claimed.email,
       subject,
       html,
@@ -296,7 +296,7 @@ export async function sendTestEmail(targetEmail: string) {
     federation: 'RFFM',
     unsubscribe_url: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.vercel.app'}/api/marketing/unsubscribe?c=test&s=test&t=test`,
   }
-  const result = await sendHtmlEmail({
+  const result = await sendMarketingEmail({
     to: targetEmail,
     subject: '[TEST] ' + renderTemplate(tpl.subject, vars),
     html: renderTemplate(tpl.body_html, vars),
