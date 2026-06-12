@@ -1,7 +1,7 @@
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Shield, LayoutGrid, LogOut, Zap, Send } from 'lucide-react'
+import { Shield, LayoutGrid, LogOut, Zap, Send, Calendar } from 'lucide-react'
 import { stopImpersonation } from '@/features/superadmin/actions/superadmin.actions'
 
 export const dynamic = 'force-dynamic'
@@ -74,6 +74,13 @@ export default async function SuperadminLayout({
           >
             <Send className="w-3.5 h-3.5" />
             Campañas
+          </Link>
+          <Link
+            href="/superadmin/demos"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            Demos
           </Link>
         </nav>
 

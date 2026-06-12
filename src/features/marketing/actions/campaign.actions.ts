@@ -39,38 +39,56 @@ export async function unsubscribeUrl(clubId: string, sendId: string): Promise<st
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CORE: enviar a una lista de clubes con claim atómico anti-doble-envío
+// Estado siguiente según plantilla (cadena email_1 -> email_2 -> email_3)
 // ─────────────────────────────────────────────────────────────────────────────
-async function sendBatchInternal(clubIds: string[]) {
+const TEMPLATE_TO_NEXT_STATUS: Record<string, string> = {
+  email_1: 'sent_1',
+  email_2: 'sent_2',
+  email_3: 'sent_3',
+}
+
+const TEMPLATE_REQUIRED_STATUS: Record<string, string> = {
+  email_1: 'pending',
+  email_2: 'sent_1',
+  email_3: 'sent_2',
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CORE: enviar una plantilla a una lista de clubes con claim atómico
+// ─────────────────────────────────────────────────────────────────────────────
+async function sendBatchInternal(clubIds: string[], templateKey: string = 'email_1') {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
 
   const { data: settings } = await sb.from('marketing_settings').select('*').eq('id', 1).single()
-  const { data: tpl } = await sb.from('marketing_templates').select('*').eq('key', 'email_1').eq('active', true).single()
-  if (!tpl || !settings) return { success: false as const, error: 'Plantilla o settings sin configurar' }
+  const { data: tpl } = await sb.from('marketing_templates').select('*').eq('key', templateKey).eq('active', true).single()
+  if (!tpl || !settings) return { success: false as const, error: `Plantilla ${templateKey} o settings sin configurar` }
+
+  const requiredStatus = TEMPLATE_REQUIRED_STATUS[templateKey]
+  const nextStatus = TEMPLATE_TO_NEXT_STATUS[templateKey]
+  if (!requiredStatus || !nextStatus) return { success: false as const, error: `Plantilla ${templateKey} no soportada` }
 
   let sent = 0, failed = 0, skipped = 0
   const errors: string[] = []
 
   for (const clubId of clubIds) {
-    // CLAIM ATÓMICO: solo procesar si seguía 'pending' y no excluido. update().select() devuelve 0 filas si otro proceso lo cogió.
+    // CLAIM ATÓMICO: solo procesar si está en el estado esperado para esta plantilla
     const { data: claimed } = await sb
       .from('marketing_clubs')
-      .update({ status: 'queued', queued_at: new Date().toISOString() })
+      .update({ queued_at: new Date().toISOString() })
       .eq('id', clubId)
-      .eq('status', 'pending')
+      .eq('status', requiredStatus)
       .eq('excluded', false)
-      .select('id, name, email, location, federation')
+      .select('id, name, email, location, federation, status')
       .maybeSingle()
 
     if (!claimed) { skipped++; continue }
 
-    // Pre-crear el send.id para usarlo en el unsubscribe token
     const { data: sendRow, error: insErr } = await sb
       .from('marketing_email_sends')
       .insert({
         club_id: claimed.id,
-        template_key: 'email_1',
+        template_key: templateKey,
         subject: 'pending',
         bounced: false,
       })
@@ -78,8 +96,7 @@ async function sendBatchInternal(clubIds: string[]) {
       .single()
 
     if (insErr || !sendRow) {
-      // unique violation = ya hay un envío previo no-bounced → claim revertido
-      await sb.from('marketing_clubs').update({ status: 'pending', queued_at: null }).eq('id', claimed.id)
+      await sb.from('marketing_clubs').update({ queued_at: null }).eq('id', claimed.id)
       skipped++
       continue
     }
@@ -104,19 +121,18 @@ async function sendBatchInternal(clubIds: string[]) {
     if (result.sent) {
       await sb.from('marketing_email_sends').update({ subject }).eq('id', sendRow.id)
       await sb.from('marketing_clubs')
-        .update({ status: 'sent_1', last_sent_at: new Date().toISOString(), queued_at: null })
+        .update({ status: nextStatus, last_sent_at: new Date().toISOString(), queued_at: null })
         .eq('id', claimed.id)
       sent++
     } else {
       await sb.from('marketing_email_sends').update({ subject, bounced: true, error: result.error ?? 'unknown' }).eq('id', sendRow.id)
       await sb.from('marketing_clubs')
-        .update({ status: 'bounced', notes: `Error: ${result.error}`, queued_at: null })
+        .update({ status: 'bounced', notes: `Error en ${templateKey}: ${result.error}`, queued_at: null })
         .eq('id', claimed.id)
       failed++
       errors.push(`${claimed.email}: ${result.error}`)
     }
 
-    // 2-4s espaciado para no triggerar Gmail spam-trap
     await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000))
   }
 
@@ -167,12 +183,89 @@ type BatchResult =
   | { success: true; sent: number; failed: number; skipped: number; message: string }
   | { success: false; error: string }
 
-export async function sendToSelected(clubIds: string[]): Promise<BatchResult> {
+export async function sendToSelected(clubIds: string[], templateKey: string = 'email_1'): Promise<BatchResult> {
   const auth = await requireSuperadmin()
   if (!auth.ok) return { success: false, error: auth.error }
   if (!Array.isArray(clubIds) || clubIds.length === 0) return { success: false, error: 'Sin clubes seleccionados' }
   if (clubIds.length > 100) return { success: false, error: 'Máximo 100 por tanda manual (limite Gmail/runtime)' }
-  return sendBatchInternal(clubIds)
+  return sendBatchInternal(clubIds, templateKey)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// runFollowupBatch — manda email_2 (a sent_1 con >=4d) o email_3 (a sent_2 con >=5d)
+// que NO hayan respondido. Cron diario lo invoca.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function runFollowupBatch(opts?: { force?: boolean }): Promise<BatchResult> {
+  if (!opts?.force) {
+    const auth = await requireSuperadmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const { data: settings } = await sb.from('marketing_settings').select('*').eq('id', 1).single()
+  if (!settings) return { success: false, error: 'Sin settings' }
+  if (settings.is_paused) return { success: false, error: 'Campaña pausada' }
+
+  // Cap diario total: cuenta TODOS los envíos del día (email_1 + email_2 + email_3)
+  const { count: sentToday } = await sb
+    .from('marketing_email_sends')
+    .select('id', { count: 'exact', head: true })
+    .gte('sent_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString())
+  const cap: number = Math.min(500, Math.max(1, settings.daily_send_cap ?? 50))
+  const remaining = Math.max(0, cap - (sentToday ?? 0))
+  if (remaining === 0) return { success: true, sent: 0, failed: 0, skipped: 0, message: `Cap alcanzado hoy: ${sentToday}/${cap}` }
+
+  // Reservamos 60% del cap restante para email_2, 40% para email_3 (email_2 es el más rentable)
+  const cap2 = Math.ceil(remaining * 0.6)
+  const cap3 = remaining - cap2
+
+  const now = new Date()
+  const fourDaysAgo = new Date(now.getTime() - 4 * 86400_000).toISOString()
+  const fiveDaysAgo = new Date(now.getTime() - 5 * 86400_000).toISOString()
+
+  // sent_1 con >=4d sin reply → email_2
+  const { data: candidates2 } = await sb
+    .from('marketing_clubs')
+    .select('id')
+    .eq('status', 'sent_1')
+    .eq('excluded', false)
+    .is('reply_at', null)
+    .lte('last_sent_at', fourDaysAgo)
+    .order('priority', { ascending: true })
+    .order('last_sent_at', { ascending: true })
+    .limit(cap2)
+
+  // sent_2 con >=5d sin reply → email_3
+  const { data: candidates3 } = await sb
+    .from('marketing_clubs')
+    .select('id')
+    .eq('status', 'sent_2')
+    .eq('excluded', false)
+    .is('reply_at', null)
+    .lte('last_sent_at', fiveDaysAgo)
+    .order('priority', { ascending: true })
+    .order('last_sent_at', { ascending: true })
+    .limit(cap3)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ids2: string[] = (candidates2 ?? []).map((c: any) => c.id)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ids3: string[] = (candidates3 ?? []).map((c: any) => c.id)
+
+  const r2 = ids2.length > 0 ? await sendBatchInternal(ids2, 'email_2') : { success: true as const, sent: 0, failed: 0, skipped: 0, message: '' }
+  const r3 = ids3.length > 0 ? await sendBatchInternal(ids3, 'email_3') : { success: true as const, sent: 0, failed: 0, skipped: 0, message: '' }
+
+  const totalSent = (r2.success ? r2.sent : 0) + (r3.success ? r3.sent : 0)
+  const totalFailed = (r2.success ? r2.failed : 0) + (r3.success ? r3.failed : 0)
+  const totalSkipped = (r2.success ? r2.skipped : 0) + (r3.success ? r3.skipped : 0)
+  return {
+    success: true,
+    sent: totalSent,
+    failed: totalFailed,
+    skipped: totalSkipped,
+    message: `email_2: ${r2.success ? r2.sent : 0}, email_3: ${r3.success ? r3.sent : 0}`,
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

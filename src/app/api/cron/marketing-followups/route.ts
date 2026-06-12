@@ -1,0 +1,19 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { runFollowupBatch } from '@/features/marketing/actions/campaign.actions'
+
+export const dynamic = 'force-dynamic'
+export const maxDuration = 300
+
+export async function GET(req: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
+  const authHeader = req.headers.get('authorization')
+  const isVercelCron = req.headers.get('x-vercel-cron') === '1'
+  if (!isVercelCron && authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const result = await runFollowupBatch({ force: true })
+  console.log('[cron/marketing-followups]', JSON.stringify(result))
+  return NextResponse.json(result)
+}

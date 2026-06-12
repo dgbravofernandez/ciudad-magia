@@ -21,6 +21,14 @@
       "schedule": "0 10 * * 1-5"
     },
     {
+      "path": "/api/cron/marketing-followups",
+      "schedule": "30 10 * * 1-5"
+    },
+    {
+      "path": "/api/cron/demo-reminders",
+      "schedule": "0 18 * * *"
+    },
+    {
       "path": "/api/cron/rffm-sync?type=scorers_f7",
       "schedule": "0 23 * * 0"
     },
