@@ -1,4 +1,5 @@
 import LandingPage from '@/components/landing/LandingPage'
+import { UtmCapture } from '@/components/landing/UtmCapture'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -7,5 +8,10 @@ export const metadata: Metadata = {
 }
 
 export default function RootPage() {
-  return <LandingPage />
+  return (
+    <>
+      <UtmCapture />
+      <LandingPage />
+    </>
+  )
 }

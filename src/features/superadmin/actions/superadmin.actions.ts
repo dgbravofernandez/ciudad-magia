@@ -30,6 +30,15 @@ export type ClubSummary = {
   has_google_sheet: boolean
   last_sheet_sync: string | null
   current_season: string | null
+  // Leads / ciclo de vida comercial
+  subscription_status: string | null
+  trial_ends_at: string | null
+  acquisition_source: string | null
+  acquisition_campaign: string | null
+  acquisition_content: string | null
+  contact_phone: string | null
+  owner_email: string | null
+  last_activity: string | null   // último jugador o pago creado — proxy de uso real
 }
 
 /** Devuelve todos los clubs con métricas agregadas para el panel superadmin */
@@ -47,6 +56,8 @@ export async function getAllClubsWithMetrics(): Promise<{
       .from('clubs')
       .select(`
         id, name, slug, logo_url, plan, active, created_at, notes,
+        subscription_status, trial_ends_at,
+        acquisition_source, acquisition_campaign, acquisition_content, contact_phone,
         club_settings (
           backend_sheet_id, backend_sheet_last_sync, current_season
         )
@@ -58,12 +69,24 @@ export async function getAllClubsWithMetrics(): Promise<{
     // Agregar conteos por club en paralelo
     const summaries: ClubSummary[] = await Promise.all(
       (clubs ?? []).map(async (club: any) => {
-        const [{ count: playerCount }, { count: teamCount }, { count: memberCount }] =
-          await Promise.all([
-            sb.from('players').select('id', { count: 'exact', head: true }).eq('club_id', club.id).eq('status', 'active'),
-            sb.from('teams').select('id', { count: 'exact', head: true }).eq('club_id', club.id).eq('active', true),
-            sb.from('club_members').select('id', { count: 'exact', head: true }).eq('club_id', club.id).eq('active', true),
-          ])
+        const [
+          { count: playerCount },
+          { count: teamCount },
+          { count: memberCount },
+          { data: owner },
+          { data: lastPlayer },
+          { data: lastPayment },
+        ] = await Promise.all([
+          sb.from('players').select('id', { count: 'exact', head: true }).eq('club_id', club.id).eq('status', 'active'),
+          sb.from('teams').select('id', { count: 'exact', head: true }).eq('club_id', club.id).eq('active', true),
+          sb.from('club_members').select('id', { count: 'exact', head: true }).eq('club_id', club.id).eq('active', true),
+          sb.from('club_members').select('email').eq('club_id', club.id).eq('active', true).order('created_at', { ascending: true }).limit(1).maybeSingle(),
+          sb.from('players').select('created_at').eq('club_id', club.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          sb.from('quota_payments').select('created_at').eq('club_id', club.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        ])
+
+        const activityDates = [lastPlayer?.created_at, lastPayment?.created_at].filter(Boolean) as string[]
+        const lastActivity = activityDates.length > 0 ? activityDates.sort().at(-1)! : null
 
         const settings = club.club_settings?.[0] ?? club.club_settings ?? null
         return {
@@ -81,6 +104,14 @@ export async function getAllClubsWithMetrics(): Promise<{
           has_google_sheet: !!settings?.backend_sheet_id,
           last_sheet_sync: settings?.backend_sheet_last_sync ?? null,
           current_season: settings?.current_season ?? null,
+          subscription_status: club.subscription_status ?? null,
+          trial_ends_at: club.trial_ends_at ?? null,
+          acquisition_source: club.acquisition_source ?? null,
+          acquisition_campaign: club.acquisition_campaign ?? null,
+          acquisition_content: club.acquisition_content ?? null,
+          contact_phone: club.contact_phone ?? null,
+          owner_email: owner?.email ?? null,
+          last_activity: lastActivity,
         }
       })
     )

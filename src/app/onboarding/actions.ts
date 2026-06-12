@@ -13,6 +13,13 @@ function slugify(text: string) {
     .slice(0, 60)
 }
 
+/** Sanea un valor de tracking que viene del cliente: string corta o null. */
+function cleanTag(v: unknown, max = 100): string | null {
+  if (typeof v !== 'string') return null
+  const t = v.trim().slice(0, max)
+  return t.length > 0 ? t : null
+}
+
 export async function createClub(input: {
   userId: string
   fullName: string
@@ -20,6 +27,8 @@ export async function createClub(input: {
   sport: string
   city: string
   plan: string
+  contactPhone?: string
+  acquisition?: { source?: string | null; campaign?: string | null; content?: string | null }
 }) {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -74,6 +83,10 @@ export async function createClub(input: {
       plan: ['basic', 'starter', 'pro', 'club', 'elite'].includes(input.plan) ? input.plan : 'basic',
       active: true,
       subscription_status: 'trial',
+      contact_phone: cleanTag(input.contactPhone, 30),
+      acquisition_source: cleanTag(input.acquisition?.source),
+      acquisition_campaign: cleanTag(input.acquisition?.campaign),
+      acquisition_content: cleanTag(input.acquisition?.content),
     }).select('id').single()
 
     if (clubError || !club) return { success: false, error: clubError?.message ?? 'Error creando club' }

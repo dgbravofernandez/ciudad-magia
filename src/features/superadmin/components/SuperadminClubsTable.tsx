@@ -62,9 +62,13 @@ export function SuperadminClubsTable({ clubs }: { clubs: ClubSummary[] }) {
             <tr className="border-b border-slate-800">
               <th className="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Club</th>
               <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Plan</th>
+              <th className="text-center px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Suscripción</th>
               <th className="text-center px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Jugadores</th>
               <th className="text-center px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Equipos</th>
               <th className="text-center px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Staff</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Contacto</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Fuente</th>
+              <th className="text-center px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Últ. actividad</th>
               <th className="text-center px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">G. Sheets</th>
               <th className="text-center px-4 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">Estado</th>
               <th className="px-4 py-3"></th>
@@ -73,7 +77,7 @@ export function SuperadminClubsTable({ clubs }: { clubs: ClubSummary[] }) {
           <tbody className="divide-y divide-slate-800/50">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-6 py-12 text-center text-slate-500 text-sm">
+                <td colSpan={12} className="px-6 py-12 text-center text-slate-500 text-sm">
                   No se encontraron clubs
                 </td>
               </tr>
@@ -87,6 +91,44 @@ export function SuperadminClubsTable({ clubs }: { clubs: ClubSummary[] }) {
       </div>
     </div>
   )
+}
+
+function SubscriptionBadge({ status, trialEndsAt }: { status: string | null; trialEndsAt: string | null }) {
+  if (status === 'trial') {
+    const daysLeft = trialEndsAt
+      ? Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86_400_000)
+      : null
+    const expired = daysLeft !== null && daysLeft <= 0
+    return (
+      <span className={cn(
+        'px-2 py-0.5 rounded-full text-xs font-medium',
+        expired ? 'bg-red-500/20 text-red-400' : daysLeft !== null && daysLeft <= 4 ? 'bg-orange-500/20 text-orange-400' : 'bg-sky-500/20 text-sky-400'
+      )}>
+        {expired ? 'Trial caducado' : daysLeft !== null ? `Trial · ${daysLeft}d` : 'Trial'}
+      </span>
+    )
+  }
+  const map: Record<string, string> = {
+    active: 'bg-green-500/20 text-green-400',
+    ltd: 'bg-purple-500/20 text-purple-400',
+    past_due: 'bg-orange-500/20 text-orange-400',
+    canceled: 'bg-red-500/20 text-red-400',
+    unpaid: 'bg-red-500/20 text-red-400',
+  }
+  return (
+    <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', map[status ?? ''] ?? 'bg-slate-700 text-slate-400')}>
+      {status ?? '—'}
+    </span>
+  )
+}
+
+function LastActivity({ date }: { date: string | null }) {
+  if (!date) return <span className="text-xs text-slate-600">Nunca</span>
+  const days = Math.floor((Date.now() - new Date(date).getTime()) / 86_400_000)
+  const label = days === 0 ? 'Hoy' : days === 1 ? 'Ayer' : `Hace ${days}d`
+  // Un lead que lleva 7+ días sin tocar la app necesita rescate
+  const stale = days >= 7
+  return <span className={cn('text-xs', stale ? 'text-orange-400' : 'text-slate-300')}>{label}</span>
 }
 
 function ClubRow({ club }: { club: ClubSummary }) {
@@ -151,6 +193,11 @@ function ClubRow({ club }: { club: ClubSummary }) {
         </span>
       </td>
 
+      {/* Suscripción */}
+      <td className="px-4 py-4 text-center">
+        <SubscriptionBadge status={club.subscription_status} trialEndsAt={club.trial_ends_at} />
+      </td>
+
       {/* Jugadores */}
       <td className="px-4 py-4 text-center">
         <div className="flex items-center justify-center gap-1 text-slate-300">
@@ -170,6 +217,33 @@ function ClubRow({ club }: { club: ClubSummary }) {
       {/* Staff */}
       <td className="px-4 py-4 text-center">
         <span className="text-slate-300">{club.member_count}</span>
+      </td>
+
+      {/* Contacto */}
+      <td className="px-4 py-4">
+        <div className="text-xs">
+          {club.owner_email && <p className="text-slate-300 truncate max-w-[180px]" title={club.owner_email}>{club.owner_email}</p>}
+          {club.contact_phone
+            ? <p className="text-slate-400">{club.contact_phone}</p>
+            : <p className="text-slate-600">Sin teléfono</p>}
+        </div>
+      </td>
+
+      {/* Fuente de adquisición */}
+      <td className="px-4 py-4">
+        {club.acquisition_campaign || club.acquisition_source ? (
+          <div className="text-xs">
+            <p className="text-slate-300">{club.acquisition_campaign ?? club.acquisition_source}</p>
+            {club.acquisition_content && <p className="text-slate-500 truncate max-w-[140px]" title={club.acquisition_content}>{club.acquisition_content}</p>}
+          </div>
+        ) : (
+          <span className="text-xs text-slate-600">Directo</span>
+        )}
+      </td>
+
+      {/* Última actividad */}
+      <td className="px-4 py-4 text-center">
+        <LastActivity date={club.last_activity} />
       </td>
 
       {/* Google Sheets */}

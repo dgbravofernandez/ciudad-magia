@@ -20,6 +20,21 @@ const PLAN_LABELS: Record<string, string> = {
 
 type Step = 'account' | 'club' | 'done'
 
+/** Lee la atribución UTM: query params primero, cookie de la landing como fallback. */
+function readAttribution(params: URLSearchParams) {
+  const fromQuery = {
+    source: params.get('utm_source'),
+    campaign: params.get('utm_campaign'),
+    content: params.get('utm_content'),
+  }
+  if (fromQuery.source || fromQuery.campaign || fromQuery.content) return fromQuery
+  try {
+    const match = document.cookie.match(/(?:^|;\s*)cluberly_utm=([^;]+)/)
+    if (match) return JSON.parse(decodeURIComponent(match[1]))
+  } catch { /* tracking nunca rompe el registro */ }
+  return { source: null, campaign: null, content: null }
+}
+
 export default function OnboardingClient() {
   const router = useRouter()
   const params = useSearchParams()
@@ -38,6 +53,7 @@ export default function OnboardingClient() {
   const [clubName, setClubName] = useState('')
   const [sport, setSport] = useState('⚽ Fútbol')
   const [city, setCity] = useState('')
+  const [phone, setPhone] = useState('')
 
   // Keep userId after step 1
   const [userId, setUserId] = useState('')
@@ -83,7 +99,11 @@ export default function OnboardingClient() {
     startTransition(async () => {
       const supabase = createClient()
 
-      const result = await createClub({ userId, fullName, clubName, sport, city, plan })
+      const result = await createClub({
+        userId, fullName, clubName, sport, city, plan,
+        contactPhone: phone,
+        acquisition: readAttribution(params),
+      })
       if (!result.success) { setError(result.error ?? 'Error'); return }
 
       // Guardar el club recién creado como preferido para que el middleware lo use
@@ -213,6 +233,12 @@ export default function OnboardingClient() {
               <label style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
                 <span style={{ fontSize: '0.8125rem', fontWeight: 600 }}>Ciudad <span style={{ fontWeight: 400, color: '#94A3B8' }}>(opcional)</span></span>
                 <input value={city} onChange={e => setCity(e.target.value)} placeholder="Madrid"
+                  style={{ padding: '0.625rem 0.875rem', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: '0.9375rem', outline: 'none' }} />
+              </label>
+
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                <span style={{ fontSize: '0.8125rem', fontWeight: 600 }}>Teléfono de contacto <span style={{ fontWeight: 400, color: '#94A3B8' }}>(opcional — para ayudarte con la puesta en marcha)</span></span>
+                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="600 123 456" maxLength={30}
                   style={{ padding: '0.625rem 0.875rem', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: '0.9375rem', outline: 'none' }} />
               </label>
             </div>
