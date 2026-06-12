@@ -52,11 +52,13 @@ export async function runCampaignBatch(opts?: { force?: boolean; max?: number })
   const remaining = Math.max(0, cap - sentToday)
   if (remaining === 0) return { success: true, sent: 0, message: `Ya enviados hoy: ${sentToday}/${cap}` }
 
-  // Coger los siguientes "pending"
+  // Coger los siguientes "pending" no excluidos, ordenados por prioridad (10 = max, 100 = default)
   const { data: clubs } = await sb
     .from('marketing_clubs')
     .select('id, name, email, location, federation')
     .eq('status', 'pending')
+    .eq('excluded', false)
+    .order('priority', { ascending: true })
     .order('created_at', { ascending: true })
     .limit(remaining)
 
@@ -163,6 +165,116 @@ export async function markReplied(clubId: string) {
   await sb.from('marketing_clubs').update({ status: 'replied', reply_at: new Date().toISOString() }).eq('id', clubId)
   revalidatePath('/superadmin/campanas')
   return { success: true }
+}
+
+export async function toggleExcluded(clubId: string, excluded: boolean) {
+  const auth = await requireSuperadmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  await sb.from('marketing_clubs').update({ excluded }).eq('id', clubId)
+  revalidatePath('/superadmin/campanas')
+  return { success: true }
+}
+
+export async function bulkToggleExcluded(clubIds: string[], excluded: boolean) {
+  const auth = await requireSuperadmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  await sb.from('marketing_clubs').update({ excluded }).in('id', clubIds)
+  revalidatePath('/superadmin/campanas')
+  return { success: true, count: clubIds.length }
+}
+
+export async function setPriority(clubId: string, priority: number) {
+  const auth = await requireSuperadmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  await sb.from('marketing_clubs').update({ priority }).eq('id', clubId)
+  revalidatePath('/superadmin/campanas')
+  return { success: true }
+}
+
+export async function bulkSetPriority(clubIds: string[], priority: number) {
+  const auth = await requireSuperadmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  await sb.from('marketing_clubs').update({ priority }).in('id', clubIds)
+  revalidatePath('/superadmin/campanas')
+  return { success: true, count: clubIds.length }
+}
+
+/**
+ * Envía la plantilla email_1 a los clubes seleccionados (manual override del cap).
+ * Útil para enviar a una lista cherrypicked sin tocar el cron diario.
+ */
+export async function sendToSelected(clubIds: string[]) {
+  const auth = await requireSuperadmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+  if (clubIds.length === 0) return { success: false, error: 'Sin clubes seleccionados' }
+  if (clubIds.length > 100) return { success: false, error: 'Máximo 100 por tanda manual (limite Gmail)' }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const { data: settings } = await sb.from('marketing_settings').select('*').eq('id', 1).single()
+  const { data: tpl } = await sb.from('marketing_templates').select('*').eq('key', 'email_1').single()
+  if (!tpl || !settings) return { success: false, error: 'Plantilla o settings sin configurar' }
+
+  const { data: clubs } = await sb
+    .from('marketing_clubs')
+    .select('id, name, email, location, federation, status')
+    .in('id', clubIds)
+    .eq('excluded', false)
+
+  if (!clubs || clubs.length === 0) return { success: false, error: 'Ningún club válido' }
+
+  let sent = 0, failed = 0
+  type Club = { id: string; name: string; email: string; location: string | null; federation: string | null; status: string }
+  for (const club of clubs as Club[]) {
+    const vars = {
+      club_name: club.name,
+      location: club.location || 'tu zona',
+      federation: club.federation || '',
+      unsubscribe_url: await unsubscribeUrl(club.id),
+    }
+    const subject = renderTemplate(tpl.subject, vars)
+    const html = renderTemplate(tpl.body_html, vars)
+
+    const result = await sendHtmlEmail({
+      to: club.email,
+      subject,
+      html,
+      fromName: settings.from_name,
+      replyTo: settings.reply_to || settings.from_email,
+    })
+
+    await sb.from('marketing_email_sends').insert({
+      club_id: club.id,
+      template_key: 'email_1',
+      subject,
+      bounced: !result.sent,
+      error: result.error ?? null,
+    })
+
+    if (result.sent) {
+      await sb.from('marketing_clubs')
+        .update({ status: 'sent_1', last_sent_at: new Date().toISOString() })
+        .eq('id', club.id)
+      sent++
+    } else {
+      await sb.from('marketing_clubs')
+        .update({ status: 'bounced', notes: `Error: ${result.error}` })
+        .eq('id', club.id)
+      failed++
+    }
+    await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000))
+  }
+
+  revalidatePath('/superadmin/campanas')
+  return { success: true, sent, failed, message: `${sent} enviados a la selección, ${failed} fallos` }
 }
 
 export async function sendTestEmail(targetEmail: string) {
