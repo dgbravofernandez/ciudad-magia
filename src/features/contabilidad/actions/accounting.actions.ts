@@ -312,12 +312,28 @@ export async function updatePayment(data: {
     }
   }
 
+  // Leer el registro actual para preservar amount_due (deuda real del concepto).
+  // Editar un pago = corregir lo pagado, NO redefinir lo que se debe.
+  const { data: current } = await sb
+    .from('quota_payments')
+    .select('amount_due, status')
+    .eq('id', data.paymentId)
+    .single()
+
+  const dueAmount = current ? Number(current.amount_due) : data.amount
+  // Si quien edita pone un importe MAYOR que la deuda actual (caso de cambio de
+  // concepto o reclasificación de fila), permitir subir el due al nuevo importe;
+  // si pone igual o menor, conservar el due original (no destruir deuda restante).
+  const newDue = data.amount > dueAmount ? data.amount : dueAmount
+  const newStatus = data.amount >= newDue ? 'paid' : 'pending'
+
   const paymentUpdate: Record<string, unknown> = {
-    amount_due: data.amount,
+    amount_due: newDue,
     amount_paid: data.amount,
     payment_date: data.date,
     payment_method: dbMethod,
     notes: data.notes || null,
+    status: newStatus,
   }
   if (data.season) paymentUpdate.season = data.season
   if (data.concept !== undefined) paymentUpdate.concept = data.concept || null
@@ -703,36 +719,42 @@ export async function sendPendingReminders(playerIds: string[]) {
   }
 
   // 1. Cargar jugadores + total pendiente + flag caso especial
+  // is_special_case está en players (migration 042) — el flag por cuota es legado.
   const { data: players } = await sb
     .from('players')
-    .select('id, first_name, last_name, tutor_name, tutor_email')
+    .select('id, first_name, last_name, tutor_name, tutor_email, is_special_case')
     .eq('club_id', clubId)
     .in('id', playerIds)
 
+  const specialByPlayer: Record<string, boolean> = {}
+  for (const p of (players ?? [])) {
+    if (p.is_special_case) specialByPlayer[p.id] = true
+  }
+
+  // Pendiente real por diferencia (no por status='pending', alineado con la UI)
   const { data: pendings } = await sb
     .from('quota_payments')
     .select('player_id, amount_due, amount_paid, is_special_case')
     .eq('club_id', clubId)
-    .eq('status', 'pending')
+    .neq('status', 'refunded')
     .in('player_id', playerIds)
 
-  // Agrupar por jugador: total pendiente + marca de caso especial
   const byPlayer: Record<string, { total: number; specialCase: boolean }> = {}
   for (const p of (pendings ?? [])) {
-    if (!byPlayer[p.player_id]) byPlayer[p.player_id] = { total: 0, specialCase: false }
-    byPlayer[p.player_id].total += (Number(p.amount_due) - Number(p.amount_paid))
+    const remaining = Number(p.amount_due) - Number(p.amount_paid)
+    if (remaining <= 0) continue
+    if (!byPlayer[p.player_id]) {
+      byPlayer[p.player_id] = { total: 0, specialCase: specialByPlayer[p.player_id] ?? false }
+    }
+    byPlayer[p.player_id].total += remaining
+    // Compatibilidad: si una cuota concreta esta marcada como especial, tambien protege
     if (p.is_special_case) byPlayer[p.player_id].specialCase = true
   }
 
-  // Importe ya pagado por jugador (registros status=paid)
-  const { data: paidRecords } = await sb
-    .from('quota_payments')
-    .select('player_id, amount_paid')
-    .eq('club_id', clubId)
-    .eq('status', 'paid')
-    .in('player_id', playerIds)
+  // Importe ya pagado por jugador (incluye pagos parciales — sumar amount_paid de TODO)
+  // No filtrar por status='paid' o se ignoran los pagos parciales.
   const paidByPlayer: Record<string, number> = {}
-  for (const p of (paidRecords ?? [])) {
+  for (const p of (pendings ?? [])) {
     paidByPlayer[p.player_id] = (paidByPlayer[p.player_id] ?? 0) + Number(p.amount_paid)
   }
 
@@ -1291,6 +1313,39 @@ export async function updateCashMovement(data: {
   revalidatePath('/contabilidad/pagos')
   revalidatePath('/contabilidad/caja')
   return { success: true }
+}
+
+// ── toggleMovementVerified ───────────────────────────────────────────────────
+// Marca/desmarca una operación de caja como verificada (cotejada con TPV/banco).
+export async function toggleMovementVerified(movementId: string, verified: boolean) {
+  try {
+    const { sb, clubId, memberId } = await resolveClubAndMember()
+
+    const { data: existing } = await sb
+      .from('cash_movements')
+      .select('club_id')
+      .eq('id', movementId)
+      .single()
+
+    if (!existing) return { success: false, error: 'Movimiento no encontrado' }
+    if (existing.club_id !== clubId) return { success: false, error: 'No autorizado' }
+
+    const { error } = await sb
+      .from('cash_movements')
+      .update({
+        verified,
+        verified_at: verified ? new Date().toISOString() : null,
+        verified_by: verified ? (memberId || null) : null,
+      })
+      .eq('id', movementId)
+
+    if (error) return { success: false, error: error.message }
+
+    revalidatePath('/contabilidad/caja')
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
 }
 
 function getCurrentSeason(): string {

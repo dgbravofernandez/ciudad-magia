@@ -21,6 +21,7 @@ import {
   reclassifyMovement,
   registerExternalIncome,
   registerQuickExpense,
+  toggleMovementVerified,
 } from '@/features/contabilidad/actions/accounting.actions'
 import { useRouter } from 'next/navigation'
 
@@ -56,6 +57,7 @@ interface Movement {
   related_expense_id: string | null
   related_activity_charge_id: string | null
   source: string | null
+  verified?: boolean
 }
 
 interface MovementDetail {
@@ -145,6 +147,23 @@ export function CashRegisterPage({
   const [editAmount, setEditAmount]     = useState('')
   const [editDate, setEditDate]         = useState('')
   const [editMethod, setEditMethod]     = useState('cash')
+
+  // Tics de verificación por operación — estado optimista sobre el valor de BD
+  const [verifiedOverrides, setVerifiedOverrides] = useState<Record<string, boolean>>({})
+  const isVerified = (m: Movement) => verifiedOverrides[m.id] ?? !!m.verified
+
+  function handleToggleVerified(m: Movement) {
+    const next = !isVerified(m)
+    setVerifiedOverrides(prev => ({ ...prev, [m.id]: next }))
+    startTransition(async () => {
+      const r = await toggleMovementVerified(m.id, next)
+      if (!r.success) {
+        // revertir el optimismo si falla
+        setVerifiedOverrides(prev => ({ ...prev, [m.id]: !next }))
+        toast.error(r.error ?? 'Error al marcar la operación')
+      }
+    })
+  }
 
   function handleReopen(id: string, period: string) {
     if (!confirm(`¿Reabrir el cierre del periodo ${period}?\n\nPodrás modificar pagos y gastos de ese periodo otra vez. El cierre se borrará.`)) return
@@ -508,7 +527,7 @@ export function CashRegisterPage({
           {' '}hasta{' '}
           <strong>{formatDateTime(new Date().toISOString())}</strong>
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
           <div className="bg-green-50 rounded-lg p-3 text-center">
             <p className="text-xs text-green-700">Total ingresos</p>
             <p className="text-xl font-bold text-green-600">{formatCurrency(totalIncome)}</p>
@@ -518,12 +537,17 @@ export function CashRegisterPage({
             <p className="text-xl font-bold text-red-600">{formatCurrency(totalExpense)}</p>
           </div>
           <div className="bg-blue-50 rounded-lg p-3 text-center">
-            <p className="text-xs text-blue-700">Efectivo (sistema)</p>
+            <p className="text-xs text-blue-700">Efectivo (caja)</p>
             <p className="text-xl font-bold text-blue-600">{formatCurrency(netCash)}</p>
           </div>
           <div className="bg-purple-50 rounded-lg p-3 text-center">
-            <p className="text-xs text-purple-700">Tarjeta (sistema)</p>
+            <p className="text-xs text-purple-700">Tarjeta (TPV)</p>
             <p className="text-xl font-bold text-purple-600">{formatCurrency(netCard)}</p>
+          </div>
+          <div className="bg-slate-50 border border-dashed border-slate-300 rounded-lg p-3 text-center" title="Las transferencias van directas al banco — no entran en el arqueo de caja">
+            <p className="text-xs text-slate-600">Banco (transfer.)</p>
+            <p className="text-xl font-bold text-slate-700">{formatCurrency(netTransfer)}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">no entra en cierre</p>
           </div>
         </div>
       </div>
@@ -899,6 +923,7 @@ export function CashRegisterPage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
+                  <th className="text-center px-3 py-3 font-medium text-muted-foreground w-12" title="Marcar al cotejar la operación en el datáfono (TPV)">✓ TPV</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tipo</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Jugador / Descripción</th>
                   <th className="text-left px-4 py-3 font-medium text-muted-foreground">Equipo</th>
@@ -911,7 +936,7 @@ export function CashRegisterPage({
               <tbody>
                 {filteredMovements.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                    <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground text-sm">
                       No hay movimientos para el filtro seleccionado
                     </td>
                   </tr>
@@ -923,8 +948,23 @@ export function CashRegisterPage({
                   const displayName = actDetail?.player_name || detail?.player_name || m.description
                   const displayTeam = actDetail ? actDetail.activity_name : (detail?.team_name || '—')
                   const isExpense = m.type === 'expense'
+                  const isCard = m.payment_method === 'card'
+                  const checked = isCard && isVerified(m)
                   return (
-                    <tr key={m.id} className={cn('border-b last:border-0 hover:bg-muted/20 transition-colors', isExpense && 'bg-red-50/30')}>
+                    <tr key={m.id} className={cn('border-b last:border-0 hover:bg-muted/20 transition-colors', isExpense && 'bg-red-50/30', checked && 'bg-green-50/40')}>
+                      <td className="px-3 py-3 text-center">
+                        {isCard ? (
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => handleToggleVerified(m)}
+                            className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer accent-green-600"
+                            title={checked ? 'Verificada en TPV — clic para desmarcar' : 'Marcar como verificada en TPV'}
+                          />
+                        ) : (
+                          <span className="text-muted-foreground/40 text-xs">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={cn(
                           'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
@@ -982,11 +1022,16 @@ export function CashRegisterPage({
 
         {/* System totals */}
         <div className="bg-muted/40 rounded-lg p-4">
-          <p className="text-sm font-medium text-muted-foreground mb-2">Totales del sistema</p>
-          <div className="flex gap-6 text-sm">
+          <p className="text-sm font-medium text-muted-foreground mb-2">Totales del sistema — solo lo que se arquea</p>
+          <div className="flex gap-6 text-sm flex-wrap">
             <span>Efectivo: <strong>{formatCurrency(netCash)}</strong></span>
             <span>Tarjeta: <strong>{formatCurrency(netCard)}</strong></span>
           </div>
+          {netTransfer !== 0 && (
+            <p className="text-xs text-muted-foreground mt-2 italic">
+              Las transferencias ({formatCurrency(netTransfer)}) van directas al banco y no entran en el cierre.
+            </p>
+          )}
         </div>
 
         {/* Fondo de caja (cambio) — solo informativo */}
