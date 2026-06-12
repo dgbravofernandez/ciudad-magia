@@ -8,6 +8,7 @@ import { hasPermission, type Permission } from '@/types/roles'
 export type UserContextValue = {
   member: ClubMember
   roles: Role[]
+  isSuperAdmin: boolean
   can: (permission: Permission) => boolean
 }
 
@@ -17,15 +18,17 @@ export function UserProvider({
   children,
   member,
   roles,
+  isSuperAdmin = false,
 }: {
   children: ReactNode
   member: ClubMember
   roles: Role[]
+  isSuperAdmin?: boolean
 }) {
   const can = (permission: Permission) => hasPermission(roles, permission)
 
   return (
-    <UserContext.Provider value={{ member, roles, can }}>
+    <UserContext.Provider value={{ member, roles, isSuperAdmin, can }}>
       {children}
     </UserContext.Provider>
   )

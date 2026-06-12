@@ -31,6 +31,7 @@ export default async function AppLayout({
 
   const roles = ctxRoles as Role[]
   const isImpersonating = headersList.get('x-impersonating') === 'true'
+  const isSuperAdmin = headersList.get('x-platform-role') === 'superadmin'
   const supabase = adminClient
 
   // Fetch club data
@@ -52,7 +53,7 @@ export default async function AppLayout({
 
   return (
     <ClubProvider value={{ club, settings }}>
-      <UserProvider member={member} roles={roles}>
+      <UserProvider member={member} roles={roles} isSuperAdmin={isSuperAdmin}>
         <ClubThemeProvider club={club} />
         {isImpersonating && (
           <ImpersonationBanner clubName={club.name} />

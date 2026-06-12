@@ -21,6 +21,7 @@ import {
   X,
   Loader2,
   KeyRound,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -257,7 +258,7 @@ function NavItemComponent({ item }: { item: NavItem }) {
 
 export function Sidebar() {
   const { club, settings } = useClub()
-  const { member, roles } = useCurrentUser()
+  const { member, roles, isSuperAdmin } = useCurrentUser()
 
   // Feature flags — por defecto false para clubs nuevos, true solo si está activado en club_settings
   const rffmEnabled     = !!settings?.rffm_enabled
@@ -343,6 +344,19 @@ export function Sidebar() {
             <NavItemComponent key={item.href} item={item} />
           ))}
         </nav>
+
+        {/* Superadmin link — solo visible para admins de plataforma */}
+        {isSuperAdmin && (
+          <div className="px-3 pb-2">
+            <Link
+              href="/superadmin"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium text-yellow-400 hover:bg-yellow-400/10 transition-colors"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              Panel superadmin
+            </Link>
+          </div>
+        )}
 
         {/* User footer */}
         <div className="p-3 border-t border-white/10">
