@@ -48,22 +48,14 @@ export default async function CajaPage() {
 
   const now = new Date()
   const today = now.toISOString().slice(0, 10)
-  // Period starts from day after last close, or first of month if no closes
+  // Period starts from the date of the last close (not the day after).
+  // Movements on that same date but created BEFORE the close are excluded in JS below.
+  // This covers both: close happened today AND close happened a previous day with
+  // movements added after the close on that same date.
   let periodStart: string
   let lastCloseAt: string | null = null
-  // When the last close was made today (period_end == today), don't add 1 day —
-  // the new period also starts today and we filter by created_at in JS.
-  const lastClosedToday = !!(lastClose?.period_end && lastClose.period_end >= today)
   if (lastClose?.period_end) {
-    if (lastClosedToday) {
-      // Close happened today — start from today, JS will drop pre-close rows
-      periodStart = today
-    } else {
-      const lastEnd = new Date(lastClose.period_end + 'T00:00:00')
-      lastEnd.setDate(lastEnd.getDate() + 1)
-      periodStart = lastEnd.toISOString().slice(0, 10)
-    }
-    // Timestamp exacto del cierre anterior (para display)
+    periodStart = lastClose.period_end
     if (lastClose.created_at) {
       const closeTs = new Date(lastClose.created_at)
       closeTs.setMinutes(closeTs.getMinutes() + 1)
@@ -94,9 +86,15 @@ export default async function CajaPage() {
   // Calculate system totals — DB uses English enum values
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let movs = (movements ?? []) as any[]
-  // If the last close was today, drop movements created before (or at) that close
-  if (lastClosedToday && lastClose?.created_at) {
-    movs = movs.filter((m) => m.created_at > lastClose.created_at)
+  // Drop movements on the close date that were created before (or at) the close timestamp.
+  // This handles: close today, close yesterday with post-close movements, etc.
+  if (lastClose?.created_at && lastClose?.period_end) {
+    movs = movs.filter((m) => {
+      if (m.movement_date === lastClose.period_end) {
+        return m.created_at > lastClose.created_at
+      }
+      return true
+    })
   }
   const systemCash = movs
     .filter((m) => m.payment_method === 'cash')
