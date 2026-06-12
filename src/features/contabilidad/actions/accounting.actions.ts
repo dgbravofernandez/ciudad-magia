@@ -618,22 +618,35 @@ export async function getLinkedItems() {
   }
 }
 
+/**
+ * Reembolso parcial o total de un pago.
+ * - amount: importe a devolver (positivo). Si no se pasa, devuelve todo el amount_paid.
+ * - method: efectivo / tarjeta / transferencia con el que se devuelve el dinero
+ * - reason: motivo del reembolso (queda en notes del pago y descripción del movimiento)
+ *
+ * Efectos:
+ * 1. Crea movimiento negativo de caja con el método elegido
+ * 2. Decrementa amount_paid del pago
+ * 3. Si amount_paid queda en 0 → status='refunded'; si queda parcial → 'pending'
+ */
 export async function refundPayment(
   paymentId: string,
-  refundMethod: string = 'transfer'
+  refundMethod: string = 'transfer',
+  amount?: number,
+  reason?: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const { sb, clubId } = await resolveClubAndMember()
+  const { sb, clubId, memberId } = await resolveClubAndMember()
 
   const { data: payment } = await sb
     .from('quota_payments')
-    .select('*')
+    .select('id, amount_paid, amount_due, status, notes')
     .eq('id', paymentId)
     .eq('club_id', clubId)
     .single()
 
   if (!payment) return { success: false, error: 'Pago no encontrado' }
   if ((payment as { status?: string }).status === 'refunded') {
-    return { success: false, error: 'Este pago ya fue reembolsado' }
+    return { success: false, error: 'Este pago ya fue reembolsado por completo' }
   }
 
   const today = new Date().toISOString().slice(0, 10)
@@ -641,24 +654,43 @@ export async function refundPayment(
   if (!lockCheck.ok) return { success: false, error: lockCheck.error }
 
   const dbMethod = toDbMethod(refundMethod)
-  const amount = (payment as { amount_paid: number }).amount_paid
+  const currentPaid = Number((payment as { amount_paid: number }).amount_paid)
+  const refundAmount = amount && amount > 0 ? Math.min(Number(amount), currentPaid) : currentPaid
+  if (refundAmount <= 0) return { success: false, error: 'Importe a reembolsar inválido' }
 
-  // Create negative cash movement (reverse) only if the payment had a real cash/card movement
+  const newPaid = parseFloat((currentPaid - refundAmount).toFixed(2))
+  const dueAmount = Number((payment as { amount_due: number }).amount_due)
+  const newStatus = newPaid <= 0.001
+    ? 'refunded'
+    : (newPaid >= dueAmount - 0.001 ? 'paid' : 'pending')
+
+  const reasonClean = (reason ?? '').trim()
+  const description = reasonClean
+    ? `Devolucion: ${reasonClean}`
+    : `Reembolso cuota (pago ${paymentId.slice(0, 8)})`
+
+  // 1. Movimiento negativo de caja con el método elegido
   const { error: movErr } = await sb.from('cash_movements').insert({
     club_id: clubId,
-    movement_date: today,
-    amount: -Math.abs(amount),
+    type: 'expense',
+    amount: refundAmount,
     payment_method: dbMethod,
     source: 'cuota',
-    concept: `Reembolso cuota (pago ${paymentId.slice(0, 8)})`,
+    description,
+    movement_date: today,
     related_payment_id: paymentId,
+    registered_by: memberId || null,
   })
   if (movErr) return { success: false, error: movErr.message }
 
-  const notes = [(payment as { notes?: string }).notes, `REEMBOLSADO el ${today}`].filter(Boolean).join(' · ')
+  // 2. Actualizar pago
+  const label = newStatus === 'refunded'
+    ? `REEMBOLSADO el ${today}${reasonClean ? ` (${reasonClean})` : ''}`
+    : `Reembolso parcial ${refundAmount.toFixed(2)}€ el ${today}${reasonClean ? ` (${reasonClean})` : ''}`
+  const notes = [(payment as { notes?: string }).notes, label].filter(Boolean).join(' · ')
   const { error: updErr } = await sb
     .from('quota_payments')
-    .update({ status: 'refunded', notes })
+    .update({ amount_paid: newPaid, status: newStatus, notes })
     .eq('id', paymentId)
   if (updErr) return { success: false, error: updErr.message }
 

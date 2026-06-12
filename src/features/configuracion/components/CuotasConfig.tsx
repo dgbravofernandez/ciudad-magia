@@ -46,7 +46,8 @@ export function CuotasConfig({ clubId, settings, teams }: Props) {
     raw.installments?.length ? raw.installments : DEFAULT_INSTALLMENTS
   )
   const [teamAmounts, setTeamAmounts] = useState<Record<string, number>>(raw.teams ?? {})
-  const [siblingDiscount] = useState((settings?.sibling_discount_percent as number) ?? 40)
+  const [siblingEnabled, setSiblingEnabled] = useState<boolean>((settings?.sibling_discount_enabled as boolean) ?? false)
+  const [siblingDiscount, setSiblingDiscount] = useState<number>((settings?.sibling_discount_percent as number) ?? 40)
   const [isPending, startTransition] = useTransition()
 
   function updateInstallment(index: number, field: 'amount' | 'deadline' | 'label', value: string) {
@@ -85,6 +86,8 @@ export function CuotasConfig({ clubId, settings, teams }: Props) {
           teams: teamAmounts,
         },
         deadlineDay: (settings?.quota_deadline_day as number) ?? 5,
+        siblingDiscountEnabled: siblingEnabled,
+        siblingDiscountPercent: siblingDiscount,
       })
       if (result.success) {
         toast.success('Cuotas guardadas correctamente')
@@ -234,13 +237,40 @@ export function CuotasConfig({ clubId, settings, teams }: Props) {
         </div>
       </div>
 
-      {/* Sibling discount info */}
-      <div className="card p-6 space-y-2">
-        <h3 className="font-semibold text-lg">Descuento hermanos</h3>
-        <p className="text-sm text-muted-foreground">
-          Actualmente configurado al <strong>{siblingDiscount}%</strong> de descuento sobre la cuota del hermano mas barato.
-          Puedes modificar este valor en <em>Configuracion &gt; Ajustes generales</em>.
-        </p>
+      {/* Sibling discount config */}
+      <div className="card p-6 space-y-4">
+        <div>
+          <h3 className="font-semibold text-lg">Descuento por hermanos</h3>
+          <p className="text-sm text-muted-foreground">
+            Se aplica al generar las cuotas de los jugadores con <em>family_group_id</em> común.
+            El descuento se calcula como % sobre la cuota anual del jugador <strong>más barato</strong> de la familia,
+            y se reparte proporcionalmente entre los plazos de los hermanos.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            className="h-4 w-4"
+            checked={siblingEnabled}
+            onChange={(e) => setSiblingEnabled(e.target.checked)}
+          />
+          <span className="text-sm">Activar descuento por hermanos</span>
+        </label>
+        {siblingEnabled && (
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-muted-foreground">Porcentaje:</label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              max="100"
+              className="input w-24"
+              value={siblingDiscount}
+              onChange={(e) => setSiblingDiscount(parseFloat(e.target.value) || 0)}
+            />
+            <span className="text-xs text-muted-foreground">% sobre la cuota anual del más barato</span>
+          </div>
+        )}
       </div>
 
       <button

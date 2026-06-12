@@ -42,6 +42,66 @@ async function generatePendingFeesForPlayer(
 
   if (!fees || fees.length === 0) return { feesCreated: 0 }
 
+  // ── Descuento por hermanos (configurable por club) ──────────────────────────
+  // Política: % sobre la cuota anual del jugador MÁS BARATO de la familia,
+  // descontado de los plazos del resto de hermanos (proporcionalmente).
+  // El más barato no recibe descuento — paga su tarifa completa.
+  let siblingDiscountEur = 0
+  try {
+    const { data: player } = await sb
+      .from('players').select('family_group_id').eq('id', playerId).single()
+    const familyGroupId: string | null = player?.family_group_id ?? null
+    if (familyGroupId) {
+      const { data: settings } = await sb
+        .from('club_settings')
+        .select('sibling_discount_enabled, sibling_discount_percent')
+        .eq('club_id', clubId).single()
+      const enabled: boolean = !!settings?.sibling_discount_enabled
+      const pct: number = Number(settings?.sibling_discount_percent ?? 0)
+      if (enabled && pct > 0) {
+        // Hermanos del club con team_id asignado para 26/27 (incluye este jugador)
+        const { data: siblings } = await sb
+          .from('players')
+          .select('id, next_team_id, team_id')
+          .eq('club_id', clubId)
+          .eq('family_group_id', familyGroupId)
+          .neq('status', 'low')
+        const sibList: Array<{ id: string; next_team_id: string | null; team_id: string | null }> = siblings ?? []
+        if (sibList.length >= 2) {
+          // Total anual por equipo de cada hermano para la temporada (sumando todos los conceptos)
+          const teamIds = Array.from(new Set(sibList.map(s => s.next_team_id || s.team_id).filter(Boolean))) as string[]
+          if (teamIds.length > 0) {
+            const { data: allFees } = await sb
+              .from('season_fees')
+              .select('team_id, concept, amount')
+              .eq('club_id', clubId)
+              .eq('season', feesSeason)
+              .neq('concept', 'Pago Completo')
+              .in('team_id', teamIds)
+            const annualByTeam: Record<string, number> = {}
+            for (const f of (allFees ?? [])) {
+              annualByTeam[f.team_id] = (annualByTeam[f.team_id] ?? 0) + Number(f.amount)
+            }
+            const sibAnnuals = sibList
+              .map(s => annualByTeam[(s.next_team_id || s.team_id) ?? ''] ?? 0)
+              .filter(a => a > 0)
+            if (sibAnnuals.length >= 2) {
+              const cheapest = Math.min(...sibAnnuals)
+              // Cuota anual de ESTE jugador
+              const thisAnnual = fees.reduce((s: number, f: { amount: string }) => s + parseFloat(f.amount), 0)
+              // El jugador más barato no recibe descuento; el resto sí.
+              if (thisAnnual > cheapest + 0.01) {
+                siblingDiscountEur = cheapest * (pct / 100)
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[siblingDiscount] no aplicado:', (e as Error).message)
+  }
+
   // Meses aproximados para cada concepto (no crítico, solo para orden visual)
   const monthMap: Record<string, number> = {
     'Reserva': 9,
@@ -50,15 +110,30 @@ async function generatePendingFeesForPlayer(
     'Cuota 3': 5,
   }
 
+  // Distribuir el descuento proporcionalmente entre los conceptos que NO sean "Reserva"
+  // (la Reserva suele ser fija). Si solo hay Reserva, se descuenta sobre ella.
+  const discountable = fees.filter((f: { concept: string }) => !/reserva/i.test(f.concept))
+  const targetFees = discountable.length > 0 ? discountable : fees
+  const targetTotal = targetFees.reduce((s: number, f: { amount: string }) => s + parseFloat(f.amount), 0)
+  function adjustedAmount(f: { concept: string; amount: string }): number {
+    if (siblingDiscountEur <= 0) return parseFloat(f.amount)
+    const isTarget = targetFees.includes(f as never) || (!discountable.length)
+    if (!isTarget || targetTotal <= 0) return parseFloat(f.amount)
+    const share = parseFloat(f.amount) / targetTotal
+    const reduced = parseFloat(f.amount) - siblingDiscountEur * share
+    return Math.max(0, Math.round(reduced * 100) / 100)
+  }
+
   const records = fees.map((f: { concept: string; amount: string; sort_order: number }) => ({
     club_id: clubId,
     player_id: playerId,
     season: nextSeason,
     month: monthMap[f.concept] ?? 10,
     concept: f.concept,
-    amount_due: parseFloat(f.amount),
+    amount_due: adjustedAmount(f),
     amount_paid: 0,
     status: 'pending',
+    notes: siblingDiscountEur > 0 ? `Descuento hermanos aplicado (-${siblingDiscountEur.toFixed(2)}€ sobre el total)` : null,
   }))
 
   const { error } = await sb.from('quota_payments').insert(records)

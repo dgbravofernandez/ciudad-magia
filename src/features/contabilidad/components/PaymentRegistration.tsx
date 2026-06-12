@@ -142,7 +142,7 @@ export function PaymentRegistration({
   const [loadingLinkedItems, setLoadingLinkedItems] = useState(false)
 
   // Modal de reembolso — reemplaza prompt() (no funciona en iOS Safari)
-  const [refundModal, setRefundModal] = useState<{ payment: Payment; method: string } | null>(null)
+  const [refundModal, setRefundModal] = useState<{ payment: Payment; method: string; amount: string; reason: string } | null>(null)
 
   // Comentarios inline en pagos pendientes
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null) // payment_id
@@ -555,15 +555,26 @@ export function PaymentRegistration({
   }
 
   function handleRefundPayment(p: Payment) {
-    setRefundModal({ payment: p, method: p.payment_method ?? 'transfer' })
+    setRefundModal({
+      payment: p,
+      method: p.payment_method ?? 'transfer',
+      amount: String(p.amount_paid),
+      reason: '',
+    })
   }
 
   function confirmRefund() {
     if (!refundModal) return
-    const { payment, method } = refundModal
+    const { payment, method, amount, reason } = refundModal
+    const num = parseFloat(amount)
+    if (!num || num <= 0) { toast.error('Importe inválido'); return }
+    if (num > Number(payment.amount_paid) + 0.001) {
+      toast.error(`No puedes reembolsar más de lo cobrado (${formatCurrency(payment.amount_paid)})`)
+      return
+    }
     setRefundModal(null)
     startTransition(async () => {
-      const result = await refundPayment(payment.id, method)
+      const result = await refundPayment(payment.id, method, num, reason)
       if (result.success) { toast.success('Reembolso registrado'); router.refresh() }
       else toast.error(result.error ?? 'Error al reembolsar')
     })
@@ -1863,18 +1874,37 @@ export function PaymentRegistration({
       {refundModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setRefundModal(null)} role="dialog" aria-modal="true" aria-labelledby="refund-modal-title">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 id="refund-modal-title" className="font-semibold text-gray-900 mb-1">Registrar reembolso</h3>
+            <h3 id="refund-modal-title" className="font-semibold text-gray-900 mb-1">Registrar devolución</h3>
             {(() => {
               const p = refundModal.payment
               const pl = playerMap[p.player_id]
               return (
                 <p className="text-sm text-gray-500 mb-4">
-                  {formatCurrency(p.amount_paid)} → {pl ? `${pl.first_name} ${pl.last_name}` : 'jugador'}
+                  Cobrado <strong>{formatCurrency(p.amount_paid)}</strong> a {pl ? `${pl.first_name} ${pl.last_name}` : 'jugador'}
                 </p>
               )
             })()}
-            <p className="text-xs font-medium text-gray-600 mb-2">Método del reembolso</p>
-            <div className="flex gap-2 mb-5">
+
+            <div className="mb-4">
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Importe a devolver</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                max={String(refundModal.payment.amount_paid)}
+                inputMode="decimal"
+                className="input w-full"
+                value={refundModal.amount}
+                onChange={(e) => setRefundModal({ ...refundModal, amount: e.target.value })}
+                autoFocus
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Máximo {formatCurrency(refundModal.payment.amount_paid)}. Si devuelves menos, el pago queda parcial.
+              </p>
+            </div>
+
+            <p className="text-xs font-medium text-gray-600 mb-2">Método de la devolución</p>
+            <div className="flex gap-2 mb-4">
               {PAYMENT_METHODS.map((m) => (
                 <button
                   key={m.value}
@@ -1885,9 +1915,21 @@ export function PaymentRegistration({
                 </button>
               ))}
             </div>
+
+            <div className="mb-5">
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Motivo (opcional)</label>
+              <input
+                type="text"
+                className="input w-full"
+                placeholder="Ej: mal cobrado, baja, descuento aplicado…"
+                value={refundModal.reason}
+                onChange={(e) => setRefundModal({ ...refundModal, reason: e.target.value })}
+              />
+            </div>
+
             <div className="flex gap-2">
               <button onClick={() => setRefundModal(null)} className="flex-1 py-2 rounded-lg border border-gray-200 text-sm text-gray-600">Cancelar</button>
-              <button onClick={confirmRefund} disabled={isPending} className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-medium disabled:opacity-50">Reembolsar</button>
+              <button onClick={confirmRefund} disabled={isPending} className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-medium disabled:opacity-50">Devolver</button>
             </div>
           </div>
         </div>
