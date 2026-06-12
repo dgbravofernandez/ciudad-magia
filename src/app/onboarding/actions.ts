@@ -1,6 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 
 function slugify(text: string) {
   return text
@@ -24,11 +25,35 @@ export async function createClub(input: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
 
-    // Guard: verificar que el userId existe realmente en auth.users
-    // (evita FK violation si el cliente envió un ID "fantasma" de Supabase)
     if (!input.userId) return { success: false, error: 'ID de usuario inválido' }
     const { data: authCheck } = await sb.auth.admin.getUserById(input.userId)
-    if (!authCheck?.user) return { success: false, error: 'Usuario no encontrado. Por favor vuelve al paso anterior.' }
+    const targetUser = authCheck?.user
+    if (!targetUser) return { success: false, error: 'Usuario no encontrado. Por favor vuelve al paso anterior.' }
+
+    // SEC: el userId viene del cliente — verificar que pertenece a quien hace la petición.
+    // Camino 1 (login previo): hay sesión → debe coincidir con el userId.
+    // Camino 2 (signup nuevo): no hay sesión porque la confirmación de email está activa.
+    //   Solo se acepta una cuenta RECIÉN creada (<15 min), sin confirmar y sin clubs —
+    //   un atacante no puede usar el userId de una cuenta establecida.
+    const supabase = await createClient()
+    const { data: { user: sessionUser } } = await supabase.auth.getUser()
+
+    if (sessionUser) {
+      if (sessionUser.id !== input.userId) {
+        return { success: false, error: 'No autorizado: el usuario no coincide con la sesión activa' }
+      }
+    } else {
+      const createdAt = targetUser.created_at ? new Date(targetUser.created_at).getTime() : 0
+      const isFresh = Date.now() - createdAt < 15 * 60 * 1000
+      const isUnconfirmed = !targetUser.email_confirmed_at
+      const { count: membershipCount } = await sb
+        .from('club_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', input.userId)
+      if (!isFresh || !isUnconfirmed || (membershipCount ?? 0) > 0) {
+        return { success: false, error: 'No autorizado: inicia sesión para crear un club con esta cuenta' }
+      }
+    }
 
     // Generate unique slug
     const baseSlug = slugify(input.clubName)
@@ -63,12 +88,12 @@ export async function createClub(input: {
       sanction_matches: 1,
     })
 
-    // Create club_member (owner)
+    // Create club_member (owner) — email directo de auth, sin action separada
     const { data: member, error: memberError } = await sb.from('club_members').insert({
       club_id: clubId,
       user_id: input.userId,
       full_name: input.fullName,
-      email: '',   // will be filled from auth
+      email: targetUser.email ?? '',
       active: true,
     }).select('id').single()
 
@@ -91,13 +116,3 @@ export async function createClub(input: {
   }
 }
 
-export async function getClubMemberEmail(userId: string, clubId: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
-  const { data } = await sb.auth.admin.getUserById(userId)
-  const email = data?.user?.email ?? ''
-  if (email) {
-    await sb.from('club_members').update({ email }).eq('user_id', userId).eq('club_id', clubId)
-  }
-  return email
-}

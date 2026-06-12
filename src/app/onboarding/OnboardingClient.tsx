@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { createClub, getClubMemberEmail } from './actions'
+import { createClub } from './actions'
 import { Zap, Check } from 'lucide-react'
 
 const SPORTS = [
@@ -85,7 +85,6 @@ export default function OnboardingClient() {
 
       const result = await createClub({ userId, fullName, clubName, sport, city, plan })
       if (!result.success) { setError(result.error ?? 'Error'); return }
-      await getClubMemberEmail(userId, result.clubId!)
 
       // Guardar el club recién creado como preferido para que el middleware lo use
       if (result.clubId) {

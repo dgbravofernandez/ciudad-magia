@@ -55,6 +55,24 @@ async function resolveClubAndMember() {
     }
   }
 
+  // SEC invariante (defensa en profundidad): el memberId debe pertenecer al clubId.
+  // Los headers los setea el middleware de forma consistente, pero si un bug futuro
+  // los descuadrara, esto evita operar con un member de OTRO club.
+  // Excepción: superadmin impersonando usa el marcador sintético sin fila en club_members.
+  if (clubId && memberId && memberId !== 'superadmin-impersonating') {
+    const { data: belongs } = await sb
+      .from('club_members')
+      .select('id')
+      .eq('id', memberId)
+      .eq('club_id', clubId)
+      .eq('active', true)
+      .maybeSingle()
+    if (!belongs) {
+      logger.error({ action: 'resolveClubAndMember', clubId, memberId, error: 'member/club mismatch' })
+      throw new Error('No autorizado: contexto de club inconsistente')
+    }
+  }
+
   return { sb, clubId, memberId, roles }
 }
 
@@ -1351,7 +1369,12 @@ export async function updateCashMovement(data: {
 // Marca/desmarca una operación de caja como verificada (cotejada con TPV/banco).
 export async function toggleMovementVerified(movementId: string, verified: boolean) {
   try {
-    const { sb, clubId, memberId } = await resolveClubAndMember()
+    const { sb, clubId, memberId, roles } = await resolveClubAndMember()
+
+    // Solo roles con acceso a contabilidad pueden tocar la conciliación TPV
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+      return { success: false, error: 'Sin permisos para verificar operaciones' }
+    }
 
     const { data: existing } = await sb
       .from('cash_movements')

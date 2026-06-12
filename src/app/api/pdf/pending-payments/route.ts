@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubId } from '@/lib/supabase/get-club-id'
 import { generatePendingPaymentsPDF, type PendingPaymentRow } from '@/lib/pdf/generate-pending-payments'
 
 export const maxDuration = 30
@@ -15,16 +16,10 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
 
-  // ── Verificar club del usuario ─────────────────────────────────────
-  const { data: member } = await sb
-    .from('club_members')
-    .select('id, club_id')
-    .eq('user_id', user.id)
-    .eq('active', true)
-    .limit(1)
-    .single()
-  if (!member) return new Response('Forbidden', { status: 403 })
-  const clubId: string = member.club_id
+  // ── Club del usuario — cookie-aware para multi-club ────────────────
+  // (antes cogía el membership más reciente e ignoraba el club seleccionado)
+  const clubId = await getClubId()
+  if (!clubId) return new Response('Forbidden', { status: 403 })
 
   // ── Parsear filtros ────────────────────────────────────────────────
   const url = req.nextUrl

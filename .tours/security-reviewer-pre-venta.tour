@@ -1,0 +1,66 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "Seguridad pre-venta — fronteras de confianza y fixes de la auditoría",
+  "description": "Para quien revise la seguridad de Cluberly antes de venderla a clubs reales. Recorre las fronteras de confianza (middleware → headers → server actions → BD) y los 4 fixes críticos de la revisión adversarial de junio 2026.",
+  "ref": "main",
+  "steps": [
+    {
+      "file": "middleware.ts",
+      "line": 263,
+      "title": "1. La frontera de confianza: headers x-club-id",
+      "description": "**Situación:** Todo el aislamiento multi-tenant nace aquí. El middleware autentica al usuario, resuelve su club (cookie `preferred_club_id` para multi-club) y setea `x-club-id`, `x-member-id` y `x-user-roles`.\n\n**Mecanismo:** Los Server Components y Server Actions leen estos headers vía `getClubContext()` — nunca aceptan el club del cliente.\n\n**Implicación:** Si un endpoint NO pasa por aquí (rutas en `PUBLIC_PREFIX`, línea 10) o ignora los headers, el aislamiento depende de lo que haga ese endpoint por su cuenta.\n\n**Gotcha:** Los headers son consistentes *hoy*, pero nada en la BD lo garantiza — por eso existe el invariante del paso 5."
+    },
+    {
+      "file": "src/app/onboarding/actions.ts",
+      "line": 33,
+      "title": "2. FIX CRÍTICO 1 — createClub ya no confía en userId del cliente",
+      "description": "**Situación:** El onboarding pasaba `userId` desde el navegador y el servidor solo comprobaba que *existiera* — cualquiera podía crear clubs a nombre de otro usuario.\n\n**Mecanismo del fix:** Dos caminos:\n1. Con sesión → el `userId` debe coincidir con `sessionUser.id`.\n2. Sin sesión (signup nuevo, email sin confirmar no genera sesión) → solo se acepta una cuenta creada hace <15 min, sin confirmar y sin ningún club.\n\n**Implicación:** Un atacante no puede usar el userId de una cuenta establecida: o tiene sesión (y no coincide) o la cuenta no es \"fresca\".\n\n**Gotcha:** También se eliminó `getClubMemberEmail` — era un oráculo que devolvía el email de CUALQUIER userId."
+    },
+    {
+      "file": "src/app/api/stripe/checkout/route.ts",
+      "line": 11,
+      "title": "3. FIX CRÍTICO 2 — checkout deriva club y email del servidor",
+      "description": "**Situación:** Antes el body del POST traía `clubId` y `email` y se metían directos en el metadata de Stripe — un usuario podía crear checkouts contra clubs ajenos.\n\n**Mecanismo del fix:** El body solo elige `planId` y `annual`. El club sale de `getClubContext()` (headers del middleware), se exige rol `admin`/`direccion`, se verifica el invariante member∈club contra BD, y el email sale de la sesión de Supabase.\n\n**Implicación:** El webhook de Stripe confía en `metadata.club_id` para activar la suscripción — ahora ese metadata es fiable.\n\n**Gotcha:** `/api/stripe/checkout` NO está en PUBLIC_PREFIX del middleware: pasa por auth. El que sí es público es `/api/stripe/webhook` (firma verificada por Stripe)."
+    },
+    {
+      "file": "src/app/api/pdf/pending-payments/route.ts",
+      "line": 19,
+      "title": "4. FIX CRÍTICO 3 — PDF respeta el club seleccionado",
+      "description": "**Situación:** Este endpoint cogía el membership *más reciente* del usuario con `.limit(1).single()`. Un usuario con 2+ clubs (superadmin, gestor multi-club) recibía el PDF del club equivocado.\n\n**Mecanismo del fix:** `getClubId()` — la misma resolución cookie-aware que usan las páginas.\n\n**Implicación:** El PDF de morosos siempre corresponde al club que el usuario está viendo.\n\n**Gotcha:** El otro endpoint de PDF (`cash-close/[closeId]`) ya era seguro: verifica pertenencia al club DEL registro, patrón anti-IDOR correcto."
+    },
+    {
+      "file": "src/features/contabilidad/actions/accounting.actions.ts",
+      "line": 58,
+      "title": "5. FIX CRÍTICO 4 — invariante member ∈ club en server actions",
+      "description": "**Situación:** `resolveClubAndMember()` es el guardián de TODAS las actions de contabilidad. Tomaba `x-club-id` y `x-member-id` por separado sin verificar que el member pertenezca a ese club.\n\n**Mecanismo del fix:** Una query a `club_members` confirma la pareja (memberId, clubId, active). Si no cuadra → log + throw. Excepción: el marcador sintético `superadmin-impersonating` del middleware.\n\n**Implicación:** Defensa en profundidad — si un bug futuro del middleware descuadrara los headers, las actions de pagos no operarían con un member de otro club.\n\n**Gotcha:** Es un throw, no un return `{success:false}` — un mismatch real es un ataque o un bug grave, no un flujo de negocio."
+    },
+    {
+      "file": "supabase/migrations/041_rls_policies.sql",
+      "line": 24,
+      "title": "6. Capa de BD: RLS como red de seguridad",
+      "description": "**Situación:** Políticas RLS sobre las tablas críticas (players, quota_payments, cash_movements...).\n\n**Mecanismo:** El service_role las bypasea por diseño (todas las actions usan admin client), pero protegen contra acceso directo con anon key.\n\n**Implicación:** La clave anon es pública por definición (va en el bundle JS). Sin estas políticas, cualquiera con la URL del proyecto podría leer datos.\n\n**Gotcha:** Esto NO protege contra bugs en las server actions (van con service_role). La protección real ahí son los pasos 1 y 5. El plan pre-SaaS contempla `FORCE ROW LEVEL SECURITY` con claims por club."
+    },
+    {
+      "file": "src/features/contabilidad/actions/accounting.actions.ts",
+      "line": 1374,
+      "title": "7. Role gates en operaciones contables",
+      "description": "**Situación:** La conciliación TPV (tics de verificación por operación) ahora exige rol de contabilidad (`admin`, `direccion`, `director_deportivo`).\n\n**Mecanismo:** Patrón estándar del proyecto: `roles.some(...)` al inicio de la action, return `{success:false}` si no pasa.\n\n**Implicación:** Un entrenador o un rol de redes no puede tocar el arqueo aunque manipule el cliente.\n\n**Gotcha:** Los roles vienen de `club_member_roles` (la junction table), NO de `club_members.role` (legacy). El fallback en resolveClubAndMember consulta ambos."
+    },
+    {
+      "file": "src/app/(app)/contabilidad/pagos/page.tsx",
+      "line": 70,
+      "title": "8. Zona horaria: el servidor es UTC, el club es Madrid",
+      "description": "**Situación:** KPI \"pagado este mes\". Vercel corre en UTC; entre las 22:00/23:00 UTC del último día de mes y medianoche, `new Date()` ya está en el mes siguiente (o anterior) respecto a Madrid.\n\n**Mecanismo:** `Intl.DateTimeFormat` con `timeZone: 'Europe/Madrid'` para derivar el YYYY-MM-DD local antes de construir los límites del mes.\n\n**Implicación:** Las demos nocturnas y los cierres de fin de mes muestran el mes correcto.\n\n**Gotcha:** `payment_date` es DATE (sin hora) — comparar siempre con strings YYYY-MM-DD, nunca con toISOString() de un timestamp."
+    },
+    {
+      "file": "src/lib/contabilidad/apply-payment.ts",
+      "line": 27,
+      "title": "9. La lógica de dinero está extraída y testeada",
+      "description": "**Situación:** `applyPaymentToRecords` distribuye un pago entre los conceptos pendientes en orden cronológico (lógica pura, sin BD).\n\n**Mecanismo:** `registerPayment` la usa y maneja el sobrante creando un registro nuevo. Tests en `tests/unit/apply-payment.test.ts` (97 tests verdes en la suite).\n\n**Implicación:** Si tocas cómo se reparte el dinero, hay tests que te avisan. Ejecuta `npm test` antes de cualquier cambio en contabilidad.\n\n**Gotcha:** `updatePayment` (editar un pago) preserva `amount_due` — un fix de la auditoría: antes machacaba la deuda real al editar (causa raíz del bug \"hermanos Torne\")."
+    },
+    {
+      "title": "10. Qué puedes hacer ahora",
+      "description": "**Estado tras los fixes:** los 4 críticos de la revisión adversarial están cerrados y la suite (97 tests) en verde.\n\n**Antes de cada venta nueva, repasa:**\n1. ¿El flujo nuevo pasa por `getClubContext()` o acepta IDs del cliente?\n2. ¿Las queries filtran por `club_id`?\n3. ¿Hay role gate si la operación es sensible?\n4. ¿Stripe está en modo live y con el webhook configurado?\n\n**Deuda conocida (no bloqueante):** descuento hermanos no recalcula cuotas ya generadas; refunds no envían email al tutor; conciliación caja-cuotas sin alerta automática en UI."
+    }
+  ]
+}

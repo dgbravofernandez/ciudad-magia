@@ -3,7 +3,6 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useClub } from '@/context/ClubContext'
-import { useCurrentUser } from '@/context/UserContext'
 import { Check, ExternalLink } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -58,7 +57,6 @@ const PLANS = [
 
 export default function UpgradePage() {
   const { club } = useClub()
-  const { member } = useCurrentUser()
   const router = useRouter()
   const [annual, setAnnual] = useState(true)
   const [isPending, startTransition] = useTransition()
@@ -82,7 +80,7 @@ export default function UpgradePage() {
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId, annual, clubId: club.id, email: member.email }),
+        body: JSON.stringify({ planId, annual }),
       })
       const { url, error } = await res.json()
       if (error) { alert(error); setLoadingPlan(null); return }
