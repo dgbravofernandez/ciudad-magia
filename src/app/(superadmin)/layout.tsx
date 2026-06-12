@@ -17,9 +17,32 @@ export default async function SuperadminLayout({
 }) {
   const headersList = await headers()
   const platformRole = headersList.get('x-platform-role')
-  const userEmail = headersList.get('x-user-email') ?? ''
+  let userEmail = headersList.get('x-user-email') ?? ''
 
-  if (platformRole !== 'superadmin') {
+  // Fallback robusto: si el middleware no propaga el header (visto en prod),
+  // hacemos lookup directo en BD via cookies de sesion.
+  let isSuperAdmin = platformRole === 'superadmin'
+  if (!isSuperAdmin) {
+    const { createClient: createSbServer } = await import('@/lib/supabase/server')
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const sb = await createSbServer()
+    const { data: { user } } = await sb.auth.getUser()
+    if (user) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const adm = createAdminClient() as any
+      const { data: paRow } = await adm
+        .from('platform_admins')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (paRow) {
+        isSuperAdmin = true
+        if (!userEmail) userEmail = user.email ?? ''
+      }
+    }
+  }
+
+  if (!isSuperAdmin) {
     redirect('/dashboard')
   }
 

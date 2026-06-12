@@ -70,19 +70,16 @@ export async function middleware(request: NextRequest) {
 
   const isSuperAdmin = !!platformAdmin
 
-  // Si accede a rutas /superadmin → solo permitir si es superadmin
+  // Si accede a rutas /superadmin → dejar pasar al layout (que hace
+  // double-check + fallback a BD). Si el middleware ya sabe que es superadmin,
+  // inyecta el header para evitar la query extra del layout.
   if (SUPERADMIN_PATHS.some((p) => pathname.startsWith(p))) {
-    if (!isSuperAdmin) {
-      // No revelar que /superadmin existe — redirigir a 404
-      const url = request.nextUrl.clone()
-      url.pathname = '/not-found'
-      return NextResponse.redirect(url)
-    }
-
-    // Superadmin accediendo a /superadmin — inyectar header y pasar
     const requestHeaders = new Headers(request.headers)
-    requestHeaders.set('x-platform-role', 'superadmin')
+    if (isSuperAdmin) {
+      requestHeaders.set('x-platform-role', 'superadmin')
+    }
     requestHeaders.set('x-user-email', user.email ?? '')
+    requestHeaders.set('x-user-id', user.id)
     const response = NextResponse.next({ request: { headers: requestHeaders } })
     supabaseResponse.cookies.getAll().forEach((cookie) => {
       response.cookies.set(cookie.name, cookie.value, cookie)
