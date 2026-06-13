@@ -54,10 +54,10 @@ export default function PrivacyPage() {
       {/* Nav */}
       <nav style={{ borderBottom: '1px solid #E2E8F0', padding: '0 1.5rem', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
-          <div style={{ width: 28, height: 28, borderRadius: 7, background: 'linear-gradient(135deg,#6366F1,#EC4899)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '0.875rem' }}>C</div>
+          <div style={{ width: 28, height: 28, borderRadius: 7, background: 'linear-gradient(135deg,#EC4899,#BE185D)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '0.875rem' }}>C</div>
           <span style={{ fontWeight: 800, fontSize: '1rem', color: '#0F172A', letterSpacing: '-0.02em' }}>cluberly</span>
         </Link>
-        <Link href="/login" style={{ fontSize: '0.875rem', fontWeight: 600, color: '#6366F1', textDecoration: 'none' }}>Iniciar sesión</Link>
+        <Link href="/login" style={{ fontSize: '0.875rem', fontWeight: 600, color: '#EC4899', textDecoration: 'none' }}>Iniciar sesión</Link>
       </nav>
 
       {/* Content */}
@@ -76,9 +76,9 @@ export default function PrivacyPage() {
               ) : (
                 <p style={{ color: '#475569', fontSize: '0.9375rem', lineHeight: 1.7 }}>
                   Para ejercer estos derechos, escríbenos a{' '}
-                  <a href="mailto:iakevoapp@gmail.com" style={{ color: '#6366F1', fontWeight: 600 }}>iakevoapp@gmail.com</a>.
+                  <a href="mailto:iakevoapp@gmail.com" style={{ color: '#EC4899', fontWeight: 600 }}>iakevoapp@gmail.com</a>.
                   También puedes presentar una reclamación ante la{' '}
-                  <a href="https://www.aepd.es" target="_blank" rel="noopener noreferrer" style={{ color: '#6366F1' }}>
+                  <a href="https://www.aepd.es" target="_blank" rel="noopener noreferrer" style={{ color: '#EC4899' }}>
                     Agencia Española de Protección de Datos (AEPD)
                   </a>.
                 </p>
@@ -91,13 +91,13 @@ export default function PrivacyPage() {
           <p style={{ fontWeight: 700, marginBottom: '0.5rem' }}>¿Tienes alguna duda?</p>
           <p style={{ color: '#64748B', fontSize: '0.9rem' }}>
             Escríbenos a{' '}
-            <a href="mailto:iakevoapp@gmail.com" style={{ color: '#6366F1', fontWeight: 600 }}>iakevoapp@gmail.com</a>{' '}
+            <a href="mailto:iakevoapp@gmail.com" style={{ color: '#EC4899', fontWeight: 600 }}>iakevoapp@gmail.com</a>{' '}
             y te respondemos en menos de 24 horas.
           </p>
         </div>
 
         <p style={{ marginTop: '2rem', textAlign: 'center' }}>
-          <Link href="/" style={{ color: '#6366F1', fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none' }}>← Volver a inicio</Link>
+          <Link href="/" style={{ color: '#EC4899', fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none' }}>← Volver a inicio</Link>
         </p>
       </div>
     </div>

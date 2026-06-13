@@ -32,7 +32,7 @@ export default async function LoginPage({
               <div style={{
                 position: 'absolute', inset: -4,
                 borderRadius: '50%',
-                background: 'conic-gradient(from 0deg, #6366F1, #A855F7, #EC4899, #6366F1)',
+                background: 'conic-gradient(from 0deg, #EC4899, #A855F7, #EC4899, #EC4899)',
                 filter: 'blur(8px)',
                 opacity: 0.5,
               }} />
@@ -40,7 +40,7 @@ export default async function LoginPage({
               <div style={{
                 position: 'relative', width: 80, height: 80,
                 borderRadius: 22,
-                background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 50%, #EC4899 100%)',
+                background: 'linear-gradient(135deg, #EC4899 0%, #8B5CF6 50%, #EC4899 100%)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: '0 16px 48px rgba(99,102,241,0.45), 0 4px 12px rgba(0,0,0,0.4)',
                 border: '1px solid rgba(255,255,255,0.15)',

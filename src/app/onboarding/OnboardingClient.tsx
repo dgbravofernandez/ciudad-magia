@@ -129,11 +129,11 @@ export default function OnboardingClient() {
     <div style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
       justifyContent: 'center', padding: '2rem 1rem',
-      background: 'linear-gradient(160deg,#EEF2FF 0%,#FDF2F8 55%,#FFF0F6 100%)',
+      background: 'linear-gradient(160deg,#ffffff 0%,#FDF2F8 100%)',
     }}>
       {/* Logo */}
       <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2rem', textDecoration: 'none' }}>
-        <div style={{ width: 36, height: 36, borderRadius: 9, background: 'linear-gradient(135deg,#6366F1,#EC4899)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '1.125rem' }}>C</div>
+        <div style={{ width: 36, height: 36, borderRadius: 9, background: 'linear-gradient(135deg,#EC4899,#BE185D)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '1.125rem' }}>C</div>
         <span style={{ fontWeight: 800, fontSize: '1.25rem', letterSpacing: '-0.02em', color: '#0F172A' }}>cluberly</span>
       </Link>
 
@@ -150,7 +150,7 @@ export default function OnboardingClient() {
                 <div style={{
                   width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '0.75rem', fontWeight: 700,
-                  background: completed ? '#10B981' : active ? '#6366F1' : '#E2E8F0',
+                  background: completed ? '#10B981' : active ? '#EC4899' : '#E2E8F0',
                   color: completed || active ? '#fff' : '#94A3B8',
                   flexShrink: 0,
                 }}>
@@ -164,7 +164,7 @@ export default function OnboardingClient() {
 
         {/* Selected plan badge */}
         {PLAN_LABELS[plan] && (
-          <div style={{ background: '#EEF2FF', borderRadius: 8, padding: '0.5rem 0.875rem', marginBottom: '1.5rem', fontSize: '0.8125rem', fontWeight: 700, color: '#6366F1', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+          <div style={{ background: '#FDF2F8', borderRadius: 8, padding: '0.5rem 0.875rem', marginBottom: '1.5rem', fontSize: '0.8125rem', fontWeight: 700, color: '#EC4899', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
             <Zap size={13} /> Plan seleccionado: {PLAN_LABELS[plan]}
           </div>
         )}
@@ -197,14 +197,14 @@ export default function OnboardingClient() {
 
             <button type="submit" disabled={isPending} style={{
               width: '100%', marginTop: '1.5rem', padding: '0.875rem', borderRadius: 10, border: 'none',
-              background: 'linear-gradient(135deg,#6366F1,#EC4899)', color: '#fff', fontWeight: 800, fontSize: '1rem',
+              background: 'linear-gradient(135deg,#EC4899,#BE185D)', color: '#fff', fontWeight: 800, fontSize: '1rem',
               cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.7 : 1,
             }}>
               {isPending ? 'Creando cuenta…' : 'Continuar →'}
             </button>
 
             <p style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.8125rem', color: '#64748B' }}>
-              ¿Ya tienes cuenta? <Link href="/login" style={{ color: '#6366F1', fontWeight: 600 }}>Inicia sesión</Link>
+              ¿Ya tienes cuenta? <Link href="/login" style={{ color: '#EC4899', fontWeight: 600 }}>Inicia sesión</Link>
             </p>
           </form>
         )}
@@ -247,7 +247,7 @@ export default function OnboardingClient() {
 
             <button type="submit" disabled={isPending} style={{
               width: '100%', marginTop: '1.5rem', padding: '0.875rem', borderRadius: 10, border: 'none',
-              background: 'linear-gradient(135deg,#6366F1,#EC4899)', color: '#fff', fontWeight: 800, fontSize: '1rem',
+              background: 'linear-gradient(135deg,#EC4899,#BE185D)', color: '#fff', fontWeight: 800, fontSize: '1rem',
               cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.7 : 1,
             }}>
               {isPending ? 'Creando club…' : '¡Crear mi club!'}
@@ -264,7 +264,7 @@ export default function OnboardingClient() {
               Entrando al dashboard…
             </p>
             <div style={{ marginTop: '1.5rem', height: 4, background: '#E2E8F0', borderRadius: 999, overflow: 'hidden' }}>
-              <div style={{ height: '100%', background: 'linear-gradient(90deg,#6366F1,#EC4899)', borderRadius: 999, animation: 'progress 1.8s linear forwards' }} />
+              <div style={{ height: '100%', background: 'linear-gradient(90deg,#EC4899,#EC4899)', borderRadius: 999, animation: 'progress 1.8s linear forwards' }} />
             </div>
             <style>{`@keyframes progress { from { width: 0% } to { width: 100% } }`}</style>
           </div>
@@ -272,7 +272,7 @@ export default function OnboardingClient() {
       </div>
 
       <p style={{ marginTop: '1.5rem', fontSize: '0.75rem', color: '#94A3B8', textAlign: 'center' }}>
-        Al registrarte aceptas nuestros <Link href="/privacy" style={{ color: '#6366F1' }}>Términos y Privacidad</Link>
+        Al registrarte aceptas nuestros <Link href="/privacy" style={{ color: '#EC4899' }}>Términos y Privacidad</Link>
       </p>
     </div>
   )

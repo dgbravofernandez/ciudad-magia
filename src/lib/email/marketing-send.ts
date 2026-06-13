@@ -30,6 +30,10 @@ export async function sendMarketingEmail(payload: MarketingEmailPayload): Promis
   })
 
   try {
+    // INBOX-friendly: SIN Precedence:bulk ni X-Mailer (delatan envío masivo).
+    // List-Unsubscribe se mantiene porque Gmail/Yahoo lo exigen para >5k/día y
+    // NO clasifica a Promociones por su presencia (sí por su ausencia o por
+    // 'Precedence: bulk'). Sin él además aumenta riesgo de Spam.
     const info = await transport.sendMail({
       from: `${payload.fromName} <${user}>`,
       to: payload.to,
@@ -37,11 +41,7 @@ export async function sendMarketingEmail(payload: MarketingEmailPayload): Promis
       html: payload.html,
       replyTo: payload.replyTo ?? user,
       headers: {
-        // Lista de baja: requerido por Gmail/Yahoo para envíos masivos B2B
-        'List-Unsubscribe': `<mailto:${user}?subject=Unsubscribe>`,
-        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-        'Precedence': 'bulk',
-        'X-Mailer': 'Cluberly/1.0',
+        'List-Unsubscribe': `<mailto:${user}?subject=baja>`,
       },
     })
     console.log(`[marketing] ✓ ${payload.to} (id: ${info.messageId})`)

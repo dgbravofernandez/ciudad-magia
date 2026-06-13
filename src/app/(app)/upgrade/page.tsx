@@ -23,7 +23,7 @@ const PLANS = [
     id: 'pro',
     name: 'Pro',
     icon: '🏆',
-    color: '#6366F1',
+    color: '#EC4899',
     monthlyPrice: 89,
     annualPrice: 890,
     annualMonthly: 74,

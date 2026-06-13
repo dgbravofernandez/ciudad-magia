@@ -17,7 +17,7 @@ function wrap(title: string, body: string): string {
   return `
   <div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0F172A">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px">
-      <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366F1,#EC4899);color:#fff;font-weight:800;font-size:16px;text-align:center;line-height:32px">C</div>
+      <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#EC4899,#BE185D);color:#fff;font-weight:800;font-size:16px;text-align:center;line-height:32px">C</div>
       <span style="font-weight:800;font-size:18px">cluberly</span>
     </div>
     <h1 style="font-size:20px;font-weight:800;margin:0 0 16px">${title}</h1>
@@ -36,12 +36,12 @@ function buildEmail(type: TrialEmailType, clubName: string, trialEndsAt: string 
       html: wrap(`¡Tu club ya está en Cluberly!`, `
         <p style="font-size:15px;line-height:1.6">Tienes 14 días de prueba con todo incluido. Para tenerlo en marcha hoy, 3 pasos:</p>
         <ol style="font-size:15px;line-height:1.8">
-          <li><strong>Importa tus jugadores desde el Excel de la federación</strong> — ve a <a href="${APP_URL}/jugadores" style="color:#6366F1">Jugadores</a>, pestaña <em>Importar</em>, y arrastra el archivo. Detecta categorías y equipos automáticamente.</li>
-          <li><strong>Configura tus cuotas</strong> — en <a href="${APP_URL}/configuracion" style="color:#6366F1">Configuración → Cuotas</a> define importes y plazos de pago.</li>
-          <li><strong>Registra tu primer cobro</strong> — en <a href="${APP_URL}/contabilidad/pagos" style="color:#6366F1">Contabilidad → Pagos</a>.</li>
+          <li><strong>Importa tus jugadores desde el Excel de la federación</strong> — ve a <a href="${APP_URL}/jugadores" style="color:#EC4899">Jugadores</a>, pestaña <em>Importar</em>, y arrastra el archivo. Detecta categorías y equipos automáticamente.</li>
+          <li><strong>Configura tus cuotas</strong> — en <a href="${APP_URL}/configuracion" style="color:#EC4899">Configuración → Cuotas</a> define importes y plazos de pago.</li>
+          <li><strong>Registra tu primer cobro</strong> — en <a href="${APP_URL}/contabilidad/pagos" style="color:#EC4899">Contabilidad → Pagos</a>.</li>
         </ol>
         <p style="text-align:center;margin:28px 0">
-          <a href="${APP_URL}/dashboard" style="background:#6366F1;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px">Entrar a mi club</a>
+          <a href="${APP_URL}/dashboard" style="background:#EC4899;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px">Entrar a mi club</a>
         </p>
         <p style="font-size:14px;line-height:1.6;color:#475569">¿Tienes el Excel pero prefieres que lo hagamos nosotros? Responde a este email y lo importamos en 24h sin coste.</p>`),
       text: `Bienvenido a Cluberly. Tienes 14 dias de prueba. Pasos: 1) Importa jugadores desde el Excel de la federacion en ${APP_URL}/jugadores (pestana Importar). 2) Configura cuotas en ${APP_URL}/configuracion. 3) Registra tu primer cobro. Si prefieres que importemos el Excel nosotros, responde a este email. Dudas: ${CONTACT_EMAIL}`,
@@ -55,7 +55,7 @@ function buildEmail(type: TrialEmailType, clubName: string, trialEndsAt: string 
         <p style="font-size:15px;line-height:1.6"><strong>Responde a este email con tu Excel o lista de jugadores</strong> (nombre, fecha de nacimiento, contacto del tutor) y en menos de 24h los tienes cargados, organizados por equipos y listos para gestionar cuotas.</p>
         <p style="font-size:15px;line-height:1.6">Sin compromiso: si al final Cluberly no te encaja, te llevas el Excel ordenado.</p>
         <p style="text-align:center;margin:28px 0">
-          <a href="${APP_URL}/jugadores" style="background:#6366F1;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px">O súbelos tú en 5 minutos</a>
+          <a href="${APP_URL}/jugadores" style="background:#EC4899;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px">O súbelos tú en 5 minutos</a>
         </p>`),
       text: `Aun no has subido jugadores a ${clubName}. Respondenos con tu Excel y los importamos gratis en 24h. O subelos tu en ${APP_URL}/jugadores. Dudas: ${CONTACT_EMAIL}`,
     }
@@ -68,7 +68,7 @@ function buildEmail(type: TrialEmailType, clubName: string, trialEndsAt: string 
     html: wrap(`Quedan pocos días de prueba`, `
       <p style="font-size:15px;line-height:1.6">La prueba gratuita de <strong>${clubName}</strong> termina el <strong>${endDate}</strong>. Para no perder el acceso a tus datos ni interrumpir la gestión del club, elige tu plan:</p>
       <p style="text-align:center;margin:28px 0">
-        <a href="${APP_URL}/upgrade" style="background:#6366F1;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px">Ver planes y precios</a>
+        <a href="${APP_URL}/upgrade" style="background:#EC4899;color:#fff;padding:12px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px">Ver planes y precios</a>
       </p>
       <p style="font-size:15px;line-height:1.6">Si algo no te ha convencido o te falta alguna función, <strong>respóndenos a este email</strong> — leemos y contestamos todo.</p>`),
     text: `La prueba de ${clubName} termina el ${endDate}. Elige plan en ${APP_URL}/upgrade o respondenos si algo no te convence. Dudas: ${CONTACT_EMAIL}`,

@@ -75,14 +75,25 @@ export async function createClub(input: {
       slug = `${baseSlug}-${attempt}`
     }
 
+    // Sport: el cliente lo manda como "⚽ Fútbol", guardamos solo "Fútbol"
+    const cleanSport = (input.sport ?? '').replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/gu, '').trim() || 'Otro'
+
+    // Plan válido (basic/pro/club/personalizado) — caer en basic si llega algo desconocido
+    const validPlan = ['basic', 'pro', 'club', 'personalizado'].includes(input.plan) ? input.plan : 'basic'
+
+    // Trial 14 días desde HOY — CRÍTICO para que el cron de aviso "queda X días" se dispare
+    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+
     // Create club
     const { data: club, error: clubError } = await sb.from('clubs').insert({
       name: input.clubName,
       slug,
       city: input.city || null,
-      plan: ['basic', 'starter', 'pro', 'club', 'elite'].includes(input.plan) ? input.plan : 'basic',
+      sport: cleanSport,
+      plan: validPlan,
       active: true,
       subscription_status: 'trial',
+      trial_ends_at: trialEndsAt,
       contact_phone: cleanTag(input.contactPhone, 30),
       acquisition_source: cleanTag(input.acquisition?.source),
       acquisition_campaign: cleanTag(input.acquisition?.campaign),

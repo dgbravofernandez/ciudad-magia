@@ -30,7 +30,7 @@ const SPORTS = [
 const FEATURES = [
   {
     icon: Users,
-    color: '#6366F1',
+    color: '#EC4899',
     title: 'Gestión de socios',
     desc: 'Ficha completa con historial de pagos, lesiones, sanciones y evaluaciones. Todo en un lugar.',
   },
@@ -90,7 +90,7 @@ const PLANS = [
     id: 'pro',
     name: 'Pro',
     icon: '🏆',
-    color: '#6366F1',
+    color: '#EC4899',
     monthlyPrice: 89,
     annualPrice: 890,
     annualMonthly: 74,
@@ -216,13 +216,13 @@ function PricingSection() {
             <button onClick={() => setAnnual(false)} style={{
               padding: '0.45rem 1.25rem', borderRadius: 999, border: 'none', cursor: 'pointer',
               fontWeight: 600, fontSize: '0.875rem',
-              background: !annual ? 'linear-gradient(90deg,#6366F1,#EC4899)' : '#E2E8F0',
+              background: !annual ? 'linear-gradient(90deg,#EC4899,#BE185D)' : '#E2E8F0',
               color: !annual ? '#fff' : '#64748B',
             }}>Mensual</button>
             <button onClick={() => setAnnual(true)} style={{
               padding: '0.45rem 1.25rem', borderRadius: 999, border: 'none', cursor: 'pointer',
               fontWeight: 600, fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: 6,
-              background: annual ? 'linear-gradient(90deg,#6366F1,#EC4899)' : '#E2E8F0',
+              background: annual ? 'linear-gradient(90deg,#EC4899,#BE185D)' : '#E2E8F0',
               color: annual ? '#fff' : '#64748B',
             }}>
               Anual
@@ -297,8 +297,8 @@ function PricingSection() {
 
 const s = {
   badge: {
-    display: 'inline-block', background: 'linear-gradient(90deg,#EEF2FF,#FDF2F8)',
-    color: '#6366F1', fontSize: '0.8rem', fontWeight: 700,
+    display: 'inline-block', background: 'linear-gradient(90deg,#FDF2F8,#FDF2F8)',
+    color: '#EC4899', fontSize: '0.8rem', fontWeight: 700,
     padding: '0.3rem 0.875rem', borderRadius: 999, marginBottom: '1rem', letterSpacing: '0.02em',
   } as React.CSSProperties,
   h2: {
@@ -355,8 +355,8 @@ export default function LandingPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
           <div style={{ position: 'relative', width: 34, height: 34 }}>
-            <div style={{ position: 'absolute', inset: -2, borderRadius: '50%', background: 'conic-gradient(from 0deg,#6366F1,#A855F7,#EC4899,#6366F1)', filter: 'blur(4px)', opacity: 0.5 }} />
-            <div style={{ position: 'relative', width: 34, height: 34, borderRadius: 9, background: 'linear-gradient(135deg,#6366F1,#8B5CF6,#EC4899)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(99,102,241,0.4)', border: '1px solid rgba(255,255,255,0.15)' }}>
+            <div style={{ position: 'absolute', inset: -2, borderRadius: '50%', background: 'conic-gradient(from 0deg,#EC4899,#A855F7,#EC4899,#EC4899)', filter: 'blur(4px)', opacity: 0.5 }} />
+            <div style={{ position: 'relative', width: 34, height: 34, borderRadius: 9, background: 'linear-gradient(135deg,#EC4899,#8B5CF6,#EC4899)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(99,102,241,0.4)', border: '1px solid rgba(255,255,255,0.15)' }}>
               <svg width="20" height="20" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="18" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" fill="none"/><path d="M23 5 C12.5 5 5 13 5 23 C5 33 12.5 41 23 41" stroke="white" strokeWidth="3" strokeLinecap="round" fill="none"/><line x1="5" y1="23" x2="41" y2="23" stroke="rgba(255,255,255,0.4)" strokeWidth="1.2"/><circle cx="23" cy="23" r="4" fill="white" opacity="0.9"/></svg>
             </div>
           </div>
@@ -366,9 +366,9 @@ export default function LandingPage() {
           <a href="#precios" style={{ color: '#64748B', fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none' }}>Precios</a>
           <Link href="/login" style={{ color: '#64748B', fontSize: '0.875rem', fontWeight: 600, textDecoration: 'none' }}>Iniciar sesión</Link>
           <Link href="/onboarding" style={{
-            background: 'linear-gradient(135deg,#6366F1,#9333EA)', color: '#fff', padding: '0.4rem 1rem',
+            background: 'linear-gradient(135deg,#EC4899,#9333EA)', color: '#fff', padding: '0.4rem 1rem',
             borderRadius: 8, fontSize: '0.875rem', fontWeight: 700, textDecoration: 'none',
-            boxShadow: '0 2px 8px #6366F130',
+            boxShadow: '0 2px 8px #EC489930',
           }}>Prueba gratis</Link>
         </div>
       </nav>
@@ -383,7 +383,7 @@ export default function LandingPage() {
       }}>
         {/* Blobs */}
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: '-10%', left: '5%', width: 480, height: 480, borderRadius: '50%', background: 'radial-gradient(circle,#6366F150 0%,transparent 70%)', animation: 'blob1 12s ease-in-out infinite', filter: 'blur(40px)' }} />
+          <div style={{ position: 'absolute', top: '-10%', left: '5%', width: 480, height: 480, borderRadius: '50%', background: 'radial-gradient(circle,#EC489950 0%,transparent 70%)', animation: 'blob1 12s ease-in-out infinite', filter: 'blur(40px)' }} />
           <div style={{ position: 'absolute', top: '10%', right: '5%', width: 420, height: 420, borderRadius: '50%', background: 'radial-gradient(circle,#EC489950 0%,transparent 70%)', animation: 'blob2 15s ease-in-out infinite', filter: 'blur(40px)' }} />
           <div style={{ position: 'absolute', bottom: '-5%', left: '35%', width: 360, height: 360, borderRadius: '50%', background: 'radial-gradient(circle,#9333EA45 0%,transparent 70%)', animation: 'blob3 10s ease-in-out infinite', filter: 'blur(40px)' }} />
           {/* Mesh grid overlay */}
@@ -394,8 +394,8 @@ export default function LandingPage() {
         <div style={{ position: 'relative', zIndex: 1 }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            background: 'linear-gradient(90deg,#6366F120,#EC489920)',
-            border: '1px solid #6366F140',
+            background: 'linear-gradient(90deg,#EC489920,#EC489920)',
+            border: '1px solid #EC489940',
             borderRadius: 999, padding: '0.4rem 1.1rem', marginBottom: '2rem',
             fontSize: '0.8125rem', fontWeight: 700, color: '#A5B4FC',
           }}>
@@ -425,10 +425,10 @@ export default function LandingPage() {
 
           <div style={{ display: 'flex', gap: '0.875rem', justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link href="/onboarding" style={{
-              background: 'linear-gradient(135deg,#6366F1,#9333EA)', color: '#fff', padding: '0.9rem 2.25rem', borderRadius: 12,
+              background: 'linear-gradient(135deg,#EC4899,#9333EA)', color: '#fff', padding: '0.9rem 2.25rem', borderRadius: 12,
               fontSize: '1rem', fontWeight: 800, textDecoration: 'none',
               display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-              boxShadow: '0 4px 24px #6366F155',
+              boxShadow: '0 4px 24px #EC489955',
               animation: 'float 3s ease-in-out infinite',
             }}><Zap size={17} /> Prueba gratis 14 días</Link>
             <a href="#precios" style={{
@@ -475,7 +475,7 @@ export default function LandingPage() {
               {/* Dashboard content */}
               <div style={{ padding: '1.5rem', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.875rem' }}>
                 {[
-                  { label: 'Socios activos', value: '147', color: '#6366F1', trend: '+12' },
+                  { label: 'Socios activos', value: '147', color: '#EC4899', trend: '+12' },
                   { label: 'Cuotas cobradas', value: '€4.320', color: '#10B981', trend: '+8%' },
                   { label: 'Sesiones mes', value: '38', color: '#F59E0B', trend: '+5' },
                   { label: 'Asistencia media', value: '87%', color: '#EC4899', trend: '+3%' },
@@ -558,7 +558,7 @@ export default function LandingPage() {
         position: 'relative', overflow: 'hidden',
       }}>
         {/* subtle radial glow */}
-        <div style={{ position: 'absolute', top: '20%', left: '50%', transform: 'translateX(-50%)', width: 700, height: 400, background: 'radial-gradient(ellipse,#6366F120 0%,transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: '20%', left: '50%', transform: 'translateX(-50%)', width: 700, height: 400, background: 'radial-gradient(ellipse,#EC489920 0%,transparent 70%)', pointerEvents: 'none' }} />
         <div style={{ maxWidth: 1100, margin: '0 auto', textAlign: 'center', position: 'relative', zIndex: 1 }}>
           <span style={{ ...s.badge, background: 'rgba(99,102,241,0.15)', color: '#A5B4FC', border: '1px solid rgba(99,102,241,0.3)' }}>✨ Solución</span>
           <h2 style={{ ...s.h2, color: '#F1F5F9' }}>Todo lo que tu club necesita, en una sola app</h2>
@@ -611,7 +611,7 @@ export default function LandingPage() {
           <h2 style={s.h2}>En marcha en menos de 30 minutos</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '2rem', marginTop: '3rem' }}>
             {[
-              { step: '1', title: 'Crea tu cuenta', desc: 'Regístrate, configura tu club y sube tu logo. Menos de 5 minutos.', color: '#6366F1' },
+              { step: '1', title: 'Crea tu cuenta', desc: 'Regístrate, configura tu club y sube tu logo. Menos de 5 minutos.', color: '#EC4899' },
               { step: '2', title: 'Importa tus socios', desc: 'Desde CSV o añádelos manualmente. Los datos migran en segundos.', color: '#9333EA' },
               { step: '3', title: 'Todo en marcha', desc: 'Sesiones, cuotas, comunicaciones. Tu club digital desde hoy.', color: '#EC4899' },
             ].map((st, i) => (
@@ -626,7 +626,7 @@ export default function LandingPage() {
             ))}
           </div>
           <div style={{ marginTop: '3rem' }}>
-            <Link href="/onboarding" style={{ background: 'linear-gradient(135deg,#6366F1,#EC4899)', color: '#fff', padding: '0.875rem 2rem', borderRadius: 12, fontSize: '1rem', fontWeight: 800, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', boxShadow: '0 4px 24px #6366F130' }}>
+            <Link href="/onboarding" style={{ background: 'linear-gradient(135deg,#EC4899,#BE185D)', color: '#fff', padding: '0.875rem 2rem', borderRadius: 12, fontSize: '1rem', fontWeight: 800, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', boxShadow: '0 4px 24px #EC489930' }}>
               <Zap size={16} /> Empezar ahora gratis
             </Link>
           </div>
@@ -638,11 +638,11 @@ export default function LandingPage() {
 
       {/* URGENCY BLOCK */}
       <section style={{ padding: 'clamp(3rem,6vw,5rem) 1.5rem', background: 'linear-gradient(135deg,#1E1B4B 0%,#312E81 100%)', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: '-30%', right: '-10%', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle,#6366F130,transparent 70%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: '-30%', right: '-10%', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle,#EC489930,transparent 70%)', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', bottom: '-20%', left: '-5%', width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle,#EC489925,transparent 70%)', pointerEvents: 'none' }} />
         <div style={{ maxWidth: 700, margin: '0 auto', textAlign: 'center', position: 'relative', zIndex: 1 }}>
           <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🎯</div>
-          <div style={{ display: 'inline-block', background: 'linear-gradient(90deg,#6366F1,#EC4899)', color: '#fff', fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0.35rem 1.25rem', borderRadius: 999, marginBottom: '1.25rem' }}>
+          <div style={{ display: 'inline-block', background: 'linear-gradient(90deg,#EC4899,#BE185D)', color: '#fff', fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0.35rem 1.25rem', borderRadius: 999, marginBottom: '1.25rem' }}>
             Plan Pro — El más elegido por clubs
           </div>
           <h2 style={{ fontSize: 'clamp(1.5rem,4vw,2.25rem)', fontWeight: 900, letterSpacing: '-0.03em', marginBottom: '0.75rem', color: '#F1F5F9' }}>
@@ -658,21 +658,21 @@ export default function LandingPage() {
           </div>
           <Link href="/onboarding?plan=pro" style={{
             display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            background: 'linear-gradient(135deg,#6366F1,#9333EA)', color: '#fff',
+            background: 'linear-gradient(135deg,#EC4899,#9333EA)', color: '#fff',
             padding: '1rem 2.5rem', borderRadius: 12, fontSize: '1.0625rem', fontWeight: 800, textDecoration: 'none',
-            boxShadow: '0 4px 24px #6366F150',
+            boxShadow: '0 4px 24px #EC489950',
           }}><Zap size={18} /> Empezar con Pro — 14 días gratis</Link>
           <p style={{ color: '#4B5563', fontSize: '0.75rem', marginTop: '0.875rem' }}>Sin tarjeta de crédito en el periodo de prueba · Cancela cuando quieras</p>
         </div>
       </section>
 
       {/* TRUST */}
-      <section style={{ padding: '3.5rem 1.5rem', background: 'linear-gradient(180deg,#F8FAFC 0%,#EEF2FF 100%)', borderTop: '1px solid #E2E8F0' }}>
+      <section style={{ padding: '3.5rem 1.5rem', background: 'linear-gradient(180deg,#F8FAFC 0%,#FDF2F8 100%)', borderTop: '1px solid #E2E8F0' }}>
         <div style={{ maxWidth: 860, margin: '0 auto', textAlign: 'center' }}>
           <h2 style={{ ...s.h2, fontSize: '1.5rem', marginBottom: '2.5rem' }}>Por qué los clubs eligen Cluberly</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: '1.5rem' }}>
             {[
-              { icon: Shield, color: '#6366F1', title: 'Datos seguros', desc: 'Cifrado end-to-end. Tus datos son tuyos y siempre exportables.' },
+              { icon: Shield, color: '#EC4899', title: 'Datos seguros', desc: 'Cifrado end-to-end. Tus datos son tuyos y siempre exportables.' },
               { icon: Clock, color: '#10B981', title: '30 min de setup', desc: 'Empiezas a usar el mismo día. Sin formación, sin IT.' },
               { icon: Star, color: '#F59E0B', title: 'Soporte real', desc: 'Respuesta en menos de 24h. Personas reales, no bots.' },
               { icon: Activity, color: '#EC4899', title: 'Siempre disponible', desc: '99.9% uptime. Tu club no para y Cluberly tampoco.' },
@@ -703,7 +703,7 @@ export default function LandingPage() {
       </section>
 
       {/* FINAL CTA */}
-      <section style={{ padding: 'clamp(4rem,8vw,6rem) 1.5rem', background: 'linear-gradient(135deg,#6366F1 0%,#9333EA 45%,#EC4899 100%)', color: '#fff', textAlign: 'center' }}>
+      <section style={{ padding: 'clamp(4rem,8vw,6rem) 1.5rem', background: 'linear-gradient(135deg,#EC4899 0%,#9333EA 45%,#EC4899 100%)', color: '#fff', textAlign: 'center' }}>
         <div style={{ maxWidth: 600, margin: '0 auto' }}>
           <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🏆</div>
           <h2 style={{ fontSize: 'clamp(1.75rem,4vw,2.5rem)', fontWeight: 900, letterSpacing: '-0.03em', marginBottom: '1rem' }}>Tu club merece una gestión profesional</h2>
@@ -726,7 +726,7 @@ export default function LandingPage() {
       <footer style={{ padding: '2.5rem 1.5rem', background: '#0F172A', color: '#94A3B8', textAlign: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.625rem', marginBottom: '1.5rem' }}>
           <div style={{ position: 'relative', width: 28, height: 28 }}>
-            <div style={{ position: 'relative', width: 28, height: 28, borderRadius: 7, background: 'linear-gradient(135deg,#6366F1,#EC4899)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ position: 'relative', width: 28, height: 28, borderRadius: 7, background: 'linear-gradient(135deg,#EC4899,#BE185D)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="16" height="16" viewBox="0 0 46 46" fill="none"><circle cx="23" cy="23" r="18" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" fill="none"/><path d="M23 5 C12.5 5 5 13 5 23 C5 33 12.5 41 23 41" stroke="white" strokeWidth="3" strokeLinecap="round" fill="none"/><circle cx="23" cy="23" r="4" fill="white" opacity="0.9"/></svg>
             </div>
           </div>

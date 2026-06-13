@@ -45,7 +45,7 @@ export default function SelectClubPage() {
           {isCluberlyBrand ? (
             <div style={{
               width: 48, height: 48, borderRadius: 12,
-              background: 'linear-gradient(135deg,#6366F1,#EC4899)',
+              background: 'linear-gradient(135deg,#EC4899,#BE185D)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: '#fff', fontWeight: 800, fontSize: '1.25rem',
             }}>C</div>
