@@ -10,11 +10,20 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://cluberly.club'),
   title: {
     default: 'Cluberly',
     template: '%s | Cluberly',
   },
-  description: 'El CRM para clubs deportivos. Gestiona socios, cuotas, sesiones y comunicaciones.',
+  description: 'El software de gestión para clubes de fútbol base. Cuotas, inscripciones, asistencia y comunicaciones en un sitio.',
+  openGraph: {
+    title: 'Cluberly',
+    description: 'Software de gestión para clubes de fútbol base. Prueba 14 días gratis.',
+    url: 'https://cluberly.club',
+    siteName: 'Cluberly',
+    locale: 'es_ES',
+    type: 'website',
+  },
 }
 
 export default function RootLayout({

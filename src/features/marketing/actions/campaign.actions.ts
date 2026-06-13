@@ -34,7 +34,7 @@ function unsubscribeToken(sendId: string): string {
 }
 
 export async function unsubscribeUrl(clubId: string, sendId: string): Promise<string> {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.vercel.app'
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.club'
   return `${base}/api/marketing/unsubscribe?c=${clubId}&s=${sendId}&t=${unsubscribeToken(sendId)}`
 }
 
@@ -391,7 +391,7 @@ export async function sendTestEmail(targetEmail: string) {
     club_name: 'Club de Prueba',
     location: 'Madrid',
     federation: 'RFFM',
-    unsubscribe_url: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.vercel.app'}/api/marketing/unsubscribe?c=test&s=test&t=test`,
+    unsubscribe_url: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.club'}/api/marketing/unsubscribe?c=test&s=test&t=test`,
   }
   const result = await sendMarketingEmail({
     to: targetEmail,

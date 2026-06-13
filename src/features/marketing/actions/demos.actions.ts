@@ -94,7 +94,7 @@ export async function scheduleDemo(input: {
         '',
         input.notes ? `Notas:\n${input.notes}` : null,
         '',
-        `Panel: https://cluberly.vercel.app/superadmin/demos`,
+        `Panel: https://cluberly.club/superadmin/demos`,
       ].filter(Boolean).join('\n'),
       startISO: when.toISOString(),
       durationMin: input.durationMin ?? 30,

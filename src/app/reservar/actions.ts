@@ -73,7 +73,7 @@ export async function bookDemoPublic(input: {
         '',
         input.notes ? `Notas del cliente:\n${input.notes}` : null,
         '',
-        `Panel: https://cluberly.vercel.app/superadmin/demos`,
+        `Panel: https://cluberly.club/superadmin/demos`,
       ].filter(Boolean).join('\n'),
       startISO: when.toISOString(),
       durationMin: 30,
@@ -133,7 +133,7 @@ Diego Bravo<br/>
 <tr><td><strong>Cuándo:</strong></td><td>${dateStr}</td></tr>
 <tr><td><strong>Notas:</strong></td><td>${input.notes || '—'}</td></tr>
 </table>
-<p><a href="https://cluberly.vercel.app/superadmin/demos">Ver en el panel</a></p>
+<p><a href="https://cluberly.club/superadmin/demos">Ver en el panel</a></p>
 </div>`,
   })
 

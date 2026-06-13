@@ -470,7 +470,7 @@ export default function LandingPage() {
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#EF4444' }} />
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B' }} />
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981' }} />
-                <div style={{ flex: 1, textAlign: 'center', fontSize: '0.7rem', color: 'rgba(148,163,184,0.5)', fontFamily: 'monospace' }}>cluberly.vercel.app/dashboard</div>
+                <div style={{ flex: 1, textAlign: 'center', fontSize: '0.7rem', color: 'rgba(148,163,184,0.5)', fontFamily: 'monospace' }}>cluberly.club/dashboard</div>
               </div>
               {/* Dashboard content */}
               <div style={{ padding: '1.5rem', display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.875rem' }}>

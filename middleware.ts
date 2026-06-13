@@ -26,6 +26,18 @@ const SUPERADMIN_PATHS = ['/superadmin']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const host = request.headers.get('host') ?? ''
+
+  // REDIRECT 301 — dominios antiguos -> cluberly.club
+  // Esto preserva marcadores y SEO de usuarios que tenían el link vercel.app
+  const LEGACY_HOSTS = ['cluberly.vercel.app', 'ciudad-magia-qj91.vercel.app', 'ciudad-magia-qj91-git-main-diego-54bb5be6.vercel.app']
+  if (LEGACY_HOSTS.includes(host)) {
+    const url = request.nextUrl.clone()
+    url.host = 'cluberly.club'
+    url.protocol = 'https:'
+    url.port = ''
+    return NextResponse.redirect(url, 301)
+  }
 
   // Allow public paths without auth check
   if (

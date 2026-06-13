@@ -5,7 +5,7 @@ import { logger } from '@/lib/logger'
 
 export const maxDuration = 60
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.vercel.app'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.club'
 const FROM_NAME = 'Cluberly'
 const CONTACT_EMAIL = 'iakevoapp@gmail.com'
 

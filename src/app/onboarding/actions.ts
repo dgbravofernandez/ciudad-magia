@@ -156,7 +156,7 @@ export async function createClub(input: {
 <tr><td><strong>Campaña:</strong></td><td>${input.acquisition?.campaign ?? 'directa'}</td></tr>
 <tr><td><strong>Club fuente:</strong></td><td>${input.acquisition?.content ?? '—'}</td></tr>
 </table>
-<p><a href="https://cluberly.vercel.app/superadmin">Ver en panel superadmin</a></p>
+<p><a href="https://cluberly.club/superadmin">Ver en panel superadmin</a></p>
 </div>`,
         })
       } catch (err) {

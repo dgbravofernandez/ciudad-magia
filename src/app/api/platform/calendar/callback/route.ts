@@ -6,7 +6,7 @@ import { google } from 'googleapis'
 
 export const dynamic = 'force-dynamic'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.vercel.app'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.club'
 const INTEGRACIONES = `${APP_URL}/superadmin/integraciones`
 
 export async function GET(req: NextRequest) {

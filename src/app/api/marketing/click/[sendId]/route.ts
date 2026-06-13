@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_HOSTS = ['cluberly.vercel.app', 'cluberly.com', 'cluberly.es', 'localhost', 'localhost:3000']
+const ALLOWED_HOSTS = ['cluberly.club', 'cluberly.com', 'cluberly.es', 'localhost', 'localhost:3000']
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ sendId: string }> }) {
   const { sendId } = await params
@@ -13,12 +13,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ send
   // SEC: solo permitir redirects a hosts conocidos (anti open-redirect)
   let safeUrl: URL
   try {
-    safeUrl = new URL(dest, 'https://cluberly.vercel.app')
+    safeUrl = new URL(dest, 'https://cluberly.club')
     if (!ALLOWED_HOSTS.includes(safeUrl.host)) {
-      safeUrl = new URL('/', 'https://cluberly.vercel.app')
+      safeUrl = new URL('/', 'https://cluberly.club')
     }
   } catch {
-    safeUrl = new URL('/', 'https://cluberly.vercel.app')
+    safeUrl = new URL('/', 'https://cluberly.club')
   }
 
   try {
