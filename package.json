@@ -44,6 +44,7 @@
     "react-hook-form": "^7.54.0",
     "react-konva": "^19.2.3",
     "recharts": "^2.13.0",
+    "resend": "^6.12.4",
     "sonner": "^1.7.1",
     "stripe": "^22.1.1",
     "tailwind-merge": "^2.5.4",

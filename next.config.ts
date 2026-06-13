@@ -3,11 +3,18 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   async redirects() {
     return [
-      // Redirige el dominio antiguo al nuevo permanentemente (301)
+      // Redirige TODOS los dominios antiguos al definitivo cluberly.club (301).
+      // Este nivel se ejecuta en CDN antes que cualquier código.
       {
         source: '/:path*',
         has: [{ type: 'host', value: 'ciudad-magia-qj91.vercel.app' }],
-        destination: 'https://cluberly.vercel.app/:path*',
+        destination: 'https://cluberly.club/:path*',
+        permanent: true,
+      },
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'cluberly.vercel.app' }],
+        destination: 'https://cluberly.club/:path*',
         permanent: true,
       },
     ]
