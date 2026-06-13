@@ -80,6 +80,38 @@ export async function scheduleDemo(input: {
     await sb.from('marketing_clubs').update({ status: 'demo_booked' }).eq('id', input.clubId)
   }
 
+  // Crear evento Google Calendar si hay integración conectada
+  try {
+    const { createCalendarEvent } = await import('@/lib/google/calendar')
+    const contactEmail = input.contactEmail || club?.email || null
+    const gcal = await createCalendarEvent({
+      summary: `Demo Cluberly: ${club?.name ?? input.contactName}`,
+      description: [
+        `Cliente: ${input.contactName}`,
+        contactEmail ? `Email: ${contactEmail}` : null,
+        input.contactPhone ? `Teléfono: ${input.contactPhone}` : null,
+        `Canal: ${input.channel ?? 'call'}`,
+        '',
+        input.notes ? `Notas:\n${input.notes}` : null,
+        '',
+        `Panel: https://cluberly.vercel.app/superadmin/demos`,
+      ].filter(Boolean).join('\n'),
+      startISO: when.toISOString(),
+      durationMin: input.durationMin ?? 30,
+      attendeeEmail: contactEmail ?? undefined,
+      attendeeName: input.contactName,
+      withMeet: input.channel === 'video',
+    })
+    if (gcal) {
+      await sb.from('marketing_demos').update({
+        gcal_event_id: gcal.eventId,
+        gcal_meet_link: gcal.meetLink ?? null,
+      }).eq('id', demo.id)
+    }
+  } catch (err) {
+    console.warn('[scheduleDemo] gcal failed:', (err as Error).message)
+  }
+
   revalidatePath('/superadmin/campanas')
   revalidatePath('/superadmin/demos')
   return { success: true, demoId: demo.id }
@@ -93,6 +125,19 @@ export async function updateDemoStatus(demoId: string, status: 'scheduled' | 'do
   const updates: Record<string, unknown> = { status, updated_at: new Date().toISOString() }
   if (notes !== undefined) updates.notes = notes
   await sb.from('marketing_demos').update(updates).eq('id', demoId)
+
+  // Si se cancela, borrar el evento del Google Calendar
+  if (status === 'canceled') {
+    try {
+      const { data: demo } = await sb.from('marketing_demos').select('gcal_event_id').eq('id', demoId).maybeSingle()
+      if (demo?.gcal_event_id) {
+        const { deleteCalendarEvent } = await import('@/lib/google/calendar')
+        await deleteCalendarEvent(demo.gcal_event_id)
+      }
+    } catch (err) {
+      console.warn('[cancelDemo] gcal cleanup failed:', (err as Error).message)
+    }
+  }
 
   if (status === 'converted') {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

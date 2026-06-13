@@ -61,6 +61,36 @@ export async function bookDemoPublic(input: {
 
   if (insErr || !demo) return { success: false, error: insErr?.message ?? 'Error al reservar' }
 
+  // Crear evento en Google Calendar (silenciosamente si no hay integración)
+  try {
+    const { createCalendarEvent } = await import('@/lib/google/calendar')
+    const gcal = await createCalendarEvent({
+      summary: `Demo Cluberly: ${input.clubName}`,
+      description: [
+        `Cliente: ${input.contactName}`,
+        `Email: ${input.contactEmail}`,
+        input.contactPhone ? `Teléfono: ${input.contactPhone}` : null,
+        '',
+        input.notes ? `Notas del cliente:\n${input.notes}` : null,
+        '',
+        `Panel: https://cluberly.vercel.app/superadmin/demos`,
+      ].filter(Boolean).join('\n'),
+      startISO: when.toISOString(),
+      durationMin: 30,
+      attendeeEmail: input.contactEmail,
+      attendeeName: input.contactName,
+      withMeet: true,  // Crea Meet link automáticamente
+    })
+    if (gcal) {
+      await sb.from('marketing_demos').update({
+        gcal_event_id: gcal.eventId,
+        gcal_meet_link: gcal.meetLink ?? null,
+      }).eq('id', demo.id)
+    }
+  } catch (err) {
+    console.warn('[bookDemoPublic] gcal failed:', (err as Error).message)
+  }
+
   // Marcar club como demo_booked
   if (input.marketingClubId) {
     await sb.from('marketing_clubs').update({ status: 'demo_booked' }).eq('id', input.marketingClubId)
