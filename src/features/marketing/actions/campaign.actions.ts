@@ -61,8 +61,17 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
   const sb = createAdminClient() as any
 
   const { data: settings } = await sb.from('marketing_settings').select('*').eq('id', 1).single()
-  const { data: tpl } = await sb.from('marketing_templates').select('*').eq('key', templateKey).eq('active', true).single()
-  if (!tpl || !settings) return { success: false as const, error: `Plantilla ${templateKey} o settings sin configurar` }
+  // A/B test: traer todas las variantes activas. Se elige una por club_id (hash determinista).
+  const { data: tpls } = await sb.from('marketing_templates').select('*').eq('key', templateKey).eq('active', true)
+  if (!tpls || tpls.length === 0 || !settings) return { success: false as const, error: `Plantilla ${templateKey} o settings sin configurar` }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const variants: any[] = tpls as any[]
+  function pickVariant(clubId: string) {
+    // Hash determinista del UUID -> índice de variante (50/50 si hay 2)
+    let h = 0
+    for (let i = 0; i < clubId.length; i++) h = ((h << 5) - h + clubId.charCodeAt(i)) | 0
+    return variants[Math.abs(h) % variants.length]
+  }
 
   const requiredStatus = TEMPLATE_REQUIRED_STATUS[templateKey]
   const nextStatus = TEMPLATE_TO_NEXT_STATUS[templateKey]
@@ -84,11 +93,15 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
 
     if (!claimed) { skipped++; continue }
 
+    // Selección de variante A/B determinista por club_id
+    const tpl = pickVariant(claimed.id)
+
     const { data: sendRow, error: insErr } = await sb
       .from('marketing_email_sends')
       .insert({
         club_id: claimed.id,
         template_key: templateKey,
+        template_variant: tpl.variant,
         subject: 'pending',
         bounced: false,
       })
