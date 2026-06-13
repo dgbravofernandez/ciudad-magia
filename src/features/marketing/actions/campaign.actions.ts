@@ -101,11 +101,15 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
       continue
     }
 
+    // URL-encode club_name para que sea seguro en query strings de links del email
+    const clubNameUrl = encodeURIComponent(claimed.name)
     const vars = {
       club_name: claimed.name,
       location: claimed.location || 'tu zona',
       federation: claimed.federation || '',
       unsubscribe_url: await unsubscribeUrl(claimed.id, sendRow.id),
+      send_id: sendRow.id,
+      club_url: clubNameUrl,
     }
     const subject = renderTemplate(tpl.subject, vars)
     const html = renderTemplate(tpl.body_html, vars)

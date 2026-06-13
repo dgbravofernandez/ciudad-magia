@@ -134,6 +134,36 @@ export async function createClub(input: {
     // Necesario cuando Supabase tiene "Email Confirmation" habilitado
     await sb.auth.admin.updateUserById(input.userId, { email_confirm: true })
 
+    // Notificación interna: si viene de campaña outbound, avisar al admin
+    const fromOutbound = input.acquisition?.source === 'email'
+    if (fromOutbound) {
+      try {
+        const { sendMarketingEmail } = await import('@/lib/email/marketing-send')
+        const adminEmail = process.env.MARKETING_GMAIL_USER ?? 'iakevoapp@gmail.com'
+        await sendMarketingEmail({
+          to: adminEmail,
+          subject: `🎯 Lead caliente: ${input.clubName} acaba de crear cuenta`,
+          fromName: 'Cluberly Bot',
+          html: `<div style="font-family:system-ui;font-size:14px;line-height:1.5">
+<h2>Nueva alta desde campaña outbound</h2>
+<p><strong>Llámalo en las próximas 2 horas</strong> — la conversión cae 80% pasadas 24h.</p>
+<table cellpadding="6" style="border-collapse:collapse">
+<tr><td><strong>Club:</strong></td><td>${input.clubName}</td></tr>
+<tr><td><strong>Contacto:</strong></td><td>${input.fullName}</td></tr>
+<tr><td><strong>Email:</strong></td><td><a href="mailto:${targetUser.email}">${targetUser.email}</a></td></tr>
+<tr><td><strong>Teléfono:</strong></td><td>${input.contactPhone ? `<a href="tel:${input.contactPhone}">${input.contactPhone}</a>` : '— (no facilitado)'}</td></tr>
+<tr><td><strong>Plan:</strong></td><td>${validPlan}</td></tr>
+<tr><td><strong>Campaña:</strong></td><td>${input.acquisition?.campaign ?? 'directa'}</td></tr>
+<tr><td><strong>Club fuente:</strong></td><td>${input.acquisition?.content ?? '—'}</td></tr>
+</table>
+<p><a href="https://cluberly.vercel.app/superadmin">Ver en panel superadmin</a></p>
+</div>`,
+        })
+      } catch (err) {
+        console.warn('[onboarding] notificación admin falló:', (err as Error).message)
+      }
+    }
+
     return { success: true, clubId }
   } catch (e) {
     return { success: false, error: (e as Error).message }

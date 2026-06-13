@@ -49,10 +49,13 @@ export default function OnboardingClient() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
-  // Step 2: club
-  const [clubName, setClubName] = useState('')
+  // Step 2: club — pre-rellenar desde ?clubName= y ?city= (viene de email outbound)
+  const [clubName, setClubName] = useState(() => {
+    const fromQuery = params.get('clubName') ?? params.get('club')
+    return fromQuery ? decodeURIComponent(fromQuery).slice(0, 100) : ''
+  })
   const [sport, setSport] = useState('⚽ Fútbol')
-  const [city, setCity] = useState('')
+  const [city, setCity] = useState(() => params.get('city') ?? '')
   const [phone, setPhone] = useState('')
 
   // Keep userId after step 1

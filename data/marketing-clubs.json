@@ -1,0 +1,3770 @@
+[
+  {
+    "name": "E.F. Ciudad de Getafe",
+    "email": "info@efciudaddegetafe.com",
+    "location": "Getafe",
+    "federation": "RFFM"
+  },
+  {
+    "name": "A.D.Y.C. Pinto",
+    "email": "adycpt@gmail.com",
+    "location": "Pinto",
+    "federation": "RFFM"
+  },
+  {
+    "name": "Atlético de Pinto",
+    "email": "secretaria@clubatleticodepinto.com",
+    "location": "Pinto",
+    "federation": "RFFM"
+  },
+  {
+    "name": "REAL MADRID C.F.",
+    "email": "administracionfutbol@realmadrid.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB ATLETICO DE MADRID S.A.D.",
+    "email": "agbaquero@atleticodemadrid.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "REAL C.D. CARABANCHEL",
+    "email": "administraciondeportiva@rcdcarabanchel.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB A.D. FERROVIARIA",
+    "email": "info@adferroviaria.org",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "RAYO VALLECANO DE MADRID S.A.D.",
+    "email": "directorfutbolbase@rayovallecano.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "R.S.D. ALCALA S.A.D.",
+    "email": "info@rsdalcala.com",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. COLONIA MOSCARDO",
+    "email": "cantera@cdcmoscardo.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. LEGANES S.A.D.",
+    "email": "futbolbase@cdleganes.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "REAL ARANJUEZ C.F.",
+    "email": "admin@realaranjuezcf.com",
+    "location": "Aranjuez, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SAN FERNANDO",
+    "email": "cdsanfernando@cdsanfernando.es",
+    "location": "San Fernando De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. BARAJAS",
+    "email": "cd.barajas@hotmail.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. COLMENAR VIEJO",
+    "email": "administracion@adcolmenarviejo.es",
+    "location": "Colmenar Viejo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "VALLECAS C.F.",
+    "email": "administracion@vallecascf.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. EL PARDO",
+    "email": "oficial.adelpardo@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ALCOBENDAS C.F.",
+    "email": "admon@adalcobendascf.com",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. ALCORCON S.A.D.",
+    "email": "cantera@adalcorcon.com",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. EL ESCORIAL",
+    "email": "cdescorialoficial@gmail.com",
+    "location": "Escorial (El), Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "LAS ROZAS C.F.",
+    "email": "contacto@lasrozascf.es",
+    "location": "Las Rozas de Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. PARLA",
+    "email": "futbolbase@adparla.com",
+    "location": "Parla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. UNION DE ARAVACA",
+    "email": "cdunionaravaca1946@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ATLETICO LEONES DE CASTILLA",
+    "email": "club@leonesdecastilla.com",
+    "location": "Guadarrama, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.A. NAVALCARNERO",
+    "email": "canteracdanavalcarnero@gmail.com",
+    "location": "Navalcarnero, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB ESCUELA DE FUTBOL CONCEPCION",
+    "email": "oficina@efconcepcion.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "U.D. SAN SEBASTIAN DE LOS REYES S.A.D.",
+    "email": "info@ud-sanse.com",
+    "location": "San Sebastián De Los Reyes, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. VILLA DEL PRADO",
+    "email": "info.cdvilladelprado@gmail.com",
+    "location": "Villa Del Prado, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. VILLAVICIOSA DE ODON",
+    "email": "info@advillaviciosadeodon.com",
+    "location": "Villaviciosa De Odón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. GALAPAGAR",
+    "email": "cdgalapagar@gmail.com",
+    "location": "Galapagar, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ATLETICO CERCEDILLA",
+    "email": "clubat.cercedilla74@gmail.com",
+    "location": "Cercedilla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SAN ROQUE E.F.F.",
+    "email": "info.cdsanroqueeff@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. EL ALAMO",
+    "email": "cdelalamo@cdelalamo.com",
+    "location": "Álamo (El), Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. RACING DE VILLAVERDE",
+    "email": "escuelaracingvillaverde@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "UNION DEPORTIVA SAN LORENZO",
+    "email": "sanlorenzouniondeportiva@gmail.com",
+    "location": "San Lorenzo De El Escorial, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. PLATA",
+    "email": "cd.plata.1945@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. CANILLAS",
+    "email": "administracion@cdcanillas.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. FORTUNA",
+    "email": "c.d.fortuna@hotmail.es",
+    "location": "0, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. ATLETICO VALDEIGLESIAS",
+    "email": "cfatleticovaldeiglesias@yahoo.es",
+    "location": "San Martín De Valdeiglesias, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. PARQUE EUROPA",
+    "email": "ad.parqueeuropa1973@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CAMARMA C.F.",
+    "email": "camarmacf@hotmail.com",
+    "location": "Camarma De Esteruelas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESC. MPAL. DE FUT. AGUILAS DE MORATALAZ",
+    "email": "contacto@aguilasdemoratalaz.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. SPORTING HORTALEZA",
+    "email": "sportingdehortaleza@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "GETAFE C.F. S.A.D.",
+    "email": "operaciones@getafecf.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "U.D. VELILLA",
+    "email": "udvelilla@gmail.com",
+    "location": "Velilla De San Antonio, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. VICALVARO",
+    "email": "cdvical@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.R. GUINDALERA",
+    "email": "crguindalera1924@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. AVANCE",
+    "email": "escueladefutbol@cdavance.es",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA DEPORTIVA MORATALAZ",
+    "email": "secretaria@edmoratalaz.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. PIQUEÑAS",
+    "email": "direcciondeportiva@adpiquenas.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. DOSA",
+    "email": "eddosa@domingosavio.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESC.FUT.AT. CASARRUBUELOS",
+    "email": "info@efatleticocasarrubuelos.es",
+    "location": "Casarrubuelos, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.B. COSLADA",
+    "email": "oficinas@cdcoslada.es",
+    "location": "Coslada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "MORALZARZAL C.F.",
+    "email": "moralzarzalcdf@gmail.com",
+    "location": "Moralzarzal, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "AGRUPACION C.D. LUCERO LINCES",
+    "email": "cdlucerolinces@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "U.D. LA PAZ VALLEHERMOSO",
+    "email": "jorge@suarezfernandez.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "NTRA. SRA. DEL BUEN CONSEJO",
+    "email": "futbol@cbcmadrid.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "NUEVO PINTO C.F.",
+    "email": "salonpinto@hotmail.es",
+    "location": "Pinto, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SANTA EUGENIA 1976",
+    "email": "cdsantaeugenia1976@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. CAMPAMENTO",
+    "email": "cdcampamento@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CERCEDA C.F.",
+    "email": "cfcerceda@gmail.com",
+    "location": "Cerceda, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB CIRINGANILLOS",
+    "email": "angel.mateoalonso@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. COLMENAR DE OREJA",
+    "email": "infocdcolmenardeoreja@gmail.com",
+    "location": "Colmenar De Oreja, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. SAN JUAN ZARZAQUEMADA",
+    "email": "sanjuanzarzaquemada@gmail.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. JUVENTUD LOS CARMENES",
+    "email": "cdjloscarmenesoficial@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ALZOLA-HALCONES",
+    "email": "cdalzola@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "UNION EL RASTRO",
+    "email": "agus.ortiz.montero@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. ARGANDA CLUB DE FUTBOL",
+    "email": "gestion@adarganda.es",
+    "location": "Arganda Del Rey, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. VILLA ROSA",
+    "email": "advillarosa@yahoo.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SAN VIATOR",
+    "email": "futbol@cdsanviator.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. BATAN",
+    "email": "cdbatan@hotmail.es",
+    "location": "Villanueva del Pardillo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CELTIC CASTILLA C.F.",
+    "email": "info@celticcastilla.es",
+    "location": "0, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "COLEGIO EL PRADO",
+    "email": "javiermpalacios@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. RAYO 70",
+    "email": "angelpascual48@yahoo.es",
+    "location": "Coslada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA DEPORTIVA ALMUDENA",
+    "email": "edalmudena@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SPORTING ARGANDA C.F. (BAJA TEMP 2025-2026)",
+    "email": "sportingargandacf@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB UNION DEPORTIVA LOECHES",
+    "email": "info.cdloeches@gmail.com",
+    "location": "Loeches, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SPARTAC DE MANOTERAS",
+    "email": "presidente.spartac.manoteras@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. ESPERANZA",
+    "email": "presidente@adesperanza.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "LA MUTUAL JUAN XXIII",
+    "email": "prietotalleres@yahoo.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. ORCASITAS",
+    "email": "dd@adorcasitas.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. GRIÑON",
+    "email": "infocdgrinon@gmail.com",
+    "location": "Griñón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA FUTBOL JUVENTUD MADRID",
+    "email": "efjuventudmadrid@hotmail.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ASOC. VEC. SAN NICASIO",
+    "email": "info@cdsannicasio.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. DAGANZO",
+    "email": "administracion@cddaganzo.es",
+    "location": "Daganzo De Arriba, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELAS DEPORTIVAS DE PINTO",
+    "email": "escuelasdeportivasdepinto@hotmail.com",
+    "location": "Pinto, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. CHORRILLO DISTRITO VIII",
+    "email": "info@rayoensanche.com",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. LA CABRERA",
+    "email": "agrupaciondeportivalacabrera@gmail.com",
+    "location": "Cabrera (La), Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "FEPE GETAFE III",
+    "email": "fepegeiii@gmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB VILLACONEJOS",
+    "email": "cdvillaconejos@gmail.com",
+    "location": "Villaconejos, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB SECCION DEPORTIVA DEL POZO",
+    "email": "sdpozosport@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SAD DUX INTERNACIONAL DE MADRID S.L.",
+    "email": "info@interdemadrid.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. LICEO SPORT",
+    "email": "cfliceosport@gmail.com",
+    "location": "0, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "F.C. INTER DEL PILAR",
+    "email": "pacogon1977@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ALPEDRETE",
+    "email": "info@cdalpedrete.com",
+    "location": "Alpedrete, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. CARRANZA",
+    "email": "directordeportivo@cdcarranza.com",
+    "location": "San Sebastián De Los Reyes, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "AD A.TOLEDO OLIVOS C.F.",
+    "email": "adatoledo-olivos@outlook.es",
+    "location": "Mejorada Del Campo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESC. FUT. A.V. LA CHIMENEA",
+    "email": "informacionavlachimenea@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. NAYA",
+    "email": "info@adnaya.es",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. PARQUE VERDE",
+    "email": "cdparqueverde.admon@gmail.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. AGUILAS DEL LUCERO",
+    "email": "cfaguilasdellucero@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. MORATA",
+    "email": "penamadridistamdt@hotmail.com",
+    "location": "Morata De Tajuña, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.J.D.C. LA MANCHA",
+    "email": "ajdc_la_mancha@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCOLAPIOS DE GETAFE",
+    "email": "madcup.extraescolares@gmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ATLETICO CHOPERA ALCOBENDAS 04",
+    "email": "webmaster@alcobendas04.com",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. MECO",
+    "email": "cdfmeco@gmail.com",
+    "location": "Meco, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "PERISO CLUB DE FUTBOL",
+    "email": "info@perisocf.es",
+    "location": "0, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB C.F. CAMPO REAL 89",
+    "email": "clubfutbolcamporeal@gmail.com",
+    "location": "Campo Real, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. HOYO DE MANZANARES",
+    "email": "administracion@cfhoyodemanzanares.es",
+    "location": "Hoyo De Manzanares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CULTURAL UNION LEGANES",
+    "email": "culturalunionleganes@gmail.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. PUERTA BONITA",
+    "email": "cdenuevopuertabonita@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. LOS YEBENES-SAN BRUNO",
+    "email": "losyebenessanbruno@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. OROQUIETA VILLAVERDE BUTARQUE",
+    "email": "ovbutarque@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ESCOLAPIOS ALCALA",
+    "email": "deportes@escolapiosalcala.es",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SAN CRISTOBAL DE LOS ANGELES",
+    "email": "cdsancristobaldelosangeles@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. JUVENTUD TORREJON",
+    "email": "adjuventud32@yahoo.com",
+    "location": "Torrejón De Ardoz, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "PEÑA MADRIDISTA 3000 GOLES",
+    "email": "pm3000goles@gmail.com",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "F.C. ZARZAQUEMADA",
+    "email": "futbolclubzarzaquemada@gmail.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. VILLAREJO-69",
+    "email": "clubdeportivovillarejo69@hotmail.com",
+    "location": "0, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D.C. PARQUE MAYOR",
+    "email": "ivanbarca89@gmail.com",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "JUVENTUD SANSE",
+    "email": "js@juventudsanse.es",
+    "location": "San Sebastián De Los Reyes, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ADC ESCUELA FUTBOL BARRIO PILAR",
+    "email": "jcarlos7777@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D.C.R. LEMANS",
+    "email": "adcrlemans0@gmail.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB ALAMEDA DE OSUNA ESCUELAS DE FUTBOL",
+    "email": "info@alamedadeosunaef.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. INTER DE VALDEMORO",
+    "email": "interdevaldemoro@gmail.com",
+    "location": "Valdemoro, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "DEPORTIVO A.V. SANTA ANA",
+    "email": "davsantaana@hotmail.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "FUNDACION ADF",
+    "email": "adfundacion@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. ESCUELA DE FUTBOL USERA",
+    "email": "escueladefutbolusera@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D.C. LACOMA",
+    "email": "franlacoma@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. ALHONDIGA",
+    "email": "adalhondiga@hotmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.C.R. ATLETICO ALCOBENDAS",
+    "email": "isanchez10790@gmail.com",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. ESCUELA DE FUTBOL DE CARABANCHEL",
+    "email": "info@efcarabanchel.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB DE FUTBOL FEMENINO SUR-GETAFE",
+    "email": "surgetafeclub@gmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CULTURAL DEPORTIVA MIRAFLOR",
+    "email": "acdmiraflor@gmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. RASCAFRIA",
+    "email": "cdrascafria@gmail.com",
+    "location": "Rascafría, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "E.M.F. MORALEJA DE ENMEDIO",
+    "email": "futbolemfmoraleja@gmail.com",
+    "location": "Moraleja De Enmedio, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. RETAMAR-POZUELO",
+    "email": "escueladeportiva@retamar.es",
+    "location": "Pozuelo De Alarcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA DE FUTBOL ARGANDA",
+    "email": "tecnico@efarganda.com",
+    "location": "Arganda Del Rey, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. TAJAMAR",
+    "email": "rcardoso@tajamar.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. TRIVAL VALDERAS ALCORCON",
+    "email": "info@trivalvalderas.com",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SEVILLA LA NUEVA",
+    "email": "cdsevillalanueva1984@gmail.com",
+    "location": "Sevilla La Nueva, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. UNION ADARVE",
+    "email": "info@unionadarve.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESC. MUN. FUT. VILLAREJO",
+    "email": "info@emfvillarejo.es",
+    "location": "Villarejo De Salvanés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESC.MUN.FUT. PVO. ALUCHE",
+    "email": "escuelafutbolaluche@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA FUTBOL VILLAVERDE",
+    "email": "funde_vi@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. ILLESCAS",
+    "email": "adillescas@gmail.com",
+    "location": "Casarrubuelos, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA DE FUTBOL RIVAS VACIAMADRID",
+    "email": "efrv1993@gmail.com",
+    "location": "Rivas-Vaciamadrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "AGRUPACION DEPORTE ESCOLAR POPULAR (ADEPO)",
+    "email": "directiva@adepopalomeras.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "LOS SANTOS DE LA HUMOSA C.F.",
+    "email": "info@clublossantos.es",
+    "location": "Santos De La Humosa (Los), Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.P. SANTA MARIA DEL PILAR",
+    "email": "clubdeportivo@santamariadelpilar.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ARROYO",
+    "email": "cdarroyo@cdarroyo.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. SPORTING BAZAN",
+    "email": "sporting.bazan@gmail.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. ROCIO LEGANES",
+    "email": "clubrocioleganes@gmail.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. GUADALIX DE LA SIERRA",
+    "email": "guadalixcf@gmail.com",
+    "location": "Guadalix De La Sierra, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "E.F.M.O. BOADILLA",
+    "email": "efmadridoesteboadilla@hotmail.com",
+    "location": "Boadilla Del Monte, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. COSMOS HURACAN",
+    "email": "adcosmoshuracan@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "E.D.M. SAN BLAS",
+    "email": "edm@edmsanblas.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB POLID. PARLA ESCUELA",
+    "email": "club@parlaescuela.es",
+    "location": "Parla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C. ATLETICO CONCILIO",
+    "email": "adminconcilio@adatleticoconcilio.es",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CANTERA F.C.",
+    "email": "josemariacerezo@canterafc.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. VILLANUEVA DE LA CAÑADA",
+    "email": "info@cdvillanuevadelacanada.com",
+    "location": "Villanueva De La Cañada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. VILLAVERDE BAJO",
+    "email": "juntaadvillaverdebajo@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. NUEVO VERSALLES-LORANCA",
+    "email": "info@adnversalles-loranca.es",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ORUSCO",
+    "email": "juliansanandresmanzano@gmail.com",
+    "location": "Orusco De Tajuña, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. POZUELO DE ALARCON",
+    "email": "info@cfpozuelo.com",
+    "location": "Pozuelo De Alarcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D.C. BRUNETE",
+    "email": "adcbrunete@gmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. FUENTE EL SAZ",
+    "email": "secretario@cffsaz.es",
+    "location": "Fuente El Saz De Jarama, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA DE FUTBOL SAN MARTIN DE LA VEGA",
+    "email": "tesoreriasanmartinef@gmail.com",
+    "location": "San Martín De La Vega, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. ALALPARDO",
+    "email": "frutas.iglesias@yahoo.es",
+    "location": "Valdeolmos-Alalpardo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESC.DEP.DE FUTBOL DE TORRES",
+    "email": "escuelafutboltorres@gmail.com",
+    "location": "Torres De La Alameda, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SAN PEDRO DE HUMANES",
+    "email": "comunicacion_sanpedro@hotmail.com",
+    "location": "Humanes De Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. EL NORTE",
+    "email": "agrupaciondeportivaelnorte@gmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESC. FUT. EL OLIVO DE COSLADA",
+    "email": "padilla1511@gmail.com",
+    "location": "Coslada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. NUEVAS PALOMERAS",
+    "email": "nuevaspalomerascd@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. NUEVO BAZTAN",
+    "email": "info.adnb@gmail.com",
+    "location": "Nuevo Baztán, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB SAN JOSE DEL PARQUE",
+    "email": "smschus75@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. ACADEMIA DE FUTBOL ALCOBENDAS",
+    "email": "direcciondeportiva@academiafutbolalcobendas.es",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SITIO DE ARANJUEZ",
+    "email": "cdsitiodearanjuez@hotmail.com",
+    "location": "Aranjuez, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "MEXICO F.C. S.A.D.",
+    "email": "victor_tms@mexicofc.com",
+    "location": "Paracuellos De Jarama, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. BETIS SAN ISIDRO",
+    "email": "cdbsi1931@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. GOYA",
+    "email": "secretariacdgoya@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. FUTBOL TRES CANTOS",
+    "email": "informacion@trescantoscdf.es",
+    "location": "Tres Cantos, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "AGRUPACION CENTRO DEPORTIVO VALLECAS",
+    "email": "vallecascdv@yahoo.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "U.D. MOSTOLES BALOMPIE",
+    "email": "info@mostolesbalompie.es",
+    "location": "Móstoles, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "PEÑA TORREJONENSE SAN ISIDRO",
+    "email": "ptsanisidro@gmail.com",
+    "location": "Torrejón De Ardoz, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE. POLIGONO H SAN BLAS",
+    "email": "cdpoligonohsanblas@yahoo.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. MOSTOLES U.R.J.C.",
+    "email": "cdmostoles@cdmostoles.com",
+    "location": "Móstoles, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB MAR ABIERTO",
+    "email": "ef.marabierto@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D.C. SAN FERMIN",
+    "email": "adcsanfer@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. FUENLABRADA S.A.D.",
+    "email": "cffuenlabrada@cffuenlabrada.es",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. OÑA SANCHINARRO",
+    "email": "administracion@adosanchinarro.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. BUENAVISTA CASTILLA",
+    "email": "javierseoane.leston@hotmail.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. VALDETORRES",
+    "email": "clubdeportivovaldetorres2023@gmail.com",
+    "location": "Valdetorres De Jarama, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. RAYO MAJADAHONDA SAD",
+    "email": "gerencia@rayomajadahonda.com",
+    "location": "Majadahonda, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "UNION ZONA NORTE",
+    "email": "zonanortepedro35@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. NUEVO CIUDAD",
+    "email": "ciudaddecubasdelasagra@gmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ESC. FUT. VILLA DE MADRID",
+    "email": "efvillademadrid@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA DE FUTBOL DE BRUNETE",
+    "email": "efbrunete@gmail.com",
+    "location": "Brunete, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "RECREATIVO SOTO DEL REAL C.F.",
+    "email": "info@recresoto.com",
+    "location": "Soto Del Real, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ATLETICO TRABENCO ZARZAQUEMADA",
+    "email": "david@loteriasleganes.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. UNION CARRASCAL",
+    "email": "pabloaducarrascal@gmail.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. TORREJON C.F.",
+    "email": "presidencia@adtorrejoncf.com",
+    "location": "Torrejón De Ardoz, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. VALDEAVERO",
+    "email": "ugcalvo@hotmail.es",
+    "location": "Valdeavero, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. BUSTARVIEJO",
+    "email": "cdbustarviejo@gmail.com",
+    "location": "Bustarviejo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "GREDOS SAN DIEGO",
+    "email": "clubdeportivo@gsd.coop",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. NUEVA CASTILLA",
+    "email": "adc_nuevacastilla@colegionuevacastilla.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. TORREJON DE LA CALZADA",
+    "email": "cftorrejondelacalzada@gmail.com",
+    "location": "Torrejón De La Calzada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. MEJOREÑO",
+    "email": "cdmejoreno@gmail.com",
+    "location": "Mejorada Del Campo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. COMPLUTENSE ALCALA",
+    "email": "adcomplu.complu@gmail.com",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. AMISPORT",
+    "email": "cfamisport1974@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. LA AVANZADA",
+    "email": "cde.avanzada@hotmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "VILLALBILLA C.F.",
+    "email": "villalbillacf@hotmail.com",
+    "location": "Villalbilla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "DEPORTIVO YUNCOS",
+    "email": "coordinacion.futbol.yuncos@gmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. LA MECA DE RIVAS",
+    "email": "lamecaderivas@lamecaderivas.com",
+    "location": "Rivas-Vaciamadrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. VIRGEN DE MIRASIERRA",
+    "email": "futbol@virgendemirasierra.eu",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE ENTIERGAL",
+    "email": "acdentiergalm@gmail.com",
+    "location": "Móstoles, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. VALDEOLMOS",
+    "email": "clubdefutbolvaldeolmos@gmail.com",
+    "location": "Valdeolmos-Alalpardo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ASD MOSTOLES",
+    "email": "asd@asdmostoles.org",
+    "location": "Móstoles, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. COLLADO MEDIANO",
+    "email": "colladosegur@gmail.com",
+    "location": "Collado Mediano, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "UNION DEPORTIVA TRES CANTOS",
+    "email": "info@ud3c.es",
+    "location": "Tres Cantos, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ESTREMERA",
+    "email": "amorenoh@fondomovil.com",
+    "location": "Estremera, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. SAN AGUSTIN DE GUADALIX",
+    "email": "cfsanagustindelguadalix@gmail.com",
+    "location": "San Agustín Del Guadalix, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. JUVENTUD CANARIO",
+    "email": "adjuventud_canario@hotmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ALGETE",
+    "email": "info@cdalgete.com",
+    "location": "Algete, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. SPORTING SAN FERNANDO DE HENARES",
+    "email": "adsportingsanfernando@gmail.com",
+    "location": "San Fernando De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB FUENTELARREYNA",
+    "email": "infoclubfuentelarreyna@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "UNION 2000",
+    "email": "cdeunion2000@gmail.com",
+    "location": "Parla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE RACING PARLA C.D.",
+    "email": "megg975@gmail.com",
+    "location": "Parla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ATLETICO CAÑADA ALCORCON - UNIÓN",
+    "email": "info.unionfc@gmail.com",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. LA PLATA-TR82",
+    "email": "coordinacion@adlaplata.es",
+    "location": "Torrejón De Ardoz, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "UNION DEPORTIVA LA POVEDA",
+    "email": "coordinacion@udlapoveda.com",
+    "location": "Arganda Del Rey, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. LOS ROSALES DE VILLAVERDE",
+    "email": "clubdeportivorosales@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SPORTING SEIS DE DICIEMBRE",
+    "email": "sporting6dediciembre@gmail.com",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. VILLAMANTILLA",
+    "email": "c.d.villamantilla@outlook.es",
+    "location": "Villamantilla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ROBLEDO C.F.",
+    "email": "robledoclubfutbol@gmail.com",
+    "location": "Robledo De Chavela, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ALDOVEA",
+    "email": "jvgras@gmail.com",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. NAVAS DEL REY",
+    "email": "gabinetealcaldia@navasdelrey.es",
+    "location": "Navas Del Rey, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA EUROPEA C.F.",
+    "email": "direccion@escuelaeuropeadefutbol.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "UDMELIDAOLIMPIA",
+    "email": "administracion@udmelidaolimpia.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. A.D.C. PARQUE SURESTE",
+    "email": "manuel_parquesureste@hotmail.com",
+    "location": "Rivas-Vaciamadrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE FUENLABRADA PROMESAS VIVERO",
+    "email": "gdyotriensan@gmail.com",
+    "location": "Móstoles, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. OLIMPICO DE HORTALEZA",
+    "email": "info@cdohortaleza.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "RAYO DEL PILAR C.F.",
+    "email": "diegosg_88@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. CIUDAD DE LOS ANGELES",
+    "email": "cdciudaddelosangeles@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE KROMEX-FERILAN",
+    "email": "ferilancd.info@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ALONSO CANO",
+    "email": "jbv125@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. MIRAFLORES DE LA SIERRA",
+    "email": "deportesivansanz@yahoo.es",
+    "location": "Miraflores De La Sierra, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. VILLAMANTA",
+    "email": "jvazquezm01@gmail.com",
+    "location": "Villamanta, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. MOLAREÑO",
+    "email": "cdmolareno73@gmail.com",
+    "location": "Molar (El), Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. PEDREZUELA",
+    "email": "info@cdpedrezuela.es",
+    "location": "Pedrezuela, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. MIRASUR",
+    "email": "alvarobustamante@colegiomirasur.com",
+    "location": "Pinto, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESC. DE FUT. VALDEMORO",
+    "email": "direccion@efvaldemoro.es",
+    "location": "Valdemoro, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESC.FUT. SIETE PICOS COLMENAR",
+    "email": "efsietepicos@gmail.com",
+    "location": "Colmenar Viejo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. QUIJORNA",
+    "email": "administracion@cfquijorna.com",
+    "location": "Quijorna, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "EE PP SAN FERNANDO ESCOLAPIOS POZUELO",
+    "email": "futbol@ociosportconsulting.com",
+    "location": "Pozuelo De Alarcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. MUNICIPAL ARROYOMOLINOS",
+    "email": "escuela.futbol@ayto-arroyomolinos.org",
+    "location": "Arroyomolinos, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA FUT. FEMENINO ALCOBENDAS",
+    "email": "effa@effa.es",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. ARC MARIANISTAS AMOROS",
+    "email": "sergio.suarez@colegioamoros.org",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA FUTBOL MADRID SUR",
+    "email": "club@efmadridsur.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE F.S. JUVENTUD PARLA",
+    "email": "clubjuventudparla@gmail.com",
+    "location": "Parla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. EL REAL DE MANZANARES",
+    "email": "elrealdemanzanaresad@gmail.com",
+    "location": "Manzanares El Real, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. CADALSO",
+    "email": "castrejonlopezv@gmail.com",
+    "location": "Cadalso De Los Vidrios, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ORCASUR SIN FRONTERAS",
+    "email": "edgarsilvaorcasursinfronteras@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. TRIVEMA NAVAL",
+    "email": "trivemanaval@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SESEÑA C.F.",
+    "email": "sesenacf@sesenacf.com",
+    "location": "Aranjuez, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "MOSTOLES C.F.",
+    "email": "mostolesclubdefutbol@gmail.com",
+    "location": "Móstoles, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB LAS ENCINAS DE BOADILLA",
+    "email": "escuelafutbol@clublasencinas.com",
+    "location": "Boadilla Del Monte, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESC. FUT. ESTUDIANTES ALCORCON",
+    "email": "e.f.estudiantes@hotmail.com",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ASOCIACION CULTURAL Y DEPORTIVA FATIMA",
+    "email": "acdfatima2006@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. ESPARTALES SUR",
+    "email": "deportes@espartales.org",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. A.V. CASERIO PERALES",
+    "email": "caserio@telefonica.net",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. ALTAMIRA (BAJA TEMP 2025-2026)",
+    "email": "paserher@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB CIUDAD HENARES",
+    "email": "clubciudadhenares@hotmail.com",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. PUERTA DE MADRID",
+    "email": "info@cdpuertademadrid.com",
+    "location": "Majadahonda, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. RACING DE MORATALAZ",
+    "email": "brunocardona@telefonica.net",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB ALAMEDA DE OSUNA",
+    "email": "futbol@colegio-alameda.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. FUNDACION RAYO VALLECANO",
+    "email": "secretaria@fundacionrayovallecano.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "RECREATIVO CULTURAL NUEVO BERCIAL",
+    "email": "rcnb.sergio@gmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA MUNICIPAL DE COBEÑA",
+    "email": "efcobena@gmail.com",
+    "location": "Cobeña, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. CHAMARTIN VERGARA",
+    "email": "admin@chv1995.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. LICEO EUROPEO",
+    "email": "deportes@liceo-europeo.edu.es",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. CELMIG",
+    "email": "miguelcelmig@hotmail.es",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "AGRUPACION FUTSALA CHINCHON",
+    "email": "yite.3@hotmail.com",
+    "location": "Chinchón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ATLETICO CLUB DE SOCIOS",
+    "email": "contacto@atleticoclubdesocios.es",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESPAÑOLETO C.F.",
+    "email": "españoleto@gmail.com",
+    "location": "Rivas-Vaciamadrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. MAS RIVER",
+    "email": "info@cdmasriver.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE ESCUELA UNION DEPORTIVA LOECHES",
+    "email": "angelitotribu@hotmail.com",
+    "location": "Loeches, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. NUEVO BOADILLA",
+    "email": "info@nuevoboadilla.es",
+    "location": "Boadilla Del Monte, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D.C. CASTILLA",
+    "email": "adccastilla@gmail.com",
+    "location": "San Lorenzo De El Escorial, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ARGANDA UNION DEPORTIVA",
+    "email": "argandaud@argandaud.es",
+    "location": "Arganda Del Rey, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. AMISTAD ALCORCON",
+    "email": "info@cdeamistad.com",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. VALLMONT DE VILLANUEVA DEL PARDILLO",
+    "email": "futbol@clubdeportivovallmont.es",
+    "location": "Villanueva del Pardillo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SPORT VILLA DE VALLECAS",
+    "email": "clubsportvilla@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SPORTING VALDEBERNARDO",
+    "email": "sportingvb@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. PRODET POZUELO",
+    "email": "contacto@deportesorolla.com",
+    "location": "Pozuelo De Alarcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "FUTBOL CLUB BRITANICO",
+    "email": "info@futbolclubbritanico.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. BOCA",
+    "email": "mlopezbreab@yahoo.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESC.MUN. TORREJON DE LA CALZADA",
+    "email": "deportes@aytotorrejoncalzada.org",
+    "location": "Torrejón De La Calzada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. CLUNY POZUELO (BAJA TEMP 2025 -2026)",
+    "email": "csn.enrique@hotmail.com",
+    "location": "Pozuelo De Alarcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. UNION ELIPA",
+    "email": "unionelipa@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ALGETEÑO",
+    "email": "cdalgeteno@gmail.com",
+    "location": "Algete, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. CIUDAD DE PINTO",
+    "email": "clubdeportivociudadepinto@yahoo.es",
+    "location": "Pinto, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. LIBERTAD ALCORCON",
+    "email": "informacion@deportivolibertad.com",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "MADRID C.F. FEMENINO",
+    "email": "club@madridcff.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ATLETICO NAVALCARNERO",
+    "email": "atleticonavalcarnero@hotmail.es",
+    "location": "Navalcarnero, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ARENAL 30",
+    "email": "cdearenal30@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. FUTBOL BASE 3 CANTOS",
+    "email": "base3cantos@gmail.com",
+    "location": "Tres Cantos, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA MUNICIPAL DE FUTBOL CHAPINERIA",
+    "email": "deportes@aytochapineria.org",
+    "location": "Chapinería, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. OLIMPICO LAS ROSAS",
+    "email": "cdolimpicolasrosas@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "F.S. NAVALCARNERO",
+    "email": "fsnavalcarnero@gmail.com",
+    "location": "Navalcarnero, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "NEUMATICOS CERVANTES F.C.",
+    "email": "luismservial@gmail.com",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ATLETICO LA GARENA",
+    "email": "entrenafutbol@hotmail.com",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "DEPORTIVO SUR LORANCA",
+    "email": "deportivosur.c@gmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. HONDURAS",
+    "email": "ofemga@gmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. VILLA BUITRAGO DEL LOZOYA",
+    "email": "villabuitragocd@gmail.com",
+    "location": "Buitrago Del Lozoya, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SANTIAGO APOSTOL VILLAVERDE",
+    "email": "cdsantiagoapostol@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.B. BASE",
+    "email": "deportivobase@deportivobase.com",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ADESO LOS ANGELES",
+    "email": "mora_manu_10@hotmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE MADRID RIO",
+    "email": "escuela@futbolmadridrio.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SAN AGUSTIN LOS NEGRALES",
+    "email": "deportes@sanagustinlosnegrales.es",
+    "location": "Guadarrama, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. MADRID SUR LATINA",
+    "email": "administracion@cdmadridsurlatina.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE TONI KROOS ACADEMY",
+    "email": "madrid@tonikroos-academy.com",
+    "location": "Boadilla Del Monte, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ESC. FUT. HORRILLO DE LEGANES",
+    "email": "escuelafbl@terra.es",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ATLETICO ALUCHE C.F.",
+    "email": "coordinacioncdatleticoaluche@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SPORTING LAGUNA",
+    "email": "info@cdsportinglaguna.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. TORRELAGUNA VILLA",
+    "email": "oscarmunoz@grupotrc.com",
+    "location": "Torrelaguna, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "LA MORALEJA C.F.",
+    "email": "contacto@moralejacf.com",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. CONDE ORGAZ",
+    "email": "cdcondeorgaz@hotmail.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. COLLADO VILLALBA",
+    "email": "tudela.salcedo@hotmail.com",
+    "location": "Collado Villalba, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. ATLETICO SUR",
+    "email": "clubatleticosur@hotmail.es",
+    "location": "Parla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. FOOTBALL DREAMS EXPERIENCE",
+    "email": "coordinacion@clubfde.com",
+    "location": "Pozuelo De Alarcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. A.V. ZARZAQUEMADA",
+    "email": "cd.av.zarzaquemada@gmail.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. MALASAÑA F.C.",
+    "email": "edutama2009@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "UNION DEPORTIVA SAN AGUSTIN DEL GUADALIX",
+    "email": "udsag2013@gmail.com",
+    "location": "San Agustín Del Guadalix, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SEK EL CASTILLO",
+    "email": "delcoroiribe@ucjc.edu",
+    "location": "Villanueva De La Cañada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ATLETICO ARTILLEROS",
+    "email": "carlosbuzon.redpiso@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. CODEC DE MADRID",
+    "email": "futbolcodec@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ESCUELA BREOGAN",
+    "email": "cdescuelabreogan@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "E.M.F. DE CARABAÑA",
+    "email": "emfcarabana@gmail.com",
+    "location": "Carabaña, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SANTA BARBARA GETAFE",
+    "email": "joseluisdelamata@hotmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ISIDORO SAN JOSE",
+    "email": "isanjose@sanjosesp.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. REMAR C.F.",
+    "email": "aser@visual777.com",
+    "location": "Ajalvir, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SAMPER",
+    "email": "info@cdsamper.com",
+    "location": "Coslada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. PARACUELLOS SPORT",
+    "email": "cdeparacuellossport@gmail.com",
+    "location": "Paracuellos De Jarama, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ELECTROCOR LAS ROZAS C.F.",
+    "email": "gerente@elclasrozascf.es",
+    "location": "Las Rozas de Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE INTER PROMESAS",
+    "email": "cdinterpromesas@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "RIVAS FUTBOL CLUB",
+    "email": "administrador@rivasfutbolclub.com",
+    "location": "Rivas-Vaciamadrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. CANDIL LEGANES",
+    "email": "candilleganes@hotmail.es",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SAD COLEGIO MIRAMADRID",
+    "email": "clubfutbol@colegiomiramadrid.es",
+    "location": "Paracuellos De Jarama, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. LEGASUR-RAYO",
+    "email": "legasurrayoleganes@gmail.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. MONTE TABOR",
+    "email": "actividadesextraescolares@colegiomontetabor.es",
+    "location": "Pozuelo De Alarcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ARANJUEZ BALOMPIE",
+    "email": "aranjuezbalompie@gmail.com",
+    "location": "Aranjuez, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "U.D. VELLON VENTURADA",
+    "email": "udvellonventurada@gmail.com",
+    "location": "Venturada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. LA MERCED",
+    "email": "coordinadordeportivo@mercedariastrescantos.es",
+    "location": "Tres Cantos, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. CIUDAD DE LEGANES",
+    "email": "cdciudaddeleganes@gmail.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. HIGHLANDS EL ENCINAR",
+    "email": "mferreiro@highlandselencinar.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. AUPA",
+    "email": "cdeaupa@gmail.com",
+    "location": "Boadilla Del Monte, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. UNION VALDEBERNARDO",
+    "email": "info@unionvb.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. FOMENTO ALUMNI",
+    "email": "fomentoalumni@fomento.edu",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ATLETICO FUENLABREÑO",
+    "email": "atleticofuenlabreno@gmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "DEPORTIVO CIEMPOZUELOS",
+    "email": "cdcciempo@gmail.com",
+    "location": "Ciempozuelos, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. CHAMBERI DE MADRID",
+    "email": "cdchamberi@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. NEWMAN",
+    "email": "direccion@newmanclubdeportivo.org",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "GIMNASTICA COLMENAREJO C.F.",
+    "email": "gcolmenarejocf@gmail.com",
+    "location": "Colmenarejo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "OLIMPIC DE LAS TABLAS C.F.",
+    "email": "olimpiclastablascf@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ESTUDIANTES LAS TABLAS",
+    "email": "deportes@colegioestudianteslastablas.edu.es",
+    "location": "0, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. OLIMPICO DE PARLA",
+    "email": "olimpicodeparla@hotmail.com",
+    "location": "Parla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "R.C.D. ESPANYOL DE MADRID",
+    "email": "rcdespanyoldemadrid@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SPORTING LAS TABLAS",
+    "email": "sporting_lastablas@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. RAYO ILLESCAS",
+    "email": "demetrio-rayo-illescas@hotmail.com",
+    "location": "Parla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. CDB ESCUELA MUNICIPAL DE FUTBOL HUMANES",
+    "email": "jluis.flores10@gmail.com",
+    "location": "Humanes De Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. RAYO LATINA",
+    "email": "juanantonio.luque.martos@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE AULA C.F.",
+    "email": "gestion@aulacf.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SP&AL FUENLABRADA",
+    "email": "dllorente@escuelapachonlopez.es",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "UNION DEPORTIVA USERA",
+    "email": "uniondeportivausera@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. BECERRIL DE LA SIERRA",
+    "email": "cde.becerril@gmail.com",
+    "location": "Becerril De La Sierra, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "UNION DEPORTIVA TORREJON DE VELASCO C.F.",
+    "email": "presidencia@udtorrejondevelasco.es",
+    "location": "Torrejón De Velasco, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "VALDEMORO CLUB DE FUTBOL",
+    "email": "valdemorocf@gmail.com",
+    "location": "Valdemoro, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. MINIFUTBOL TORRELODONES",
+    "email": "minifutbol.torre@gmail.com",
+    "location": "Torrelodones, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDB FUTBOL FEMENINO OLYMPIA LAS ROZAS",
+    "email": "info@cfflolympia.es",
+    "location": "Las Rozas de Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. FUENLABRADA EL NARANJO",
+    "email": "ramonrayo13@gmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. SAN PASCUAL-MONTPELLIER",
+    "email": "adsanpascualmontpellier@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ATLETICO DEL PILAR C.F.",
+    "email": "luis@atleticodelpilar.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. F.P.A. LAS ROZAS",
+    "email": "contacto@fpalasrozas.com",
+    "location": "Las Rozas de Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "U.D. LAS MATAS C.F.",
+    "email": "info@udlasmatascf.es",
+    "location": "Las Rozas de Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "IE UNIVERSITY ATHLETICS",
+    "email": "pablo.deramon@ie.edu",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. PEÑAGRANDE",
+    "email": "cdpenagrande@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. UNION EUROPA SANSE",
+    "email": "coordinacionunioneuropasanse@gmail.com",
+    "location": "San Sebastián De Los Reyes, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. ANCORA ARANJUEZ",
+    "email": "clubancoraaranjuez@gmail.com",
+    "location": "Aranjuez, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE E.F. HALCONES MADRID",
+    "email": "efutbolhalcones@gmail.com",
+    "location": "Pozuelo De Alarcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE ANDEL",
+    "email": "amessia@andel.es",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. RACING LORANCA SOCCER",
+    "email": "cd.racing.loranca@hotmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. GETAFE CITY",
+    "email": "cdegetafecity@gmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. DYS SPORTS",
+    "email": "salvaescueladys@gmail.com",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. PARQUE POLVORANCA",
+    "email": "pedro.cuadrado.bravo@gmail.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "E.M.F. ORUSCO",
+    "email": "emforusco@hotmail.com",
+    "location": "Orusco De Tajuña, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ATLETICO SANTA ANA",
+    "email": "cdeatleticosantaana@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.F. VALDEBEBAS",
+    "email": "info@cfvaldebebas.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. CIUDAD DE MADRID 2018",
+    "email": "juliorosalesarteaga@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ENJOY FOOTBALL",
+    "email": "danielhidalgocasas@yahoo.es",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ATLETICO VALLECAS",
+    "email": "atleticovallecas@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. MADRID SUR",
+    "email": "agrupacion@admadridsur.org",
+    "location": "0, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. UNION EL PARQUE",
+    "email": "unionelparque@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "FUTBOLELLAS CFF",
+    "email": "info@futbolellas.com",
+    "location": "Torrejón De Ardoz, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. RIVAS JARAMA",
+    "email": "jmormoy@yahoo.es",
+    "location": "Rivas-Vaciamadrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. PROAS (BAJA TEMP 2025-2026)",
+    "email": "proasclub@gmail.com",
+    "location": "Las Rozas de Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "DEPORTIVO ARDOZ",
+    "email": "amediavilla@clubdeportivoardoz.es",
+    "location": "Torrejón De Ardoz, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. FUENLABRADA ATLANTIS",
+    "email": "info@fuenlatlantis.es",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. INDEPENDIENTE DE VALLECAS",
+    "email": "info@independientedevallecas.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "U.D. ARROYOFRESNO",
+    "email": "futbol.udarroyofresno@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. DE FUTBOL INTER VICTORIA",
+    "email": "cdefintervictoria@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. IVERO",
+    "email": "adivero@hotmail.com",
+    "location": "Valdemoro, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. UGENA EFM",
+    "email": "tomas85mr@hotmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. GETAFE FEMENINO",
+    "email": "info@getafem.es",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. GOPAD",
+    "email": "cdegopad@gmail.com",
+    "location": "Majadahonda, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ASOC RETIRO SUR",
+    "email": "cdretirosur@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. MAKAVI - LA AVANZADA",
+    "email": "rafaeltlc@protonmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SANFER19",
+    "email": "cdesanfer19@gmail.com",
+    "location": "San Fernando De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. MARAZUELA LAS ROZAS",
+    "email": "joe_maset_1990@hotmail.com",
+    "location": "Las Rozas de Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB DE ATLETISMO LOS OLMOS",
+    "email": "lolm_extraescolares@fomento.edu",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDB GETAFE SPORTING ( BAJA TEMP 2025-2026)",
+    "email": "sportinggetafe@gmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. RUPE SAHAGUN",
+    "email": "coordinacioncderupe@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "LAURELES C.F.",
+    "email": "laurelescf@outlook.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE FUENLABRADA FALCONS",
+    "email": "fuenlabradafalcons@gmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE JUVENIL CIUDAD DE CUBAS",
+    "email": "cdciudaddefuenlabrada@gmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ATHLETIC CLUB COLMENAREJO",
+    "email": "athleticclubcolmenarejo2021@hotmail.com",
+    "location": "Colmenarejo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SINABRO PCAH F.C.",
+    "email": "sinabrofc20@gmail.com",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. PEGASO BALOMPIE TRES CANTOS",
+    "email": "presidente@pegasobalompietc.es",
+    "location": "Tres Cantos, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. ARANCETANO",
+    "email": "clubdeportivoarancetano@gmail.com",
+    "location": "Aranjuez, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE UNION VILLANUEVA DEL PARDILLO",
+    "email": "union@cfunionpardillo.es",
+    "location": "Villanueva del Pardillo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "U.D. SAN MARTIN DE LA VEGA",
+    "email": "uniondeportivasmv@gmail.com",
+    "location": "San Martín De La Vega, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "E.D. ROBLEDO DE CHAVELA",
+    "email": "aitor_qs_92@hotmail.com",
+    "location": "Robledo De Chavela, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. COLEGIO VALDELUZ",
+    "email": "futbol@valdeluz.eu",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. UNION DEPORTIVA VILLAR DEL OLMO",
+    "email": "villardelolmo.ud@gmail.com",
+    "location": "Villar Del Olmo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. COLEGIO SAN GABRIEL",
+    "email": "centrodeportivo@colegiosangabriel.com",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. SERENDIPITY",
+    "email": "efvaldemorillo@lider-sport.es",
+    "location": "Valdemorillo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. FUNDACION ESCUELA DE FUTBOL AFE",
+    "email": "escuela@afe-futbol.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.B. BIS",
+    "email": "cdfutbol.mor@colegiobrains.com",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. CENAFE (BAJA TEMP 2025-2026)",
+    "email": "ruben@davasecure.com",
+    "location": "Coslada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "F.C. CHINCHON 21",
+    "email": "chinchonfc@hotmail.com",
+    "location": "Chinchón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ATLETICO GARVIN",
+    "email": "clubatleticogarvin@hotmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ST. MICHAEL`S SPORTS CLUB",
+    "email": "raquelperezmaqueda@gmail.com",
+    "location": "Boadilla Del Monte, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE ED SESEÑA",
+    "email": "info@adsesenacf.es",
+    "location": "Parla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE TECHNITEAM MOSTOLES",
+    "email": "cdetechniteam@gmail.com",
+    "location": "Móstoles, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. VILLA DE AJALVIR",
+    "email": "info@cdevilladeajalvir.es",
+    "location": "Ajalvir, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "U.D. TALAMANCA",
+    "email": "uniondeportivatalamanca@gmail.com",
+    "location": "Talamanca De Jarama, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. EVEREST SCHOOL",
+    "email": "omedina@everestschool.es",
+    "location": "Pozuelo De Alarcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE VALMES C.F.",
+    "email": "juliocsartorre@hotmail.com",
+    "location": "Valdilecha, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "JARAMA RACE-BEINSOCCER INTERNATIONAL MADRID",
+    "email": "escuelafutbolrace@gmail.com",
+    "location": "San Sebastián De Los Reyes, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. CASTELLANA NUEVA ALCOBENDAS",
+    "email": "deportes@colegioestudiantes.edu.es",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. FEC",
+    "email": "jjose.pagan@xtrafec.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. POLIDEPORTIVO EL VISO DE SAN JUAN",
+    "email": "gustavoadolfoanton@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDB SEK-CIUDALCAMPO",
+    "email": "guillermo.lopezm@sek.es",
+    "location": "San Sebastián De Los Reyes, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. LAS TABLAS VALVERDE",
+    "email": "lastablasfutbol@fomento.edu",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. GETAFE ATLETICO",
+    "email": "cdegetafeatletico@gmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.B. PARQUE DE CATALUÑA",
+    "email": "info@dbtorrejon.com",
+    "location": "Torrejón De Ardoz, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.B. PUERTO DE VALLEKAS",
+    "email": "puertodevallekas@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. FEMENINO MOSCARDO",
+    "email": "amarlasca@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CD DV7 MADRID",
+    "email": "madrid@dv7soccer.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. DRAGONES DE LAVAPIES",
+    "email": "dragonesdelavapies@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. CHAMARTIN ATHLETIC",
+    "email": "chamartinathletic@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. FUTBOL CLUB BRITANICO DE MADRID",
+    "email": "ramimajid13@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. MADRID OLIMPO",
+    "email": "cdmadridolimpo@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB ESCUELA DEPORTIVA MANILA-ESTRELLAS",
+    "email": "manila.estrellas@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. STELLA MARIS LA GAVIA",
+    "email": "sadfutbol@stellamariscolegio.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. ESC. DEP. MPAL. PELAYOS DE LA PRESA",
+    "email": "depoortepelayos@hotmail.com",
+    "location": "Pelayos De La Presa, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E RACING VICALVARO",
+    "email": "cderacingvicalvaro@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. ELITE SPORT",
+    "email": "elitefutbol2@gmail.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE JUVENTUD ROLLER",
+    "email": "info@cdejuventudroller.es",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE PINTO ACADEMY FC",
+    "email": "equipodr@dracademyfootball.com",
+    "location": "Pinto, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE FOOTBALL MILES",
+    "email": "oscarbueno86@gmail.com",
+    "location": "Torrejón De Ardoz, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE SAN PABLO C-70",
+    "email": "husodi@gmail.com",
+    "location": "Coslada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE INTERNATIONAL SOCCER PROMISES",
+    "email": "info@isoccerpromises.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE ELITE PARLA",
+    "email": "eliteparla@hotmail.com",
+    "location": "Parla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE NUEVO VILLANUEVA DEL PARDILLO",
+    "email": "cdevvadelpardillo@gmail.com",
+    "location": "Villanueva del Pardillo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "S.A.D. VILLAVERDE BOETTICHER",
+    "email": "sadvillaverdeboetticher@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E INNOVA MORATALAZ",
+    "email": "info@innovamoratalaz.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB DE FUTBOL GETAFE FÉMINAS",
+    "email": "direccion@getafefem.com",
+    "location": "Getafe, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "UNION DEPORTIVA JUVENTUD",
+    "email": "direccion@udjuventud.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SAD RACING CIUDAD DE MADRID",
+    "email": "info@racingmadrid.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE VILLA LOECHES F.C. (BAJA TEMP. 2025-2026)",
+    "email": "elvillaloeches@gmail.com",
+    "location": "Loeches, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE IZOR NAVALCARNERO",
+    "email": "vortiz73@gmail.com",
+    "location": "Navalcarnero, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE SPARTAC DE HORTALEZA",
+    "email": "justlawabogados@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE ARGENTINO DE FUTBOL",
+    "email": "info@clubargentino.es",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE RACING CLUB SANSE",
+    "email": "racingclubsanse@gmail.com",
+    "location": "San Sebastián De Los Reyes, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE MORATALAZ FEMENINO CLUB DE FUTBOL",
+    "email": "info@moratalazfemeninocf.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE SPORTING DE VALLECAS C.F. (FS)",
+    "email": "spv@sportingdevallecas.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE AQUILA (FS)",
+    "email": "futbolsala@colegioaquila.es",
+    "location": "Parla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE AZ MADRID",
+    "email": "info.azmadrid@gmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE FOOTBALL CLUB EXTREME (BAJA TEMP 2025-2026)",
+    "email": "fcextreme11@gmail.com",
+    "location": "Moralzarzal, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE INTER DE AMERICA",
+    "email": "interdeamerica.madrid@gmail.com",
+    "location": "San Sebastián De Los Reyes, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE INTERNACIONAL DE MAJADAHONDA",
+    "email": "interdemajadahonda@gmail.com",
+    "location": "Majadahonda, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE INTERSOL ALCORCON",
+    "email": "ignaciogarciamayoral@gmail.com",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDB UNION DEPORTIVA ARGANZUELA",
+    "email": "info@udarganzuela.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE WINTER SQUAD (FS)",
+    "email": "wintersquad.2021@gmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE AMET (FS)",
+    "email": "futsal@cdamet.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE CHAMARTIN F.C.",
+    "email": "info@chamartinfc.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE ACADEMIA FENIX",
+    "email": "info@academiafenix.eu",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE TOMAS GARCIA",
+    "email": "josetomas74@yahoo.es",
+    "location": "Torrejón De La Calzada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE DAVID LLOYD",
+    "email": "crisadonoso@gmail.com",
+    "location": "Pozuelo De Alarcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE RACING DE MOSTOLES",
+    "email": "congomie@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE PERALES FUTBOL CLUB (FS)",
+    "email": "peralesfutbolclubgetafe@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE LEGANES OSUNA FEMINAS",
+    "email": "osunafeminas@outlook.es",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE PERREO FUTBOL CLUB",
+    "email": "info@perreofc.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE UNION DEPORTIVA INTERCAPITAL",
+    "email": "info@udintercapital.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE VALDEBEBAS NORTE",
+    "email": "info@deportivovaldebebas.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE TG ESCUELA FC (BAJA TEMP. 2025-2026)",
+    "email": "tgescuelafc@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE FC AURUM MADRID",
+    "email": "fcaurummadrid2025@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE FUTBOL BASE DEPORTIVO TORRELODONES",
+    "email": "contacto@deportivotorrelodones.com",
+    "location": "Las Rozas de Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SAD SPAIN FOOTBALL ACADEMY FC",
+    "email": "manager@spain-football-com",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE FUTBOL SALA EL ARROYO (FS)",
+    "email": "fselarroyo@fselarroyo.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. VILLA SAN ISIDRO",
+    "email": "alexnereabryan92@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SAD FUSP-CEU COMUNIDAD DE MADRID",
+    "email": "extraescolares.sanchinarro@ceu.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE LOS LEONES DE MIRAFLORES (BAJA TEMP 2025-2026)",
+    "email": "mborreguero21@gmail.com",
+    "location": "Miraflores De La Sierra, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE AD FEMINAS QUIJORNA",
+    "email": "adfeminasquijorna@gmail.com",
+    "location": "Quijorna, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE FENIX FUENLABRADA (FS)",
+    "email": "raulfuenlabrada99.rvg@gmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE SPORT LATINA (FS)",
+    "email": "escuela@aluchefutbolsala.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE ARGANZUELA FUTSAL (BAJA TEMP 2025-2026)",
+    "email": "hellomoto29122025@outlook.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SAD RACE",
+    "email": "futbolrace2025@gmail.com",
+    "location": "Tres Cantos, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE ATLETISMO SPORTING DE HORTALEZA",
+    "email": "monicaromonjanes@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. CUATRO CAMINOS FUTBOL SALA (FS)",
+    "email": "mariano39brasan@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "PARQUE NORTE F.S. (FS)",
+    "email": "parquenortefs@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB ARGANDA FUTSAL (FS)",
+    "email": "info@argandafutsal.es",
+    "location": "Arganda Del Rey, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB AGUSTINIANO (FS)",
+    "email": "direcciondeportiva@agustiniano.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "DEPORTIVO CALDEIRO (FS)",
+    "email": "futbolsala@cdcaldeiro.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB CORAZONISTAS (FS)",
+    "email": "corasfutsal@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. ESCURIALENSE (FS)",
+    "email": "adescurialense@hotmail.com",
+    "location": "San Lorenzo De El Escorial, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. COLEGIO JOYFE (FS)",
+    "email": "futbolsala.joyfe@iepgroup.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. LA VILLA MOSTOLES (FS)",
+    "email": "c.d.lavilla@gmail.com",
+    "location": "Móstoles, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A. D. OBISPO PERELLO (FS)",
+    "email": "agrupaciondeportiva@obispoperello.net",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "RACING LA PALOMA (FS)",
+    "email": "cdrlapaloma@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB FUTBOL SALA FEMENINO SAN FERNANDO (FS)",
+    "email": "jorge87_sanfer@hotmail.com",
+    "location": "San Fernando De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. CIUDAD VILLA DE VALLECAS F.S.",
+    "email": "ciudadvilladevallecas@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "DON P'ALPIE ARANJUEZ F.S.",
+    "email": "ltavira@hotmail.com",
+    "location": "Aranjuez, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB VILLA DE SALVANES (FS)",
+    "email": "club.villasalvanes@hotmail.com",
+    "location": "Villarejo De Salvanés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB LOS SAUCES (FS)",
+    "email": "andres.merino@colegiolossauces.com",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. EL VALLE (FS)",
+    "email": "futbolsala@cdelvalle.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "VILLA DE ALGETE FUTBOL SALA (FS)",
+    "email": "villadealgetefs@gmail.com",
+    "location": "Algete, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "GRUPO JACER (FS)",
+    "email": "jperezdoblado@yahoo.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "COLEGIO CARDENAL SPINOLA CHAMARTIN (FS)",
+    "email": "futbolsala@cdspinolachamartin.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SAN AGUSTIN DEL GUADALIX FUTBOL SALA (FS)",
+    "email": "futbolsala@vasallo.es",
+    "location": "San Agustín Del Guadalix, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SAD COLEGIO INTERNACIONAL KOLBE (FS)",
+    "email": "dgutierrez@colegiokolbe.com",
+    "location": "Villanueva De La Cañada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CIUDAD DE LOS MUCHACHOS (FS)",
+    "email": "ciudaddelosmuchachos_madrid@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "FUTSALA VILLAVERDE (FS)",
+    "email": "futsalavillaverde@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB IRLANDESAS (FS)",
+    "email": "futbolsala.elsoto@feducativamaryward.org",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE PARAISO SAGRADOS CORAZONES (FS)",
+    "email": "extraescolares@colegioparaiso.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ABANTOS FUTBOL SALA",
+    "email": "abantoscde@gmail.com",
+    "location": "San Lorenzo De El Escorial, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "FUTURO DEL FUTBOL SALA (FS)",
+    "email": "clubfuturovelilla@gmail.com",
+    "location": "Velilla De San Antonio, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "F.S. DIAGONAL (FS)",
+    "email": "fsdiagonal@gmail.com",
+    "location": "Parla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. OROQUIETA-ESPINILLO (FS)",
+    "email": "cdoroquietaespinillo@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "RIVAS ATLANTIS (FS)",
+    "email": "federacion@rivasatlantis.com",
+    "location": "Rivas-Vaciamadrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA TORREJON JUNCAL F.S.",
+    "email": "emtjfs@gmail.com",
+    "location": "Torrejón De Ardoz, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CFS ARTILLEROS MORATALAZ (FS)",
+    "email": "jesusfernadezcalle@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "EUREKA (FS)",
+    "email": "futbol.eureka@gmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D.TANCITARO (FS)",
+    "email": "saezperez.alberto@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "FUTBOL SALA LIMONES 5 (FS)",
+    "email": "escuela.limones5@gmail.com",
+    "location": "Torrejón De Ardoz, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB ELEMENTAL FUTSAL SANSE",
+    "email": "egarcia@futsalsanse.com",
+    "location": "San Sebastián De Los Reyes, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. MOSTOLES FUTSAL",
+    "email": "athleticclubmostolesoficina@gmail.com",
+    "location": "Móstoles, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "COLEGIO CLARET (FS)",
+    "email": "marina.alvarez.est@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "SAN FELIPE NERI (FS)",
+    "email": "adcfilipenses@yahoo.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE C.F.S. EUROSIRIS (FS)",
+    "email": "cfseurosiris@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. SPORT SALA 12 (FS)",
+    "email": "sportsala12parla@gmail.com",
+    "location": "Parla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ESCUELA DEPORTIVA BRUNETE (FS)",
+    "email": "edbrunete@gmail.com",
+    "location": "Brunete, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "FUTSALA PINTO (FS)",
+    "email": "cdfutsalapinto@gmail.com",
+    "location": "Pinto, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "FUTSAL PINTO (FS)",
+    "email": "gayardo15589@gmail.com",
+    "location": "Pinto, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "E.F.S. CIUDAD DE TORREJON (FS)",
+    "email": "efsciudaddetorrejon@gmail.com",
+    "location": "Torrejón De Ardoz, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. CLUB DEPORTIVO EUROPEO (FS)",
+    "email": "cefutsalpardillo@gmail.com",
+    "location": "Villanueva del Pardillo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "COLMENAREJO FUTBOL SALA (FS)",
+    "email": "colmefsf@gmail.com",
+    "location": "Colmenarejo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB DEPORTIVO HELICON (FS)",
+    "email": "escuelafutbol@colegiohelicon.com",
+    "location": "Valdemoro, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "E.F.S. GRIÑON (FS)",
+    "email": "efutsala@gmail.com",
+    "location": "Serranillos Del Valle, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "ENTIDAD DEPORTIVA ROZAS DE PUERTO REAL (FS)",
+    "email": "edrozasdepuertoreal@gmail.com",
+    "location": "Rozas De Puerto Real, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. INTERSALA MOSTOLES (FS)",
+    "email": "intersala_mostoles@hotmail.com",
+    "location": "Móstoles, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. ESTUDIANTES TIRSO DE MOLINA ( BAJA TEMP 2025-2026)",
+    "email": "jcbohoyo@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "COLEGIO ABACO (FS)",
+    "email": "futbol@colegio-abaco.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. PINAR DE SAN JOSE (FS)",
+    "email": "infopinaralcorcon@gmail.com",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "AGRUPACION PADRE MANYANET (FS)",
+    "email": "adeportiva@alcobendas.manyanet.org",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. ALCOBENDAS FUTSAL (FS)",
+    "email": "academia@alcobendasfutsal.org",
+    "location": "Alcobendas, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. ESTRECHO TETUAN (FS)",
+    "email": "ade@salesianosestrecho.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB DEPORTIVO ELEMENTAL MALVAR (FS)",
+    "email": "futbolsala@colegiomalvar.com",
+    "location": "Arganda Del Rey, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. MEJORSALA (FS)",
+    "email": "cdemejorsala@gmail.com",
+    "location": "Mejorada Del Campo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. FUENLABRADA FUTBOL SALA (FS)",
+    "email": "fuenlabradafs@gmail.com",
+    "location": "Fuenlabrada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE EXTINTORES LA UNION VEGA FUTSAL (FS)",
+    "email": "lavegafutsalsmv@gmail.com",
+    "location": "San Martín De La Vega, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CALASANCIO F.S.- NUESTRA SEÑORA DE LAS ESCUELAS PIAS (FS)",
+    "email": "jremy412@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.B. MORALZARZAL FUTSAL (FS)",
+    "email": "cdmoralzarzalfutsal@gmail.com",
+    "location": "Moralzarzal, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. ALARO DEPORTIVA (FS)",
+    "email": "escueladeportivalaro@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. EDUCA & PLAY (FS)",
+    "email": "info@educandplay.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.S.D. PARQUE DE LISBOA FUTSAL (FS)",
+    "email": "futsal@parquelisboa.com",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. LOPE DE VEGA (FS)",
+    "email": "cdlopedevega@yahoo.es",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. COLEGIO ALEMAN DE MADRID (FS)",
+    "email": "info@dsmadrid-sv.org",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "FUTBOL SALA PARLA (FS)",
+    "email": "manolo19631993@movistar.es",
+    "location": "Parla, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. LAS MINAS (FS)",
+    "email": "info@cdelasminas.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. ANDRES SEGOVIA (FS)",
+    "email": "cdandresegovia@gmail.com",
+    "location": "Móstoles, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. DEHESA VILLALBA (FS)",
+    "email": "directivacdedehesavillalba@gmail.com",
+    "location": "Collado Villalba, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB DE FUTBOL RAYO MANZANARES (FS)",
+    "email": "pepvega68@gmail.com",
+    "location": "Manzanares El Real, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. VIRGEN DEL CERRO FUTSAL (FS)",
+    "email": "futsalvirgendelcerro@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. DEPORTIVO MADRID FUTSAL (FS)",
+    "email": "deportivomfutsal@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDB SPORTING LAS AGUILAS DE MADRID (FS)",
+    "email": "futsalsportinglasaguilas@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. SAN JOSE DE VALDERAS (FS)",
+    "email": "info.valderasfs@gmail.com",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. MADRILEÑO NORTE (FS)",
+    "email": "madrilenorte@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "AGRUPACION DEPORTIVA COLEGIO CALASANCIO (FS)",
+    "email": "a.d.calasancio@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. ATHLETIC FUTSAL",
+    "email": "athleticfutsal@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. F.S. SANTORCAZ (FS)",
+    "email": "fssantorcaz@gmail.com",
+    "location": "Santorcaz, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. MADRID EXTRAESCOLARES MAEXTRA (FS) (BAJA TEMP 2025-2026)",
+    "email": "cdemaextra@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. SAN PEDRO APOSTOL BARAJAS (FS)",
+    "email": "futbolspa@sanpedroapostol.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. ASTON F.S.",
+    "email": "clubastonfs@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. MORALEJA DE ENMEDIO (FS)",
+    "email": "moralejafutbolsala@gmail.com",
+    "location": "Moraleja De Enmedio, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB LORETO MADRID (FS)",
+    "email": "p.bermudez.lom@fesd.es",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE FUSION FUTBOL SALA SAN FERNANDO",
+    "email": "futbolsalasanfernando@gmail.com",
+    "location": "San Fernando De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CIUDAD DE MOSTOLES (FS)",
+    "email": "antoniopeecheva@hotmail.com",
+    "location": "Móstoles, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "A.D. COLLADO VILLALBA F.S.",
+    "email": "adcolladovillalba@hotmail.com",
+    "location": "Collado Villalba, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "INTER F.S.",
+    "email": "cesarmunoz@intermovistar.com",
+    "location": "Alcalá De Henares, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB DEPORCOSLADA F.S.",
+    "email": "deporcosladafs@gmail.com",
+    "location": "Coslada, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "F.S. CHAMBERI",
+    "email": "fschamberi2022@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "TORREJON SALA FIVE PLAY (FS)",
+    "email": "kikepanadero@hotmail.com",
+    "location": "Torrejón De Ardoz, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D. FUTSI ATLETICO NAVALCARNERO (FS)",
+    "email": "jmibiurrun@hotmail.com",
+    "location": "Navalcarnero, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "UNION TRES CANTOS FUTBOL SALA",
+    "email": "uniontrescantos@gmail.com",
+    "location": "Tres Cantos, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "UNION DEPORTIVA LAS ROZAS BOADILLA (FS)",
+    "email": "juanjo.martinez.alonso@gmail.com",
+    "location": "Las Rozas de Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "FUTBOL SALA FEMENINO MOSTOLES (F.S.F. MOSTOLES)",
+    "email": "secretaria@fsfmostoles.es",
+    "location": "Móstoles, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "E.F.S. COLMENAR VIEJO (FS)",
+    "email": "jfgehijos@hotmail.com",
+    "location": "Colmenar Viejo, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB PILARISTAS (FS)",
+    "email": "clubpilaristasfutbolsala@nspilar.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "U.D. LORETO MONCLOA (FS)",
+    "email": "bullpaddy@gmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE SPORTING MORATA F.S.",
+    "email": "c.vera@generalimediadores.es",
+    "location": "Morata De Tajuña, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE FUTBOL SALA CIUDAD ALCORCON",
+    "email": "fusafeal@hotmail.com",
+    "location": "Alcorcón, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "LEGANES F.S. MASDEPORTE (FS)",
+    "email": "leganesfutbolsalaescuela@gmail.com",
+    "location": "Leganés, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CDE MAJADAHONDA (FS)",
+    "email": "fsmajadahonda@gmail.com",
+    "location": "Majadahonda, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "C.D.E. CASCO ANTIGUO CARABANCHEL BAJO (FS)",
+    "email": "jorgecascoantiguo@hotmail.com",
+    "location": "Madrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CD RIVAS FUTSAL",
+    "email": "coordinacionbase@rivasfutsal.com",
+    "location": "Rivas-Vaciamadrid, Madrid",
+    "federation": "Fútbol · RFFM"
+  },
+  {
+    "name": "CLUB C.F.S. EL ALAMO (FS)",
+    "email": "imprentapalma7@gmail.com",
+    "location": "Álamo (El), Madrid",
+    "federation": "Fútbol · RFFM"
+  }
+]

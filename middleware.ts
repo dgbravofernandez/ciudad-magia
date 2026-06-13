@@ -17,6 +17,8 @@ const PUBLIC_PREFIX = [
   '/api/stripe/webhook', // Stripe llama esto sin auth de usuario
   '/api/cron',          // crons de Vercel — protegidos por CRON_SECRET en su propio handler
   '/api/user-clubs',    // endpoint para listar clubs del usuario
+  '/reservar',          // Página pública de reserva de demo (sin login)
+  '/api/marketing',     // Pixels, clicks y unsubscribe — públicos por diseño
 ]
 
 // Rutas exclusivas del panel superadmin — no necesitan club membership
