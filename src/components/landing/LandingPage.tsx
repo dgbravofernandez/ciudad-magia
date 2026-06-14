@@ -91,9 +91,9 @@ const PLANS = [
     name: 'Pro',
     icon: '🏆',
     color: '#EC4899',
-    monthlyPrice: 89,
-    annualPrice: 890,
-    annualMonthly: 74,
+    monthlyPrice: 109,
+    annualPrice: 1090,
+    annualMonthly: 91,
     limit: 'Hasta 300 jugadores',
     description: 'Sesiones, contabilidad completa, informes y recordatorios automáticos.',
     popular: true,
@@ -113,9 +113,9 @@ const PLANS = [
     name: 'Club',
     icon: '🎯',
     color: '#F59E0B',
-    monthlyPrice: 149,
-    annualPrice: 1490,
-    annualMonthly: 124,
+    monthlyPrice: 199,
+    annualPrice: 1990,
+    annualMonthly: 166,
     limit: 'Hasta 600 jugadores',
     description: 'Para clubes grandes: todo + evaluaciones, lesiones y prioridad.',
     features: [
@@ -285,7 +285,15 @@ function PricingSection() {
             )
           })}
         </div>
-        <p style={{ textAlign: 'center', marginTop: '2rem', color: '#94A3B8', fontSize: '0.8125rem' }}>
+        <div style={{ textAlign: 'center', marginTop: '1.5rem', padding: '1rem 1.5rem', background: '#FDF2F8', borderRadius: 12, maxWidth: 720, margin: '1.5rem auto 0' }}>
+          <p style={{ color: '#BE185D', fontSize: '0.875rem', fontWeight: 700, margin: 0 }}>
+            ✨ Configuración asistida 99€ — incluida en planes anuales
+          </p>
+          <p style={{ color: '#475569', fontSize: '0.75rem', marginTop: 4, marginBottom: 0 }}>
+            Migramos tus datos desde Excel, configuramos cuotas y formamos a tu equipo en la primera semana.
+          </p>
+        </div>
+        <p style={{ textAlign: 'center', marginTop: '1rem', color: '#94A3B8', fontSize: '0.8125rem' }}>
           🔒 Pago seguro vía Stripe · Sin contratos · Cancela cuando quieras
         </p>
       </div>

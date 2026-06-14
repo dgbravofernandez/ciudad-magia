@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { stripe, PLANS, type PlanId } from '@/lib/stripe'
+import { stripe, PLANS, SETUP_FEE_PRICE_ID, type PlanId } from '@/lib/stripe'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getClubContext } from '@/lib/supabase/get-club-id'
@@ -47,12 +47,20 @@ export async function POST(req: NextRequest) {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
+    // Setup fee one-time: solo en mensual (anual lo lleva incluido como gancho).
+    // Si no hay STRIPE_PRICE_SETUP_FEE configurado, no se cobra (no rompe).
+    const setupFeeApplies = !annual && SETUP_FEE_PRICE_ID
+    const lineItems: { price: string; quantity: number }[] = [{ price: priceId, quantity: 1 }]
+    if (setupFeeApplies) {
+      lineItems.push({ price: SETUP_FEE_PRICE_ID, quantity: 1 })
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       customer_email: email,
-      line_items: [{ price: priceId, quantity: 1 }],
-      metadata: { club_id: clubId, plan: planId },
+      line_items: lineItems,
+      metadata: { club_id: clubId, plan: planId, setup_fee: setupFeeApplies ? 'yes' : 'no' },
       success_url: `${appUrl}/dashboard?billing=success`,
       cancel_url: `${appUrl}/upgrade?canceled=1`,
       allow_promotion_codes: true,

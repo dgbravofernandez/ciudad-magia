@@ -14,8 +14,8 @@ const SPORTS = [
 
 const PLAN_LABELS: Record<string, string> = {
   basic: 'Básico — €39/mes',
-  pro:   'Pro — €89/mes',
-  club:  'Club — €149/mes',
+  pro:   'Pro — €109/mes',
+  club:  'Club — €199/mes',
 }
 
 type Step = 'account' | 'club' | 'done'

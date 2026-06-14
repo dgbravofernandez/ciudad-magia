@@ -24,6 +24,10 @@ export const stripe: any = new Proxy({}, {
 })
 
 // Anual = 10 meses (2 meses gratis). annualMonthly = annualPrice / 12.
+// Setup fee one-time al alta (cashflow día 1, estándar mercado SaaS B2B).
+export const SETUP_FEE_EUR = 99
+export const SETUP_FEE_PRICE_ID = process.env.STRIPE_PRICE_SETUP_FEE ?? ''
+
 export const PLANS = {
   basic: {
     name: 'Básico',
@@ -39,9 +43,9 @@ export const PLANS = {
   pro: {
     name: 'Pro',
     icon: '🏆',
-    price: 89,
-    annualPrice: 890,
-    annualMonthly: 74,
+    price: 109,
+    annualPrice: 1090,
+    annualMonthly: 91,
     priceId: process.env.STRIPE_PRICE_PRO ?? '',
     priceIdAnnual: process.env.STRIPE_PRICE_PRO_ANNUAL ?? '',
     members: 300,
@@ -51,9 +55,9 @@ export const PLANS = {
   club: {
     name: 'Club',
     icon: '🎯',
-    price: 149,
-    annualPrice: 1490,
-    annualMonthly: 124,
+    price: 199,
+    annualPrice: 1990,
+    annualMonthly: 166,
     priceId: process.env.STRIPE_PRICE_CLUB ?? '',
     priceIdAnnual: process.env.STRIPE_PRICE_CLUB_ANNUAL ?? '',
     members: 600,
