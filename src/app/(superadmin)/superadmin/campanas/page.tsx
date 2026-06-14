@@ -58,7 +58,7 @@ export default async function CampanasPage({
     { data: federationsRaw },
   ] = await Promise.all([
     sb.from('marketing_settings').select('*').eq('id', 1).single(),
-    sb.from('marketing_templates').select('*').eq('key', 'email_1').single(),
+    sb.from('marketing_templates').select('*').eq('key', 'email_1').eq('variant', 'A').maybeSingle(),
     sb.from('marketing_clubs').select('id', { count: 'exact', head: true }),
     sb.from('marketing_clubs').select('id', { count: 'exact', head: true }).eq('status', 'pending').eq('excluded', false),
     sb.from('marketing_clubs').select('id', { count: 'exact', head: true }).eq('status', 'sent_1'),
