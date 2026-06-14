@@ -176,10 +176,11 @@ export function CampaignsView(p: Props) {
   }
 
   function handleSendTest() {
+    if (!testEmail) return toast.error('Pon un email destinatario')
     startTransition(async () => {
       const res = await sendTestEmail(testEmail)
       if (res.success) toast.success(`Test enviado a ${testEmail}`)
-      else toast.error(res.error ?? 'Error')
+      else toast.error(res.error ?? 'Error', { duration: 12000, description: 'Visita /api/debug/email-status para diagnosticar' })
     })
   }
 
