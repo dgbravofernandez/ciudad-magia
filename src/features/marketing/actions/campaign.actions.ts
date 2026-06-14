@@ -396,14 +396,18 @@ export async function sendTestEmail(targetEmail: string) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
-  const { data: tpl } = await sb.from('marketing_templates').select('*').eq('key', 'email_1').single()
+  const { data: tpl } = await sb.from('marketing_templates').select('*').eq('key', 'email_1').eq('variant', 'A').maybeSingle()
   const { data: settings } = await sb.from('marketing_settings').select('*').eq('id', 1).single()
-  if (!tpl || !settings) return { success: false, error: 'Plantilla o settings sin configurar' }
+  if (!tpl) return { success: false, error: 'No hay plantilla email_1 variant=A en la BD' }
+  if (!settings) return { success: false, error: 'No hay marketing_settings (id=1) en la BD' }
 
+  const clubName = 'Club de Prueba'
   const vars = {
-    club_name: 'Club de Prueba',
+    club_name: clubName,
+    club_url: encodeURIComponent(clubName),
     location: 'Madrid',
     federation: 'RFFM',
+    send_id: 'test',
     unsubscribe_url: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.club'}/api/marketing/unsubscribe?c=test&s=test&t=test`,
   }
   const result = await sendMarketingEmail({
@@ -413,5 +417,5 @@ export async function sendTestEmail(targetEmail: string) {
     fromName: settings.from_name,
     replyTo: settings.reply_to || settings.from_email,
   })
-  return result.sent ? { success: true } : { success: false, error: result.error }
+  return result.sent ? { success: true } : { success: false, error: result.error ?? 'Transport no respondió' }
 }
