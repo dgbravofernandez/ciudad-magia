@@ -11,7 +11,7 @@ const CONTACT_EMAIL = 'iakevoapp@gmail.com'
 
 const DAY_MS = 86_400_000
 
-type TrialEmailType = 'welcome' | 'import_help' | 'trial_ending'
+type TrialEmailType = 'welcome' | 'import_help' | 'personal_offer' | 'trial_ending'
 
 function wrap(title: string, body: string): string {
   return `
@@ -45,6 +45,29 @@ function buildEmail(type: TrialEmailType, clubName: string, trialEndsAt: string 
         </p>
         <p style="font-size:14px;line-height:1.6;color:#475569">¿Tienes el Excel pero prefieres que lo hagamos nosotros? Responde a este email y lo importamos en 24h sin coste.</p>`),
       text: `Bienvenido a Cluberly. Tienes 14 dias de prueba. Pasos: 1) Importa jugadores desde el Excel de la federacion en ${APP_URL}/jugadores (pestana Importar). 2) Configura cuotas en ${APP_URL}/configuracion. 3) Registra tu primer cobro. Si prefieres que importemos el Excel nosotros, responde a este email. Dudas: ${CONTACT_EMAIL}`,
+    }
+  }
+  if (type === 'personal_offer') {
+    const daysLeft = trialEndsAt ? Math.max(1, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / DAY_MS)) : 3
+    return {
+      subject: `${clubName.split(' ')[0]}, te ayudo en una llamada antes de que acabe la prueba`,
+      html: `
+<div style="font-family:Georgia,serif;color:#222;line-height:1.55;font-size:15px;max-width:600px;padding:24px">
+<p>Hola,</p>
+<p>Soy Diego, el de Cluberly. Te escribo personalmente porque a tu club le quedan <strong>${daysLeft} días de prueba</strong>.</p>
+<p>Si has llegado hasta aquí pero no has decidido, suele ser por una de tres razones:</p>
+<ul style="padding-left:20px;line-height:1.7">
+  <li>No has tenido tiempo de ver todo lo que hace.</li>
+  <li>Tienes una duda concreta que no resuelve la app sola.</li>
+  <li>Te falta una función que necesitas para tu club.</li>
+</ul>
+<p>Cualquiera de las tres se arregla en 15 minutos por teléfono. <strong>Te lo enseño sobre tu club concreto</strong>, te respondo lo que necesites y, si te encaja, te ayudo a configurarlo.</p>
+<p>Reserva un hueco aquí: <a href="${APP_URL}/reservar" style="color:#BE185D;font-weight:bold">cluberly.club/reservar</a></p>
+<p>O directamente respóndeme a este email y lo cuadramos.</p>
+<p>Un saludo,<br/>Diego Bravo<br/>665 676 341</p>
+<p style="font-size:12px;color:#888;margin-top:24px">P.D. — Si has decidido que no es para ti, sin problema, dímelo y no insisto.</p>
+</div>`,
+      text: `Hola, soy Diego de Cluberly. Te quedan ${daysLeft} dias de prueba. Si tienes alguna duda, reserva 15 min: ${APP_URL}/reservar — o responde a este email. Diego 665 676 341`,
     }
   }
   if (type === 'import_help') {
@@ -121,9 +144,12 @@ export async function GET(req: NextRequest) {
         let type: TrialEmailType | null = null
         if (ageMs <= 2 * DAY_MS) {
           type = 'welcome'
-        } else if (trialLeftMs !== null && trialLeftMs > 0 && trialLeftMs <= 4 * DAY_MS) {
-          // trial_ending tiene prioridad sobre import_help si coinciden
+        } else if (trialLeftMs !== null && trialLeftMs > 0 && trialLeftMs <= 1.5 * DAY_MS) {
+          // Último aviso formal: ≤ 36h
           type = 'trial_ending'
+        } else if (trialLeftMs !== null && trialLeftMs > 1.5 * DAY_MS && trialLeftMs <= 3.5 * DAY_MS) {
+          // Tono personal Diego: 2-3 días de prueba
+          type = 'personal_offer'
         } else if (ageMs >= 3 * DAY_MS && ageMs <= 10 * DAY_MS) {
           const { count: playerCount } = await sb
             .from('players')

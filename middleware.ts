@@ -19,6 +19,10 @@ const PUBLIC_PREFIX = [
   '/api/user-clubs',    // endpoint para listar clubs del usuario
   '/reservar',          // Página pública de reserva de demo (sin login)
   '/recomendar',        // Página pública de referidos (sin login)
+  '/plantilla-cuotas',  // Lead magnet público
+  '/casos-de-exito',    // Casos de éxito públicos
+  '/downloads',         // Descargas estáticas
+  '/api/lead-magnet',   // API captura email
   '/api/marketing',     // Pixels, clicks y unsubscribe — públicos por diseño
 ]
 

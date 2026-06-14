@@ -22,6 +22,8 @@ interface MarketingEmailPayload {
 
 const RESEND_KEY = process.env.RESEND_API_KEY
 const MARKETING_FROM = process.env.MARKETING_FROM_EMAIL ?? 'hola@cluberly.club'
+// Reply-To se queda en el buzón Gmail real para no perder respuestas (el dominio cluberly.club no tiene buzones todavía).
+const MARKETING_REPLY_TO = process.env.MARKETING_REPLY_TO ?? 'iakevoapp@gmail.com'
 
 let _resend: Resend | null = null
 function getResend(): Resend | null {
@@ -40,7 +42,7 @@ async function sendViaResend(payload: MarketingEmailPayload): Promise<{ sent: bo
       to: payload.to,
       subject: payload.subject,
       html: payload.html,
-      replyTo: payload.replyTo ?? MARKETING_FROM,
+      replyTo: payload.replyTo ?? MARKETING_REPLY_TO,
       headers: {
         'List-Unsubscribe': `<mailto:${MARKETING_FROM}?subject=baja>`,
       },
@@ -71,8 +73,8 @@ async function sendViaGmail(payload: MarketingEmailPayload): Promise<{ sent: boo
       to: payload.to,
       subject: payload.subject,
       html: payload.html,
-      replyTo: payload.replyTo ?? user,
-      headers: { 'List-Unsubscribe': `<mailto:${user}?subject=baja>` },
+      replyTo: payload.replyTo ?? MARKETING_REPLY_TO,
+      headers: { 'List-Unsubscribe': `<mailto:${MARKETING_REPLY_TO}?subject=baja>` },
     })
     console.log(`[gmail] ✓ ${payload.to} (id: ${info.messageId})`)
     return { sent: true }
