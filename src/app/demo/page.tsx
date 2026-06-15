@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { CluberlyMark } from '@/components/brand/CluberlyMark'
 
 export const metadata: Metadata = {
   title: 'Demo Cluberly — 60 segundos',
@@ -20,7 +21,7 @@ export default function DemoPage() {
     }}>
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', marginBottom: '2rem' }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9, background: 'linear-gradient(135deg,#EC4899,#BE185D)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800 }}>C</div>
+          <CluberlyMark size={36} />
           <span style={{ fontWeight: 800, fontSize: '1.25rem', color: '#0F172A' }}>cluberly</span>
         </Link>
 

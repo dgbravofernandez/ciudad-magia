@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { Check, FileSpreadsheet, Download } from 'lucide-react'
 import { captureLeadMagnet } from './actions'
+import { CluberlyMark } from '@/components/brand/CluberlyMark'
 
 export function LeadMagnetView() {
   const params = useSearchParams()
@@ -62,7 +63,7 @@ export function LeadMagnetView() {
     }}>
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
         <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', marginBottom: '2rem' }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9, background: 'linear-gradient(135deg,#EC4899,#BE185D)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800 }}>C</div>
+          <CluberlyMark size={36} />
           <span style={{ fontWeight: 800, fontSize: '1.25rem', color: '#0F172A' }}>cluberly</span>
         </Link>
 

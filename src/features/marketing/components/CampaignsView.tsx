@@ -92,6 +92,26 @@ export function CampaignsView(p: Props) {
 
   // ── Acciones ─────────────────────────────────────────────────────────────
   function handleRunBatch() {
+    // Si ya se alcanzó el cap de hoy, ofrecer subirlo para mandar más
+    if (remainingToday <= 0) {
+      const extra = prompt(
+        `Ya se enviaron ${p.stats.sentToday} emails hoy (cap diario: ${p.settings?.daily_send_cap}).\n\n` +
+        `¿Cuántos MÁS quieres enviar ahora? (escribe un número, ej: 25)\n` +
+        `Esto sube el cap diario.`,
+        '25'
+      )
+      const n = parseInt(extra || '0')
+      if (!n || n < 1) return
+      startTransition(async () => {
+        toast.loading(`Subiendo cap y enviando ${n} más...`, { id: 'batch' })
+        const capRes = await updateDailyCap((p.settings?.daily_send_cap ?? 25) + n)
+        if (!capRes.success) { toast.error(capRes.error ?? 'Error subiendo cap', { id: 'batch' }); return }
+        const res = await runCampaignBatch()
+        if (res.success) { toast.success(res.message ?? `${res.sent} enviados`, { id: 'batch' }); router.refresh() }
+        else toast.error(res.error ?? 'Error', { id: 'batch' })
+      })
+      return
+    }
     if (!confirm(`Vas a enviar hasta ${remainingToday} emails AHORA según prioridad. ¿Continuar?`)) return
     startTransition(async () => {
       toast.loading('Enviando tanda...', { id: 'batch' })
@@ -222,9 +242,9 @@ export function CampaignsView(p: Props) {
               {p.settings?.is_paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
               {p.settings?.is_paused ? 'Reanudar' : 'Pausar'}
             </button>
-            <button onClick={handleRunBatch} disabled={isPending || p.settings?.is_paused || remainingToday === 0}
+            <button onClick={handleRunBatch} disabled={isPending || p.settings?.is_paused}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500 text-black hover:bg-yellow-400 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed">
-              <Send className="w-4 h-4" /> Enviar {remainingToday} por prioridad
+              <Send className="w-4 h-4" /> {remainingToday > 0 ? `Enviar ${remainingToday} por prioridad` : 'Enviar más hoy (subir cap)'}
             </button>
           </div>
         </div>

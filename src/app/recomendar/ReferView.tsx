@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Plus, X, Check, Heart } from 'lucide-react'
 import { submitReferrals } from './actions'
+import { CluberlyMark } from '@/components/brand/CluberlyMark'
 
 interface Props {
   referrerName: string | null
@@ -89,7 +90,7 @@ export function ReferView({ referrerName: initRefName, referrerClubId }: Props) 
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{ width: 36, height: 36, borderRadius: 9, background: 'linear-gradient(135deg,#EC4899,#BE185D)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800 }}>C</div>
+            <CluberlyMark size={36} />
             <span style={{ fontWeight: 800, fontSize: '1.25rem', letterSpacing: '-0.02em', color: '#0F172A' }}>cluberly</span>
           </div>
           <h1 style={{ fontWeight: 800, fontSize: 'clamp(1.5rem,4vw,2rem)', marginTop: '1.5rem', marginBottom: '0.5rem', color: '#0F172A', letterSpacing: '-0.02em' }}>
