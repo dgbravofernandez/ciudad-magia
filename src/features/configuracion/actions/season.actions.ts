@@ -322,10 +322,10 @@ export async function exportSeasonData() {
     .single()
   const currentSeason = (settings as { current_season?: string } | null)?.current_season ?? '2025/26'
 
-  // Fetch players
+  // Fetch players — TODOS los datos relevantes para el listado de temporada
   const { data: players } = await supabase
     .from('players')
-    .select('first_name, last_name, dni, position, birth_date, status, tutor_name, tutor_email, tutor_phone, teams:team_id(name)')
+    .select('first_name, last_name, dni, nationality, spanish_nationality, license_type, birth_date, position, dominant_foot, dorsal_number, status, tutor_name, tutor_email, tutor_phone, tutor2_name, tutor2_email, notes, is_special_case, teams:team_id(name)')
     .eq('club_id', clubId)
     .neq('status', 'low')
     .order('last_name')

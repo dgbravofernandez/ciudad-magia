@@ -77,6 +77,25 @@ export default async function CampanasPage({
     sb.from('marketing_clubs').select('federation').not('federation', 'is', null),
   ])
 
+  // Métricas de engagement (aperturas, clics, demos)
+  const [
+    sendsTotal, opensTotal, clicksTotal, demosTotal, customersTotal,
+  ] = await Promise.all([
+    sb.from('marketing_email_sends').select('id', { count: 'exact', head: true }).eq('bounced', false),
+    sb.from('marketing_email_sends').select('id', { count: 'exact', head: true }).not('opened_at', 'is', null),
+    sb.from('marketing_email_sends').select('id', { count: 'exact', head: true }).not('clicked_at', 'is', null),
+    sb.from('marketing_demos').select('id', { count: 'exact', head: true }).neq('status', 'canceled'),
+    sb.from('clubs').select('id', { count: 'exact', head: true }).eq('subscription_status', 'active').eq('active', true),
+  ])
+
+  const engagement = {
+    emailsSent: sendsTotal.count ?? 0,
+    opens: opensTotal.count ?? 0,
+    clicks: clicksTotal.count ?? 0,
+    demos: demosTotal.count ?? 0,
+    customers: customersTotal.count ?? 0,
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const federations = Array.from(new Set((federationsRaw ?? []).map((f: any) => f.federation).filter(Boolean))).sort() as string[]
 
@@ -94,6 +113,7 @@ export default async function CampanasPage({
         excluded: statsExcluded.count ?? 0,
         sentToday: sentTodayRes.count ?? 0,
       }}
+      engagement={engagement}
       lastSends={lastSends ?? []}
       clubs={clubs ?? []}
       filteredCount={filteredCount ?? 0}

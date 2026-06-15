@@ -22,6 +22,9 @@ interface Props {
     total: number; pending: number; sent: number; replied: number
     bounced: number; unsubscribed: number; excluded: number; sentToday: number
   }
+  engagement?: {
+    emailsSent: number; opens: number; clicks: number; demos: number; customers: number
+  }
   lastSends: AnyObj[]
   clubs: AnyObj[]
   filteredCount: number
@@ -223,6 +226,9 @@ export function CampaignsView(p: Props) {
           {p.stats.total} clubes · {enviables} enviables · {p.stats.excluded} excluidos · cron L-V 10:00 UTC
         </p>
       </div>
+
+      {/* EMBUDO + PROYECCIÓN */}
+      {p.engagement && <EngagementFunnel e={p.engagement} totalLeads={p.stats.total} pending={p.stats.pending} />}
 
       {/* Status & controles */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
@@ -496,6 +502,83 @@ function Stat({ icon: Icon, label, value, color }: {
         <span className="text-xs text-slate-400">{label}</span>
       </div>
       <p className={`text-xl font-bold ${color}`}>{value}</p>
+    </div>
+  )
+}
+
+function EngagementFunnel({ e, totalLeads, pending }: {
+  e: { emailsSent: number; opens: number; clicks: number; demos: number; customers: number }
+  totalLeads: number; pending: number
+}) {
+  const openRate = e.emailsSent > 0 ? (e.opens / e.emailsSent) * 100 : 0
+  const clickRate = e.emailsSent > 0 ? (e.clicks / e.emailsSent) * 100 : 0
+  const enviados = totalLeads - pending  // leads ya contactados al menos una vez
+
+  // PROYECCIÓN a fin de mes: extrapolar con las tasas observadas (o benchmarks si no hay datos)
+  const obsOpen = openRate > 0 ? openRate / 100 : 0.30
+  const obsClick = clickRate > 0 ? clickRate / 100 : 0.05
+  // funnel: enviado -> abre -> clica -> demo/trial -> cliente
+  const replyToClient = 0.20  // de los que clican, % que acaba cliente (benchmark conservador)
+  // Si mandamos a TODOS los enviables este mes:
+  const proyClientesSiTodos = Math.round(totalLeads * obsClick * replyToClient)
+  // Con el ritmo actual (lo ya enviado):
+  const clientesEstimadosActual = Math.max(e.customers, Math.round(enviados * obsClick * replyToClient))
+
+  const arpu = 75
+  const mrrProyectado = proyClientesSiTodos * arpu
+
+  return (
+    <div className="bg-gradient-to-br from-slate-900 to-pink-950/30 border border-pink-900/40 rounded-xl p-5">
+      <h2 className="text-white font-bold mb-1">📊 Embudo en tiempo real</h2>
+      <p className="text-xs text-slate-400 mb-4">Métricas vivas de la campaña. El pixel registra aperturas y clics automáticamente.</p>
+
+      {/* Funnel horizontal */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+        <FunnelStep label="Enviados" value={enviados} sub={`${totalLeads} en total`} color="text-slate-200" pct={100} />
+        <FunnelStep label="Aperturas" value={e.opens} sub={`${openRate.toFixed(1)}% open rate`} color="text-blue-300" pct={enviados>0?(e.opens/enviados)*100:0} />
+        <FunnelStep label="Clics" value={e.clicks} sub={`${clickRate.toFixed(1)}% click rate`} color="text-purple-300" pct={enviados>0?(e.clicks/enviados)*100:0} />
+        <FunnelStep label="Demos" value={e.demos} sub="reservadas" color="text-yellow-300" pct={enviados>0?(e.demos/enviados)*100:0} />
+        <FunnelStep label="Clientes" value={e.customers} sub="pagando" color="text-emerald-300" pct={enviados>0?(e.customers/enviados)*100:0} />
+      </div>
+
+      {/* Proyección */}
+      <div className="border-t border-slate-800 pt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+        <div className="bg-slate-800/40 rounded-lg p-3">
+          <p className="text-xs text-slate-400">Open rate observado</p>
+          <p className="text-lg font-bold text-blue-300">{openRate.toFixed(1)}%</p>
+          <p className="text-xs text-slate-500">{openRate >= 25 ? '✅ Buena entrega (Inbox)' : openRate > 0 ? '⚠️ Bajo — revisar spam' : 'Sin datos aún'}</p>
+        </div>
+        <div className="bg-slate-800/40 rounded-lg p-3">
+          <p className="text-xs text-slate-400">Si mandamos a los {totalLeads}</p>
+          <p className="text-lg font-bold text-pink-300">~{proyClientesSiTodos} clientes</p>
+          <p className="text-xs text-slate-500">extrapolado con tasas actuales</p>
+        </div>
+        <div className="bg-slate-800/40 rounded-lg p-3">
+          <p className="text-xs text-slate-400">MRR proyectado (ARPU 75€)</p>
+          <p className="text-lg font-bold text-emerald-300">~{mrrProyectado.toLocaleString('es-ES')}€/mes</p>
+          <p className="text-xs text-slate-500">{mrrProyectado*12 >= 1000 ? `${Math.round(mrrProyectado*12/1000)}k€/año ARR` : 'pronto'}</p>
+        </div>
+      </div>
+
+      {openRate === 0 && enviados > 0 && (
+        <p className="text-xs text-amber-400 mt-3">
+          ⏳ Aún sin aperturas registradas. El pixel tarda minutos-horas tras la apertura. Si en 24h sigue a 0%, puede que Gmail bloquee el pixel (no significa que no abran).
+        </p>
+      )}
+      <p className="text-xs text-slate-500 mt-2">
+        Estimación actual: <strong className="text-slate-300">{clientesEstimadosActual} cliente(s)</strong> de lo ya enviado. Proyección conservadora (20% de los que clican convierten).
+      </p>
+    </div>
+  )
+}
+
+function FunnelStep({ label, value, sub, color, pct }: { label: string; value: number; sub: string; color: string; pct: number }) {
+  return (
+    <div className="bg-slate-800/50 rounded-lg p-3 relative overflow-hidden">
+      <div className="absolute bottom-0 left-0 h-1 bg-current opacity-30" style={{ width: `${Math.min(100, pct)}%` }} />
+      <p className="text-xs text-slate-400">{label}</p>
+      <p className={`text-2xl font-bold ${color}`}>{value}</p>
+      <p className="text-xs text-slate-500">{sub}</p>
     </div>
   )
 }

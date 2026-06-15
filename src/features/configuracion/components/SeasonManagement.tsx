@@ -69,19 +69,35 @@ export function SeasonManagement() {
       }
       const seasonSlug = season.replace('/', '-')
 
-      // Players CSV
+      // Players CSV — listado completo de temporada con fecha de nacimiento exacta y DNI/NIE
       if (players.length > 0) {
+        const fmtDate = (d: unknown): string => {
+          if (!d) return ''
+          const s = String(d).slice(0, 10) // YYYY-MM-DD
+          const [y, m, day] = s.split('-')
+          return y && m && day ? `${day}/${m}/${y}` : s
+        }
         downloadCsv(
           players.map((p) => ({
             Nombre: (p.first_name as string) ?? '',
             Apellidos: (p.last_name as string) ?? '',
-            DNI: (p.dni as string) ?? '',
-            Posicion: (p.position as string) ?? '',
+            'DNI/NIE': (p.dni as string) ?? '',
+            'Fecha nacimiento': fmtDate(p.birth_date),
+            Nacionalidad: (p.nationality as string) ?? '',
+            'Española': (p.spanish_nationality as boolean) ? 'Sí' : 'No',
+            'Tipo licencia': (p.license_type as string) ?? '',
             Equipo: ((p.teams as { name: string } | null)?.name) ?? '',
+            Dorsal: (p.dorsal_number as number) ?? '',
+            Posicion: (p.position as string) ?? '',
+            'Pie dominante': (p.dominant_foot as string) ?? '',
             Estado: (p.status as string) ?? '',
-            'Tutor': (p.tutor_name as string) ?? '',
-            'Email tutor': (p.tutor_email as string) ?? '',
-            'Telefono tutor': (p.tutor_phone as string) ?? '',
+            'Caso especial': (p.is_special_case as boolean) ? 'Sí' : '',
+            'Tutor 1': (p.tutor_name as string) ?? '',
+            'Email tutor 1': (p.tutor_email as string) ?? '',
+            'Telefono tutor 1': (p.tutor_phone as string) ?? '',
+            'Tutor 2': (p.tutor2_name as string) ?? '',
+            'Email tutor 2': (p.tutor2_email as string) ?? '',
+            Notas: (p.notes as string) ?? '',
           })),
           `Jugadores-${seasonSlug}.csv`
         )
