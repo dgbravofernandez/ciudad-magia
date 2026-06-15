@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Inter,system-ui,sans-serif}
+body{width:1920px;height:1080px;background:#0F172A;display:flex;align-items:center;justify-content:center;color:#fff;overflow:hidden;padding:80px}
+.layout{display:grid;grid-template-columns:1.3fr 1fr;gap:80px;align-items:center;width:100%}
+.left h2{font-size:80px;font-weight:900;letter-spacing:-0.03em;line-height:1.05;margin-bottom:24px}
+.gradient{background:linear-gradient(90deg,#F472B6,#EC4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.left p{font-size:28px;color:#94A3B8;line-height:1.5;margin-bottom:40px}
+.click-badge{display:inline-flex;align-items:center;gap:16px;background:linear-gradient(135deg,#EC4899,#BE185D);padding:24px 40px;border-radius:16px;font-size:36px;font-weight:900;box-shadow:0 20px 60px rgba(236,72,153,0.4)}
+.right{background:#fff;color:#0F172A;border-radius:24px;padding:32px;box-shadow:0 40px 80px rgba(0,0,0,0.5)}
+.panel-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #F1F5F9}
+.panel-title{font-size:22px;font-weight:800}
+.count{background:#FDF2F8;color:#BE185D;padding:6px 18px;border-radius:999px;font-size:18px;font-weight:800}
+.row-pick{display:flex;align-items:center;gap:16px;padding:14px;border-radius:8px;font-size:18px;margin-bottom:6px;background:#FDF2F8}
+.check{width:24px;height:24px;border-radius:6px;background:#EC4899;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900}
+.row-pick.muted{background:#F8FAFC;color:#94A3B8}
+.row-pick.muted .check{background:#E2E8F0;color:#fff}
+.send-button{margin-top:24px;background:linear-gradient(135deg,#EC4899,#BE185D);color:#fff;padding:18px;border-radius:12px;text-align:center;font-size:22px;font-weight:900;box-shadow:0 10px 30px rgba(236,72,153,0.4)}
+</style></head><body>
+<div class="layout">
+  <div class="left">
+    <h2>30 avisos de deuda<br/>en <span class="gradient">un clic.</span></h2>
+    <p>Lo que antes eran 2 horas,<br/>ahora son 10 segundos.</p>
+    <div class="click-badge">⚡ Enviar 30 avisos</div>
+  </div>
+  <div class="right">
+    <div class="panel-h"><div class="panel-title">Familias con deuda</div><div class="count">30 seleccionadas</div></div>
+    <div class="row-pick"><div class="check">✓</div><div>Familia Carlos M. — Benjamín A</div></div>
+    <div class="row-pick"><div class="check">✓</div><div>Familia Luis R. — Infantil A</div></div>
+    <div class="row-pick"><div class="check">✓</div><div>Familia Mario T. — Alevín A</div></div>
+    <div class="row-pick"><div class="check">✓</div><div>Familia Lucía D. — Benjamín B</div></div>
+    <div class="row-pick muted"><div class="check">✓</div><div>+ 26 familias más…</div></div>
+    <div class="send-button">Enviar email personalizado a las 30 →</div>
+  </div>
+</div>
+</body></html>

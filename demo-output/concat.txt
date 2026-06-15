@@ -1,0 +1,7 @@
+file 'C:/Users/dgbra/Ciudad Magia/demo-output/frames/01-hook.mp4'
+file 'C:/Users/dgbra/Ciudad Magia/demo-output/frames/02-dolor.mp4'
+file 'C:/Users/dgbra/Ciudad Magia/demo-output/frames/03-cuotas.mp4'
+file 'C:/Users/dgbra/Ciudad Magia/demo-output/frames/04-avisos.mp4'
+file 'C:/Users/dgbra/Ciudad Magia/demo-output/frames/05-asistencia.mp4'
+file 'C:/Users/dgbra/Ciudad Magia/demo-output/frames/06-validacion.mp4'
+file 'C:/Users/dgbra/Ciudad Magia/demo-output/frames/07-cta.mp4'

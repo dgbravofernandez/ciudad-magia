@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Inter,system-ui,sans-serif}
+body{width:1920px;height:1080px;background:#FDF2F8;display:flex;align-items:center;justify-content:center;color:#0F172A;overflow:hidden;padding:80px}
+.layout{display:grid;grid-template-columns:1fr 1.5fr;gap:80px;align-items:center;width:100%}
+.left h2{font-size:84px;font-weight:900;letter-spacing:-0.03em;line-height:1.05;color:#0F172A;margin-bottom:24px}
+.left .gradient{background:linear-gradient(90deg,#EC4899,#BE185D);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.left p{font-size:32px;color:#475569;line-height:1.5}
+.dashboard{background:#fff;border-radius:24px;padding:40px;box-shadow:0 20px 60px rgba(236,72,153,0.15);border:1px solid #FBCFE8}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px}
+.kpi{background:#FDF2F8;border-radius:12px;padding:20px;border:1px solid #FBCFE8}
+.kpi-label{font-size:14px;color:#BE185D;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px}
+.kpi-value{font-size:28px;font-weight:900;color:#0F172A}
+.list-header{display:grid;grid-template-columns:1fr 1fr 1fr 120px;gap:12px;padding:14px 16px;background:#FDF2F8;border-radius:8px;font-size:14px;color:#6B7280;font-weight:700;text-transform:uppercase;letter-spacing:0.05em}
+.list-row{display:grid;grid-template-columns:1fr 1fr 1fr 120px;gap:12px;padding:18px 16px;border-bottom:1px solid #F1F5F9;font-size:18px;color:#0F172A;align-items:center}
+.list-row strong{font-weight:700}
+.badge{padding:6px 14px;border-radius:999px;font-size:14px;font-weight:700;text-align:center;display:inline-block}
+.badge.ok{background:#D1FAE5;color:#065F46}
+.badge.late{background:#FEE2E2;color:#991B1B}
+.badge.pending{background:#FEF3C7;color:#92400E}
+</style></head><body>
+<div class="layout">
+  <div class="left">
+    <h2>Quién paga,<br/><span class="gradient">quién debe.</span></h2>
+    <p>Un vistazo. Sin Excel.<br/>Sin perseguir a nadie.</p>
+  </div>
+  <div class="dashboard">
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-label">Cobrado</div><div class="kpi-value">€4.320</div></div>
+      <div class="kpi"><div class="kpi-label">Pendiente</div><div class="kpi-value">€680</div></div>
+      <div class="kpi"><div class="kpi-label">Socios</div><div class="kpi-value">147</div></div>
+      <div class="kpi"><div class="kpi-label">Morosos</div><div class="kpi-value">12</div></div>
+    </div>
+    <div class="list-header"><div>Jugador</div><div>Equipo</div><div>Cuota</div><div>Estado</div></div>
+    <div class="list-row"><strong>Carlos M.</strong><div>Benjamín A</div><div>€60</div><span class="badge ok">Cobrado</span></div>
+    <div class="list-row"><strong>Ana G.</strong><div>Alevín B</div><div>€60</div><span class="badge pending">Parcial</span></div>
+    <div class="list-row"><strong>Luis R.</strong><div>Infantil A</div><div>€75</div><span class="badge late">Deuda 30d</span></div>
+    <div class="list-row"><strong>Sara P.</strong><div>Cadete</div><div>€85</div><span class="badge ok">Cobrado</span></div>
+    <div class="list-row"><strong>Mario T.</strong><div>Alevín A</div><div>€60</div><span class="badge late">Deuda 15d</span></div>
+  </div>
+</div>
+</body></html>

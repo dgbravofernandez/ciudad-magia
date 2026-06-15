@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Inter,system-ui,sans-serif}
+body{width:1920px;height:1080px;background:linear-gradient(135deg,#1F2937,#0F172A);display:flex;align-items:center;justify-content:center;color:#fff;overflow:hidden;padding:80px;position:relative}
+.bg-blob{position:absolute;bottom:-300px;left:-200px;width:800px;height:800px;background:radial-gradient(circle,#EC489950 0%,transparent 70%);filter:blur(80px)}
+.layout{display:grid;grid-template-columns:1.2fr 0.8fr;gap:80px;align-items:center;width:100%;z-index:1}
+.left h2{font-size:84px;font-weight:900;letter-spacing:-0.03em;line-height:1.05;margin-bottom:24px;color:#fff}
+.gradient{background:linear-gradient(90deg,#F472B6,#EC4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.left p{font-size:30px;color:#CBD5E1;line-height:1.5;margin-bottom:32px}
+.pill{display:inline-flex;align-items:center;gap:12px;padding:14px 28px;background:rgba(236,72,153,0.15);border:1px solid rgba(236,72,153,0.3);border-radius:999px;font-size:24px;color:#F472B6;font-weight:700;margin-right:12px;margin-bottom:12px}
+.phone{width:380px;background:#1F2937;border-radius:48px;padding:18px;box-shadow:0 40px 100px rgba(0,0,0,0.6);border:6px solid #374151;margin:0 auto}
+.phone-screen{background:#fff;border-radius:32px;overflow:hidden;color:#0F172A;padding:24px}
+.phone-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid #F1F5F9}
+.team-name{font-size:18px;font-weight:800}
+.date{font-size:14px;color:#94A3B8}
+.player-row{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid #F8FAFC}
+.avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#EC4899,#BE185D);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:16px}
+.name{flex:1;font-weight:600;font-size:15px}
+.toggle{width:48px;height:28px;border-radius:14px;background:#10B981;position:relative}
+.toggle::after{content:'';position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff}
+.toggle.off{background:#E2E8F0}
+.toggle.off::after{right:auto;left:3px}
+.save{margin-top:18px;background:linear-gradient(135deg,#EC4899,#BE185D);color:#fff;padding:14px;border-radius:12px;text-align:center;font-weight:800;font-size:16px}
+</style></head><body>
+<div class="bg-blob"></div>
+<div class="layout">
+  <div class="left">
+    <h2>Asistencia desde<br/>el <span class="gradient">móvil.</span></h2>
+    <p>El entrenador marca al<br/>acabar el entreno.<br/>La coordinación lo ve en tiempo real.</p>
+    <div>
+      <span class="pill">⚽ 2 minutos</span>
+      <span class="pill">📱 Sin cargar Excel</span>
+    </div>
+  </div>
+  <div>
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="phone-h">
+          <div><div class="team-name">Alevín A</div><div class="date">Hoy 19:30</div></div>
+          <div style="font-size:14px;color:#10B981;font-weight:700">10/12 ✓</div>
+        </div>
+        <div class="player-row"><div class="avatar">CM</div><div class="name">Carlos M.</div><div class="toggle"></div></div>
+        <div class="player-row"><div class="avatar">AG</div><div class="name">Ana G.</div><div class="toggle"></div></div>
+        <div class="player-row"><div class="avatar">LR</div><div class="name">Luis R.</div><div class="toggle off"></div></div>
+        <div class="player-row"><div class="avatar">SP</div><div class="name">Sara P.</div><div class="toggle"></div></div>
+        <div class="player-row"><div class="avatar">MT</div><div class="name">Mario T.</div><div class="toggle"></div></div>
+        <div class="save">Guardar asistencia</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>

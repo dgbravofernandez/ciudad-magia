@@ -21,6 +21,7 @@ const PUBLIC_PREFIX = [
   '/recomendar',        // Página pública de referidos (sin login)
   '/plantilla-cuotas',  // Lead magnet público
   '/casos-de-exito',    // Casos de éxito públicos
+  '/demo',              // Página pública del vídeo demo
   '/downloads',         // Descargas estáticas
   '/api/lead-magnet',   // API captura email
   '/api/marketing',     // Pixels, clicks y unsubscribe — públicos por diseño

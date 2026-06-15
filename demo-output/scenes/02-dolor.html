@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Inter,system-ui,sans-serif}
+body{width:1920px;height:1080px;background:#0F172A;display:flex;align-items:center;justify-content:center;color:#fff;overflow:hidden;position:relative;padding:80px}
+.layout{display:grid;grid-template-columns:1fr 1.2fr;gap:80px;align-items:center;width:100%}
+.left h2{font-size:84px;font-weight:900;letter-spacing:-0.03em;line-height:1.05;color:#fff;margin-bottom:48px}
+.bullet{font-size:32px;color:#CBD5E1;margin-bottom:24px;display:flex;align-items:center;gap:16px;font-weight:500}
+.x{width:36px;height:36px;border-radius:50%;background:#EF4444;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;flex-shrink:0}
+.right{background:#fff;border-radius:16px;padding:24px;box-shadow:0 40px 80px rgba(0,0,0,0.5);transform:rotate(-2deg)}
+.excel-row{display:grid;grid-template-columns:60px 1fr 1fr 1.5fr 100px;gap:8px;padding:14px 12px;border-bottom:1px solid #E5E7EB;font-size:18px;color:#1F2937}
+.excel-row.header{background:#15803D;color:#fff;font-weight:700;border-radius:8px 8px 0 0}
+.excel-row.red{background:#FEE2E2;color:#991B1B}
+.excel-row.yellow{background:#FEF3C7;color:#92400E}
+.excel-row.green{color:#15803D}
+</style></head><body>
+<div class="layout">
+  <div class="left">
+    <h2>El Excel se<br/>queda corto</h2>
+    <div class="bullet"><div class="x">✕</div>Familias que pagan tarde</div>
+    <div class="bullet"><div class="x">✕</div>Hojas descuadradas</div>
+    <div class="bullet"><div class="x">✕</div>WhatsApp para todo</div>
+    <div class="bullet"><div class="x">✕</div>Cierre de caja eterno</div>
+  </div>
+  <div class="right">
+    <div class="excel-row header"><div>#</div><div>Jugador</div><div>Equipo</div><div>Email</div><div>Estado</div></div>
+    <div class="excel-row red"><div>1</div><div>Carlos M.</div><div>Benjamín A</div><div>tutor1@...</div><div>DEUDA</div></div>
+    <div class="excel-row yellow"><div>2</div><div>Ana G.</div><div>Alevín B</div><div>tutor2@...</div><div>PARCIAL</div></div>
+    <div class="excel-row red"><div>3</div><div>Luis R.</div><div>Infantil A</div><div>?</div><div>DEUDA</div></div>
+    <div class="excel-row green"><div>4</div><div>Sara P.</div><div>Cadete</div><div>tutor4@...</div><div>OK</div></div>
+    <div class="excel-row red"><div>5</div><div>Mario T.</div><div>Alevín A</div><div>?</div><div>DEUDA</div></div>
+    <div class="excel-row red"><div>6</div><div>Lucía D.</div><div>Benjamín B</div><div>tutor6@...</div><div>DEUDA</div></div>
+    <div class="excel-row yellow"><div>7</div><div>Pablo S.</div><div>Infantil B</div><div>tutor7@...</div><div>PARCIAL</div></div>
+  </div>
+</div>
+</body></html>
