@@ -325,15 +325,15 @@ export async function exportSeasonData() {
   // Fetch players — TODOS los datos relevantes para el listado de temporada
   const { data: players } = await supabase
     .from('players')
-    .select('first_name, last_name, dni, nationality, spanish_nationality, license_type, birth_date, position, dominant_foot, dorsal_number, status, tutor_name, tutor_email, tutor_phone, tutor2_name, tutor2_email, notes, is_special_case, teams:team_id(name)')
+    .select('id, first_name, last_name, dni, nationality, spanish_nationality, license_type, birth_date, position, dominant_foot, dorsal_number, status, tutor_name, tutor_email, tutor_phone, tutor2_name, tutor2_email, notes, is_special_case, teams:team_id(name)')
     .eq('club_id', clubId)
     .neq('status', 'low')
     .order('last_name')
 
-  // Fetch payments for current season
+  // Fetch payments for current season (con player_id para agregar cuotas por jugador)
   const { data: payments } = await supabase
     .from('quota_payments')
-    .select('players:player_id(first_name, last_name), concept, amount_due, amount_paid, status, payment_date, payment_method')
+    .select('player_id, players:player_id(first_name, last_name), concept, amount_due, amount_paid, status, payment_date, payment_method')
     .eq('club_id', clubId)
     .eq('season', currentSeason)
     .order('payment_date', { ascending: false })

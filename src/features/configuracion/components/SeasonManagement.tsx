@@ -69,16 +69,34 @@ export function SeasonManagement() {
       }
       const seasonSlug = season.replace('/', '-')
 
-      // Players CSV — listado completo de temporada con fecha de nacimiento exacta y DNI/NIE
+      const fmtDate = (d: unknown): string => {
+        if (!d) return ''
+        const s = String(d).slice(0, 10)
+        const [y, m, day] = s.split('-')
+        return y && m && day ? `${day}/${m}/${y}` : s
+      }
+
+      // Agregar cuotas por jugador (sumar amount_due / amount_paid de sus pagos)
+      const cuotasPorJugador = new Map<string, { debido: number; pagado: number }>()
+      for (const pay of payments) {
+        const pid = pay.player_id as string | null
+        if (!pid) continue
+        const acc = cuotasPorJugador.get(pid) ?? { debido: 0, pagado: 0 }
+        acc.debido += Number(pay.amount_due ?? 0)
+        acc.pagado += Number(pay.amount_paid ?? 0)
+        cuotasPorJugador.set(pid, acc)
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const XLSX = await import('xlsx')
+      const wb = XLSX.utils.book_new()
+
+      // Hoja 1: Jugadores con cuotas agregadas
       if (players.length > 0) {
-        const fmtDate = (d: unknown): string => {
-          if (!d) return ''
-          const s = String(d).slice(0, 10) // YYYY-MM-DD
-          const [y, m, day] = s.split('-')
-          return y && m && day ? `${day}/${m}/${y}` : s
-        }
-        downloadCsv(
-          players.map((p) => ({
+        const rows = players.map((p) => {
+          const cuotas = cuotasPorJugador.get(p.id as string) ?? { debido: 0, pagado: 0 }
+          const pendiente = Math.max(0, cuotas.debido - cuotas.pagado)
+          return {
             Nombre: (p.first_name as string) ?? '',
             Apellidos: (p.last_name as string) ?? '',
             'DNI/NIE': (p.dni as string) ?? '',
@@ -92,50 +110,56 @@ export function SeasonManagement() {
             'Pie dominante': (p.dominant_foot as string) ?? '',
             Estado: (p.status as string) ?? '',
             'Caso especial': (p.is_special_case as boolean) ? 'Sí' : '',
+            'Cuota total (€)': cuotas.debido,
+            'Pagado (€)': cuotas.pagado,
+            'Pendiente (€)': pendiente,
+            'Estado pago': cuotas.debido === 0 ? 'Sin cuotas' : pendiente === 0 ? 'AL DÍA' : cuotas.pagado === 0 ? 'SIN PAGAR' : 'PARCIAL',
             'Tutor 1': (p.tutor_name as string) ?? '',
             'Email tutor 1': (p.tutor_email as string) ?? '',
             'Telefono tutor 1': (p.tutor_phone as string) ?? '',
             'Tutor 2': (p.tutor2_name as string) ?? '',
             'Email tutor 2': (p.tutor2_email as string) ?? '',
             Notas: (p.notes as string) ?? '',
-          })),
-          `Jugadores-${seasonSlug}.csv`
-        )
+          }
+        })
+        const ws = XLSX.utils.json_to_sheet(rows)
+        ws['!cols'] = Object.keys(rows[0]).map((k) => ({ wch: Math.max(12, k.length + 2) }))
+        XLSX.utils.book_append_sheet(wb, ws, 'Jugadores')
       }
 
-      // Payments CSV
+      // Hoja 2: Detalle de pagos
       if (payments.length > 0) {
-        downloadCsv(
-          payments.map((p) => ({
-            Jugador: (() => {
-              const pl = p.players as { first_name: string; last_name: string } | null
-              return pl ? `${pl.first_name} ${pl.last_name}` : ''
-            })(),
+        const rows = payments.map((p) => {
+          const pl = p.players as { first_name: string; last_name: string } | null
+          return {
+            Jugador: pl ? `${pl.first_name} ${pl.last_name}` : '',
             Concepto: (p.concept as string) ?? '',
-            'Importe debido': (p.amount_due as number) ?? 0,
-            'Importe pagado': (p.amount_paid as number) ?? 0,
+            'Importe debido (€)': Number(p.amount_due ?? 0),
+            'Importe pagado (€)': Number(p.amount_paid ?? 0),
             Estado: (p.status as string) ?? '',
-            'Fecha pago': (p.payment_date as string) ?? '',
+            'Fecha pago': fmtDate(p.payment_date),
             'Forma pago': (p.payment_method as string) ?? '',
-          })),
-          `Pagos-${seasonSlug}.csv`
-        )
+          }
+        })
+        const ws = XLSX.utils.json_to_sheet(rows)
+        ws['!cols'] = Object.keys(rows[0]).map((k) => ({ wch: Math.max(12, k.length + 2) }))
+        XLSX.utils.book_append_sheet(wb, ws, 'Pagos detalle')
       }
 
-      // Sessions CSV
+      // Hoja 3: Sesiones
       if (sessions.length > 0) {
-        downloadCsv(
-          sessions.map((s) => ({
-            Tipo: (s.session_type as string) ?? '',
-            Fecha: (s.session_date as string) ?? '',
-            Equipo: ((s.teams as { name: string } | null)?.name) ?? '',
-            Notas: (s.notes as string) ?? '',
-          })),
-          `Sesiones-${seasonSlug}.csv`
-        )
+        const rows = sessions.map((s) => ({
+          Tipo: (s.session_type as string) ?? '',
+          Fecha: fmtDate(s.session_date),
+          Equipo: ((s.teams as { name: string } | null)?.name) ?? '',
+          Notas: (s.notes as string) ?? '',
+        }))
+        const ws = XLSX.utils.json_to_sheet(rows)
+        XLSX.utils.book_append_sheet(wb, ws, 'Sesiones')
       }
 
-      toast.success(`Datos de temporada ${season} exportados`)
+      XLSX.writeFile(wb, `Temporada-${seasonSlug}.xlsx`)
+      toast.success(`Temporada ${season} exportada a Excel`)
     })
   }
 
@@ -312,25 +336,3 @@ ALTER TABLE club_settings ADD COLUMN IF NOT EXISTS current_season TEXT DEFAULT &
 
 // ── CSV download helper ───────────────────────────────────────────────────────
 
-function downloadCsv(rows: Record<string, unknown>[], filename: string) {
-  if (rows.length === 0) return
-  const headers = Object.keys(rows[0])
-  const csv = [
-    headers.join(','),
-    ...rows.map((r) =>
-      headers.map((h) => {
-        const val = r[h] ?? ''
-        const str = String(val)
-        return str.includes(',') || str.includes('"') || str.includes('\n')
-          ? `"${str.replace(/"/g, '""')}"`
-          : str
-      }).join(',')
-    ),
-  ].join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(a.href)
-}
