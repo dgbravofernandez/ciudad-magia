@@ -24,6 +24,7 @@ const PUBLIC_PREFIX = [
   '/downloads',         // Descargas estáticas
   '/api/lead-magnet',   // API captura email
   '/api/marketing',     // Pixels, clicks y unsubscribe — públicos por diseño
+  '/api/debug/transport', // Diagnóstico público de qué transport email se usa
 ]
 
 // Rutas exclusivas del panel superadmin — no necesitan club membership
