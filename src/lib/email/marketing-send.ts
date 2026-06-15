@@ -22,8 +22,12 @@ interface MarketingEmailPayload {
 
 const RESEND_KEY = process.env.RESEND_API_KEY
 const MARKETING_FROM = process.env.MARKETING_FROM_EMAIL ?? 'hola@cluberly.club'
-// Reply-To se queda en el buzón Gmail real para no perder respuestas (el dominio cluberly.club no tiene buzones todavía).
-const MARKETING_REPLY_TO = process.env.MARKETING_REPLY_TO ?? 'iakevoapp@gmail.com'
+// Reply-To por defecto va al dominio propio para NO exponer Gmail personal
+// en headers públicos de 2000+ emails de campaña (vector de spear-phishing).
+// IMPORTANTE: hay que configurar email forwarding del dominio (Cloudflare Email
+// Routing gratis, o alias en Resend) para que las respuestas a hola@cluberly.club
+// se reenvíen a iakevoapp@gmail.com. Sin ese setup, las respuestas se pierden.
+const MARKETING_REPLY_TO = process.env.MARKETING_REPLY_TO ?? 'hola@cluberly.club'
 
 let _resend: Resend | null = null
 function getResend(): Resend | null {
