@@ -154,12 +154,22 @@ export default async function PagosPage({
   // Historial de avisos de cuota enviados
   const reminderHistory = await getReminderHistory().catch(() => ({}))
 
-  // Cuotas por temporada (season_fees) — fuente principal
-  const { data: seasonFees } = await sb
+  // Cuotas por temporada (season_fees) — fuente principal.
+  // Intentar ambos formatos: '2025/26' (barra, configuración manual) y '2025-26'
+  // (guión, formato de getCurrentSeason) — hay inconsistencia histórica en la BD.
+  const feesSeason = season.replace('-', '/')  // '2025-26' → '2025/26'
+  const { data: seasonFeesSlash } = await sb
+    .from('season_fees')
+    .select('team_id, concept, amount')
+    .eq('club_id', clubId)
+    .eq('season', feesSeason)
+  const { data: seasonFeesDash } = await sb
     .from('season_fees')
     .select('team_id, concept, amount')
     .eq('club_id', clubId)
     .eq('season', season)
+  // Usar el que tenga datos; si ambos tienen, el slash tiene preferencia (fuente manual)
+  const seasonFees = (seasonFeesSlash ?? []).length > 0 ? seasonFeesSlash : seasonFeesDash
 
   // Fallback legacy quota_amounts (temporada actual)
   const { data: settings } = await sb

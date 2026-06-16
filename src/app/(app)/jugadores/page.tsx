@@ -87,8 +87,10 @@ export default async function JugadoresPage() {
   for (const p of (pagosData ?? []) as any[]) {
     if (!p.player_id || !p.season) continue
     const playerMap = paymentsByPlayer[p.player_id] ?? (paymentsByPlayer[p.player_id] = {})
-    const seasonAcc = playerMap[p.season] ?? (playerMap[p.season] = { due: 0, paid: 0 })
-    seasonAcc.due += Number(p.amount_due ?? 0)
+    // Normalizar al formato barra '2025/26' que usa club_settings.current_season
+    const seasonKey = (p.season as string).replace('-', '/')
+    const seasonAcc = playerMap[seasonKey] ?? (playerMap[seasonKey] = { due: 0, paid: 0 })
+    seasonAcc.due  += Number(p.amount_due  ?? 0)
     seasonAcc.paid += Number(p.amount_paid ?? 0)
   }
 

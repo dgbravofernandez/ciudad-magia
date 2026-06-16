@@ -223,7 +223,7 @@ export function PaymentRegistration({
     return payments
       .filter(p => p.status !== 'refunded' && Number(p.amount_paid) > 0 && p.payment_date)
       .sort((a, b) => (b.payment_date ?? '').localeCompare(a.payment_date ?? ''))
-      .slice(0, 20)
+      .slice(0, 100)
   }, [payments])
 
   // Pending players for table

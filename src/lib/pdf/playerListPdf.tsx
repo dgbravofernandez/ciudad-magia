@@ -34,6 +34,23 @@ function fmtEuro(n: number): string {
   return n === 0 ? '—' : `${n.toFixed(0)} €`
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  active: 'Activo', trial: 'Prueba', low: 'Baja', injured: 'Lesión',
+  suspended: 'Sancionado', registered: 'Alta', pending: 'Pendiente',
+}
+function fmtStatus(s: string): string {
+  return STATUS_LABELS[s] ?? s
+}
+
+const POS_LABELS: Record<string, string> = {
+  goalkeeper: 'Port.', defender: 'Def.', midfielder: 'Cent.',
+  forward: 'Del.', portero: 'Port.', delantero: 'Del.',
+  centrocampista: 'Cent.', defensa: 'Def.',
+}
+function fmtPos(p: string): string {
+  return POS_LABELS[p.toLowerCase()] ?? p
+}
+
 function payColor(label: PlayerListPdfRow['payment']['label']): string {
   if (label === 'Al día') return '#16A34A'
   if (label === 'Parcial') return '#F59E0B'
@@ -126,8 +143,8 @@ export async function generatePlayerListPdf(input: PlayerListPdfInput): Promise<
             <Text style={styles.c_dni}>{p.dni}</Text>
             <Text style={styles.c_nac}>{fmtDate(p.birthDate)}</Text>
             <Text style={styles.c_team}>{p.teamName}</Text>
-            <Text style={styles.c_pos}>{p.position}</Text>
-            <Text style={styles.c_status}>{p.status}</Text>
+            <Text style={styles.c_pos}>{fmtPos(p.position)}</Text>
+            <Text style={styles.c_status}>{fmtStatus(p.status)}</Text>
             <Text style={[styles.c_pay, styles.badge, { color: payColor(p.payment.label) }]}>{p.payment.label}</Text>
             <Text style={styles.c_due}>{fmtEuro(p.payment.due)}</Text>
             <Text style={styles.c_paid}>{fmtEuro(p.payment.paid)}</Text>
