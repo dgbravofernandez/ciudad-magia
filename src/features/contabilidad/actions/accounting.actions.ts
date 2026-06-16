@@ -110,11 +110,62 @@ export async function registerPayment(data: {
   const pendingRecs = ((seasonRecs ?? []) as { id: string; amount_due: number; amount_paid: number }[])
     .filter(r => Number(r.amount_due) - Number(r.amount_paid) > 0)
 
+  // ── Descuento pronto pago ───────────────────────────────────────────────────
+  // Si el importe pagado coincide con el total descontado (tolerancia ±1€),
+  // reducir amount_due proporcionalmente en los registros pendientes y
+  // marcar todo como pagado. Misma lógica que el descuento de hermanos:
+  // se descuenta del importe esperado, no se ignora la diferencia.
+  // Funciona combinado con descuento hermanos (que ya está en amount_due).
+  let effectivePendingRecs = pendingRecs
+  let earlyDiscountNote: string | null = null
+
+  try {
+    const totalRemaining = pendingRecs.reduce(
+      (s, r) => s + Number(r.amount_due) - Number(r.amount_paid), 0,
+    )
+    if (pendingRecs.length > 0 && totalRemaining > 0) {
+      const { data: clubSettings } = await sb
+        .from('club_settings').select('quota_amounts').eq('club_id', clubId).single()
+      const earlyPct: number = Number(clubSettings?.quota_amounts?.earlyPayDiscount ?? 0)
+
+      if (earlyPct > 0) {
+        const discountedTotal = Math.round(totalRemaining * (1 - earlyPct / 100) * 100) / 100
+        if (Math.abs(data.amount - discountedTotal) <= 1.01) {
+          // Distribuir el descuento proporcionalmente entre los registros pendientes
+          const discountEur = totalRemaining - discountedTotal
+          earlyDiscountNote = `Descuento pronto pago ${earlyPct}%`
+          let applied = 0
+          const adjusted: typeof pendingRecs = []
+          for (let i = 0; i < pendingRecs.length; i++) {
+            const rec = pendingRecs[i]
+            const remaining = Number(rec.amount_due) - Number(rec.amount_paid)
+            const isLast = i === pendingRecs.length - 1
+            const share = remaining / totalRemaining
+            const d = isLast
+              ? Math.round((discountEur - applied) * 100) / 100
+              : Math.round(discountEur * share * 100) / 100
+            applied += d
+            const newDue = Math.round((Number(rec.amount_due) - d) * 100) / 100
+            const { error: adjustErr } = await sb
+              .from('quota_payments').update({ amount_due: newDue }).eq('id', rec.id)
+            if (adjustErr) throw new Error(adjustErr.message)
+            adjusted.push({ ...rec, amount_due: newDue })
+          }
+          effectivePendingRecs = adjusted
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[earlyDiscount] no aplicado:', (e as Error).message)
+    effectivePendingRecs = pendingRecs  // revert to original on error
+  }
+
   let paymentId: string | null = null
 
-  if (pendingRecs && pendingRecs.length > 0) {
+  if (effectivePendingRecs && effectivePendingRecs.length > 0) {
     // Calcular distribución con lógica pura (testeable) y luego ejecutar en BD
-    const applications = applyPaymentToRecords(pendingRecs, data.amount)
+    const applications = applyPaymentToRecords(effectivePendingRecs, data.amount)
+    const notesCombined = [earlyDiscountNote, data.notes || null].filter(Boolean).join('. ') || null
 
     for (const app of applications) {
       const updateData = app.newStatus === 'paid'
@@ -123,7 +174,7 @@ export async function registerPayment(data: {
             payment_date: data.date,
             payment_method: dbMethod,
             status: 'paid' as const,
-            notes: data.notes || null,
+            notes: notesCombined,
             email_sent: false,
             registered_by: memberId || null,
           }
@@ -131,7 +182,7 @@ export async function registerPayment(data: {
             amount_paid: app.newAmountPaid,
             payment_date: data.date,
             payment_method: dbMethod,
-            notes: data.notes || null,
+            notes: notesCombined,
             registered_by: memberId || null,
           }
 

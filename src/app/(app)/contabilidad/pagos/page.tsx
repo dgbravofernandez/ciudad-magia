@@ -77,13 +77,15 @@ export default async function PagosPage({
   const lastDay = new Date(Number(yearStr), Number(monthStr), 0).getDate()
   const monthEnd = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`
 
-  // KPI: total paid this month (en la temporada seleccionada)
+  // KPI: total recaudado este mes — incluye pagos parciales (status='pending' pero
+  // con amount_paid > 0) para no perder transferencias y cuotas con dto pronto pago.
   const { data: paidThisMonth } = await sb
     .from('quota_payments')
     .select('amount_paid')
     .eq('club_id', clubId)
     .eq('season', season)
-    .eq('status', 'paid')
+    .neq('status', 'refunded')
+    .gt('amount_paid', 0)
     .gte('payment_date', monthStart)
     .lte('payment_date', monthEnd)
 
