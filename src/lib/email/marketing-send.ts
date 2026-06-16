@@ -16,6 +16,7 @@ interface MarketingEmailPayload {
   to: string
   subject: string
   html: string
+  text?: string
   fromName: string
   replyTo?: string
 }
@@ -46,6 +47,7 @@ async function sendViaResend(payload: MarketingEmailPayload): Promise<{ sent: bo
       to: payload.to,
       subject: payload.subject,
       html: payload.html,
+      ...(payload.text ? { text: payload.text } : {}),
       replyTo: payload.replyTo ?? MARKETING_REPLY_TO,
       headers: {
         'List-Unsubscribe': `<mailto:${MARKETING_FROM}?subject=baja>`,
@@ -77,6 +79,7 @@ async function sendViaGmail(payload: MarketingEmailPayload): Promise<{ sent: boo
       to: payload.to,
       subject: payload.subject,
       html: payload.html,
+      ...(payload.text ? { text: payload.text } : {}),
       replyTo: payload.replyTo ?? MARKETING_REPLY_TO,
       headers: { 'List-Unsubscribe': `<mailto:${MARKETING_REPLY_TO}?subject=baja>` },
     })

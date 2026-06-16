@@ -24,6 +24,24 @@ function renderTemplate(html: string, vars: Record<string, string>): string {
   return html.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '')
 }
 
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<a[^>]+href="([^"]+)"[^>]*>([^<]+)<\/a>/gi, '$2 ( $1 )')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 /**
  * Token de unsubscribe ligado al send.id (nonce real) — no enumerable.
  * Antes era HMAC(clubId), filtrable y reutilizable.
@@ -126,11 +144,14 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
     }
     const subject = renderTemplate(tpl.subject, vars)
     const html = renderTemplate(tpl.body_html, vars)
+    // text/plain: usa body_text de la plantilla si existe, si no lo genera del HTML
+    const rawText = tpl.body_text ? renderTemplate(tpl.body_text, vars) : htmlToPlainText(html)
 
     const result = await sendMarketingEmail({
       to: claimed.email,
       subject,
       html,
+      text: rawText,
       fromName: settings.from_name,
       replyTo: settings.reply_to || settings.from_email,
     })
