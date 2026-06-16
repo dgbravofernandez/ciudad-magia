@@ -510,9 +510,12 @@ function EngagementFunnel({ e, totalLeads, pending }: {
   e: { emailsSent: number; opens: number; clicks: number; demos: number; customers: number }
   totalLeads: number; pending: number
 }) {
-  const openRate = e.emailsSent > 0 ? (e.opens / e.emailsSent) * 100 : 0
-  const clickRate = e.emailsSent > 0 ? (e.clicks / e.emailsSent) * 100 : 0
-  const enviados = totalLeads - pending  // leads ya contactados al menos una vez
+  // "enviados" = nº real de emails enviados (marketing_email_sends), NO total-pending
+  // (total-pending contaba mal porque excluía los clubes 'excluded' del pending).
+  const enviados = e.emailsSent
+  const openRate = enviados > 0 ? (e.opens / enviados) * 100 : 0
+  const clickRate = enviados > 0 ? (e.clicks / enviados) * 100 : 0
+  void pending  // ya no se usa para el cálculo
 
   // PROYECCIÓN a fin de mes: extrapolar con las tasas observadas (o benchmarks si no hay datos)
   const obsOpen = openRate > 0 ? openRate / 100 : 0.30

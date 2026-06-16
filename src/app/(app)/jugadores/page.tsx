@@ -75,6 +75,27 @@ export default async function JugadoresPage() {
     if (remaining > 0) activeSanctions[s.player_id] = remaining
   }
 
+  // Estado de pago por jugador por temporada (agregado de quota_payments)
+  const { data: pagosData } = await sb
+    .from('quota_payments')
+    .select('player_id, season, amount_due, amount_paid')
+    .eq('club_id', clubId)
+
+  // Mapa: { [playerId]: { [season]: { due, paid } } }
+  const paymentsByPlayer: Record<string, Record<string, { due: number; paid: number }>> = {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const p of (pagosData ?? []) as any[]) {
+    if (!p.player_id || !p.season) continue
+    const playerMap = paymentsByPlayer[p.player_id] ?? (paymentsByPlayer[p.player_id] = {})
+    const seasonAcc = playerMap[p.season] ?? (playerMap[p.season] = { due: 0, paid: 0 })
+    seasonAcc.due += Number(p.amount_due ?? 0)
+    seasonAcc.paid += Number(p.amount_paid ?? 0)
+  }
+
+  // Logo del club para el PDF
+  const { data: clubData } = await sb
+    .from('clubs').select('name, logo_url, primary_color').eq('id', clubId).single()
+
   return (
     <div className="flex flex-col h-full">
       <Topbar title="Jugadores" />
@@ -86,6 +107,10 @@ export default async function JugadoresPage() {
           currentSeason={currentSeason}
           nextSeason={nextSeason}
           activeSanctions={activeSanctions}
+          paymentsByPlayer={paymentsByPlayer}
+          clubName={clubData?.name ?? ''}
+          clubLogoUrl={clubData?.logo_url ?? null}
+          clubPrimaryColor={clubData?.primary_color ?? '#EC4899'}
         />
       </div>
     </div>
