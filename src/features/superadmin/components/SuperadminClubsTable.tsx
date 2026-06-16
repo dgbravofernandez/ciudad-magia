@@ -4,32 +4,49 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import {
-  Users, Layers, FileSpreadsheet, CheckCircle2, XCircle,
-  LogIn, ExternalLink, ChevronRight, Wifi, WifiOff, MoreVertical,
+  Users, Layers, CheckCircle2, XCircle,
+  LogIn, Wifi, WifiOff, MoreVertical,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ClubSummary } from '@/features/superadmin/actions/superadmin.actions'
 import { impersonateClub, toggleClubActive } from '@/features/superadmin/actions/superadmin.actions'
 import { cn } from '@/lib/utils/cn'
 
+type LifecycleFilter = 'all' | 'active' | 'trial' | 'urgent' | 'expired' | 'past_due' | 'inactive'
+
+function getLifecycle(club: ClubSummary): LifecycleFilter {
+  if (!club.active) return 'inactive'
+  if (club.subscription_status === 'active') return 'active'
+  if (club.subscription_status === 'past_due') return 'past_due'
+  if (club.subscription_status === 'trial') {
+    if (!club.trial_ends_at) return 'trial'
+    const daysLeft = Math.ceil((new Date(club.trial_ends_at).getTime() - Date.now()) / 86_400_000)
+    if (daysLeft <= 0) return 'expired'
+    if (daysLeft <= 3) return 'urgent'
+    return 'trial'
+  }
+  return 'inactive'
+}
+
 export function SuperadminClubsTable({ clubs }: { clubs: ClubSummary[] }) {
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [filter, setFilter] = useState<LifecycleFilter>('all')
+
+  const urgentCount = clubs.filter(c => getLifecycle(c) === 'urgent').length
+  const expiredCount = clubs.filter(c => getLifecycle(c) === 'expired').length
 
   const filtered = clubs.filter((c) => {
     const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.slug.toLowerCase().includes(search.toLowerCase())
-    const matchesFilter =
-      filter === 'all' ||
-      (filter === 'active' && c.active) ||
-      (filter === 'inactive' && !c.active)
+    const lc = getLifecycle(c)
+    const matchesFilter = filter === 'all' || lc === filter
     return matchesSearch && matchesFilter
   })
 
   return (
     <div>
       {/* Filtros */}
-      <div className="px-6 py-3 border-b border-slate-800 flex items-center gap-3">
+      <div className="px-6 py-3 border-b border-slate-800 flex flex-wrap items-center gap-3">
         <input
           type="text"
           placeholder="Buscar club..."
@@ -37,19 +54,27 @@ export function SuperadminClubsTable({ clubs }: { clubs: ClubSummary[] }) {
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 max-w-xs bg-slate-800 border border-slate-700 rounded-md px-3 py-1.5 text-sm text-white placeholder-slate-500 outline-none focus:border-yellow-400 transition-colors"
         />
-        <div className="flex gap-1">
-          {(['all', 'active', 'inactive'] as const).map((f) => (
+        <div className="flex flex-wrap gap-1">
+          {([
+            { key: 'all', label: 'Todos' },
+            { key: 'active', label: '✓ Clientes' },
+            { key: 'trial', label: 'Trial' },
+            { key: 'urgent', label: `⚠️ Urgente${urgentCount > 0 ? ` (${urgentCount})` : ''}` },
+            { key: 'expired', label: `🔴 Caducado${expiredCount > 0 ? ` (${expiredCount})` : ''}` },
+            { key: 'past_due', label: 'Past due' },
+            { key: 'inactive', label: 'Inactivos' },
+          ] as const).map((f) => (
             <button
-              key={f}
-              onClick={() => setFilter(f)}
+              key={f.key}
+              onClick={() => setFilter(f.key as LifecycleFilter)}
               className={cn(
                 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                filter === f
+                filter === f.key
                   ? 'bg-yellow-400 text-black'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               )}
             >
-              {f === 'all' ? 'Todos' : f === 'active' ? 'Activos' : 'Inactivos'}
+              {f.label}
             </button>
           ))}
         </div>
@@ -99,25 +124,40 @@ function SubscriptionBadge({ status, trialEndsAt }: { status: string | null; tri
       ? Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86_400_000)
       : null
     const expired = daysLeft !== null && daysLeft <= 0
+    const urgent = !expired && daysLeft !== null && daysLeft <= 3
     return (
-      <span className={cn(
-        'px-2 py-0.5 rounded-full text-xs font-medium',
-        expired ? 'bg-red-500/20 text-red-400' : daysLeft !== null && daysLeft <= 4 ? 'bg-orange-500/20 text-orange-400' : 'bg-sky-500/20 text-sky-400'
-      )}>
-        {expired ? 'Trial caducado' : daysLeft !== null ? `Trial · ${daysLeft}d` : 'Trial'}
-      </span>
+      <div className="flex flex-col items-center gap-0.5">
+        <span className={cn(
+          'px-2 py-0.5 rounded-full text-xs font-bold',
+          expired ? 'bg-red-500/20 text-red-400' : urgent ? 'bg-orange-500/20 text-orange-400' : 'bg-sky-500/20 text-sky-400'
+        )}>
+          {expired ? '🔴 Caducado' : urgent ? `⚠️ ${daysLeft}d` : daysLeft !== null ? `Trial ${daysLeft}d` : 'Trial'}
+        </span>
+        {trialEndsAt && !expired && (
+          <span className="text-[10px] text-slate-600">
+            hasta {new Date(trialEndsAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+          </span>
+        )}
+      </div>
     )
   }
   const map: Record<string, string> = {
     active: 'bg-green-500/20 text-green-400',
     ltd: 'bg-purple-500/20 text-purple-400',
-    past_due: 'bg-orange-500/20 text-orange-400',
+    past_due: 'bg-orange-500/20 text-orange-400 font-bold',
     canceled: 'bg-red-500/20 text-red-400',
     unpaid: 'bg-red-500/20 text-red-400',
   }
+  const labels: Record<string, string> = {
+    active: '✓ Activo',
+    ltd: 'LTD',
+    past_due: '⚡ Past due',
+    canceled: 'Cancelado',
+    unpaid: 'Sin pagar',
+  }
   return (
     <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', map[status ?? ''] ?? 'bg-slate-700 text-slate-400')}>
-      {status ?? '—'}
+      {labels[status ?? ''] ?? status ?? '—'}
     </span>
   )
 }
