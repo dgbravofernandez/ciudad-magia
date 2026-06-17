@@ -20,7 +20,11 @@ const SECTIONS = [
   },
   {
     title: '4. Base legal',
-    content: 'El tratamiento se basa en la ejecución del contrato de servicio aceptado al registrarse (Art. 6.1.b RGPD). Para comunicaciones de marketing, en el consentimiento explícito (Art. 6.1.a RGPD).',
+    content: 'El tratamiento de datos de usuarios registrados se basa en la ejecución del contrato (Art. 6.1.b RGPD). Para comunicaciones comerciales a clubes deportivos identificados en directorios públicos de federaciones españolas, la base legal es el interés legítimo (Art. 6.1.f RGPD / LSSI Art. 21.2): ofrecemos software específicamente diseñado para la gestión de clubes de fútbol base, por lo que el destinatario pertenece al mismo sector y la comunicación es relevante para su actividad.',
+  },
+  {
+    title: '4b. Contacto comercial a clubes (cold email)',
+    content: 'Si recibiste un email de Cluberly sin haberlo solicitado, es porque tu club aparece en el directorio público de una federación de fútbol española. Obtenemos esos datos de fuentes accesibles públicamente (páginas web de federaciones). Tienes derecho a oponerte al tratamiento en cualquier momento: cada email incluye un enlace de baja que procesa la solicitud de forma inmediata y automática. Una vez dado de baja, no volveremos a contactarte.',
   },
   {
     title: '5. Almacenamiento y seguridad',
@@ -28,7 +32,7 @@ const SECTIONS = [
   },
   {
     title: '6. Conservación de datos',
-    content: 'Los datos se conservan mientras la cuenta esté activa. Si cancelas tu suscripción, los datos se mantienen 30 días para posible reactivación. Pasado ese plazo, se eliminan automáticamente salvo obligación legal.',
+    content: 'Los datos de usuarios registrados se conservan mientras la cuenta esté activa. Si cancelas tu suscripción, los datos se mantienen 30 días para posible reactivación y se eliminan pasado ese plazo. Los datos de contactos de clubes obtenidos de directorios públicos se conservan hasta que el contacto solicite la baja. Una vez dado de baja, el registro se mantiene exclusivamente como lista de supresión (para no volver a contactarte) durante un máximo de 3 años.',
   },
   {
     title: '7. Tus derechos',

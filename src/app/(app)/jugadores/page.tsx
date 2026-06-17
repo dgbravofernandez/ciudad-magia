@@ -30,6 +30,7 @@ export default async function JugadoresPage() {
     .select('*')
     .eq('club_id', clubId)
     .order('last_name')
+    .limit(2000)
 
   // Equipos temporada actual (activos)
   const { data: teams } = await sb
@@ -80,6 +81,7 @@ export default async function JugadoresPage() {
     .from('quota_payments')
     .select('player_id, season, amount_due, amount_paid')
     .eq('club_id', clubId)
+    .limit(10000)
 
   // Mapa: { [playerId]: { [season]: { due, paid } } }
   const paymentsByPlayer: Record<string, Record<string, { due: number; paid: number }>> = {}
