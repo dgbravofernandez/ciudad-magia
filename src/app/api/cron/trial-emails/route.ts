@@ -7,7 +7,7 @@ export const maxDuration = 60
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.club'
 const FROM_NAME = 'Cluberly'
-const CONTACT_EMAIL = 'iakevoapp@gmail.com'
+const CONTACT_EMAIL = 'diego@cluberly.club'
 
 const DAY_MS = 86_400_000
 

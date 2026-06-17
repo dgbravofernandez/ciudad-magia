@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 const SECTIONS = [
   {
     title: '1. Responsable del tratamiento',
-    content: 'Kevo (en adelante, "nosotros" o "Cluberly") es el responsable del tratamiento de los datos personales recogidos a través de la plataforma Cluberly. Puedes contactarnos en iakevoapp@gmail.com para cualquier consulta relacionada con tus datos.',
+    content: 'Kevo (en adelante, "nosotros" o "Cluberly") es el responsable del tratamiento de los datos personales recogidos a través de la plataforma Cluberly. Puedes contactarnos en diego@cluberly.club para cualquier consulta relacionada con tus datos.',
   },
   {
     title: '2. Datos que recogemos',
@@ -80,7 +80,7 @@ export default function PrivacyPage() {
               ) : (
                 <p style={{ color: '#475569', fontSize: '0.9375rem', lineHeight: 1.7 }}>
                   Para ejercer estos derechos, escríbenos a{' '}
-                  <a href="mailto:iakevoapp@gmail.com" style={{ color: '#EC4899', fontWeight: 600 }}>iakevoapp@gmail.com</a>.
+                  <a href="mailto:diego@cluberly.club" style={{ color: '#EC4899', fontWeight: 600 }}>diego@cluberly.club</a>.
                   También puedes presentar una reclamación ante la{' '}
                   <a href="https://www.aepd.es" target="_blank" rel="noopener noreferrer" style={{ color: '#EC4899' }}>
                     Agencia Española de Protección de Datos (AEPD)
@@ -95,7 +95,7 @@ export default function PrivacyPage() {
           <p style={{ fontWeight: 700, marginBottom: '0.5rem' }}>¿Tienes alguna duda?</p>
           <p style={{ color: '#64748B', fontSize: '0.9rem' }}>
             Escríbenos a{' '}
-            <a href="mailto:iakevoapp@gmail.com" style={{ color: '#EC4899', fontWeight: 600 }}>iakevoapp@gmail.com</a>{' '}
+            <a href="mailto:diego@cluberly.club" style={{ color: '#EC4899', fontWeight: 600 }}>diego@cluberly.club</a>{' '}
             y te respondemos en menos de 24 horas.
           </p>
         </div>

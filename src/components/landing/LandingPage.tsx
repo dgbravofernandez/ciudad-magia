@@ -176,7 +176,7 @@ const FAQS = [
   },
   {
     q: '¿Hay descuento para federaciones o grupos de clubs?',
-    a: 'Sí. Si gestionas varios clubs o eres una federación, escríbenos a iakevoapp@gmail.com para opciones de precios personalizadas.',
+    a: 'Sí. Si gestionas varios clubs o eres una federación, escríbenos a diego@cluberly.club para opciones de precios personalizadas.',
   },
 ]
 
@@ -274,7 +274,7 @@ function PricingSection() {
                     </li>
                   ))}
                 </ul>
-                <Link href={isElite ? 'mailto:iakevoapp@gmail.com?subject=Plan%20Personalizado' : `/onboarding?plan=${plan.id}`} style={{
+                <Link href={isElite ? 'mailto:diego@cluberly.club?subject=Plan%20Personalizado' : `/onboarding?plan=${plan.id}`} style={{
                   display: 'block', padding: '0.8rem 1rem', borderRadius: 10, textAlign: 'center',
                   fontWeight: 700, fontSize: '0.9375rem', textDecoration: 'none',
                   background: plan.popular ? plan.color : 'transparent',
@@ -722,7 +722,7 @@ export default function LandingPage() {
             <Link href="/onboarding" style={{ background: '#fff', color: '#9333EA', padding: '0.9rem 2rem', borderRadius: 12, fontSize: '1rem', fontWeight: 800, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', boxShadow: '0 4px 24px rgba(0,0,0,0.2)' }}>
               <Zap size={17} /> Empezar gratis ahora
             </Link>
-            <a href="mailto:iakevoapp@gmail.com" style={{ background: 'transparent', color: '#fff', padding: '0.9rem 2rem', borderRadius: 12, fontSize: '1rem', fontWeight: 700, textDecoration: 'none', border: '2px solid rgba(255,255,255,0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+            <a href="mailto:diego@cluberly.club" style={{ background: 'transparent', color: '#fff', padding: '0.9rem 2rem', borderRadius: 12, fontSize: '1rem', fontWeight: 700, textDecoration: 'none', border: '2px solid rgba(255,255,255,0.4)', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
               Hablar con el equipo
             </a>
           </div>
@@ -744,12 +744,12 @@ export default function LandingPage() {
           <a href="#precios" style={{ color: '#94A3B8', textDecoration: 'none' }}>Precios</a>
           <Link href="/login" style={{ color: '#94A3B8', textDecoration: 'none' }}>Iniciar sesión</Link>
           <Link href="/onboarding" style={{ color: '#94A3B8', textDecoration: 'none' }}>Registro</Link>
-          <a href="mailto:iakevoapp@gmail.com" style={{ color: '#94A3B8', textDecoration: 'none' }}>Contacto</a>
+          <a href="mailto:diego@cluberly.club" style={{ color: '#94A3B8', textDecoration: 'none' }}>Contacto</a>
           <Link href="/privacy" style={{ color: '#94A3B8', textDecoration: 'none' }}>Privacidad</Link>
         </div>
         <p style={{ fontSize: '0.8rem' }}>
           © {new Date().getFullYear()} Cluberly · Hecho con ❤️ en España ·{' '}
-          <a href="mailto:iakevoapp@gmail.com" style={{ color: '#EC4899', textDecoration: 'none' }}>iakevoapp@gmail.com</a>
+          <a href="mailto:diego@cluberly.club" style={{ color: '#EC4899', textDecoration: 'none' }}>diego@cluberly.club</a>
         </p>
       </footer>
     </div>

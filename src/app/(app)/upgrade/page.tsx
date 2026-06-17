@@ -72,7 +72,7 @@ export default function UpgradePage() {
 
   async function startCheckout(planId: string) {
     if (planId === 'personalizado') {
-      window.location.href = 'mailto:iakevoapp@gmail.com?subject=Plan%20Personalizado%20-%20' + encodeURIComponent(club.name)
+      window.location.href = 'mailto:diego@cluberly.club?subject=Plan%20Personalizado%20-%20' + encodeURIComponent(club.name)
       return
     }
     setLoadingPlan(planId)
