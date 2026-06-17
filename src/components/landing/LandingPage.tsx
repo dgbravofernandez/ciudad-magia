@@ -746,6 +746,8 @@ export default function LandingPage() {
           <Link href="/onboarding" style={{ color: '#94A3B8', textDecoration: 'none' }}>Registro</Link>
           <a href="mailto:diego@cluberly.club" style={{ color: '#94A3B8', textDecoration: 'none' }}>Contacto</a>
           <Link href="/privacy" style={{ color: '#94A3B8', textDecoration: 'none' }}>Privacidad</Link>
+          <Link href="/terms" style={{ color: '#94A3B8', textDecoration: 'none' }}>Términos</Link>
+          <Link href="/legal" style={{ color: '#94A3B8', textDecoration: 'none' }}>Aviso legal</Link>
         </div>
         <p style={{ fontSize: '0.8rem' }}>
           © {new Date().getFullYear()} Cluberly · Hecho con ❤️ en España ·{' '}

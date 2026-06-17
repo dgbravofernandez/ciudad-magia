@@ -1,24 +1,18 @@
 'use client'
 
 import Script from 'next/script'
+import { useCookieConsent } from './CookieBanner'
 
 /**
- * Meta Pixel (Facebook/Instagram) — habilita retargeting de visitantes de la landing.
- * Solo se carga si NEXT_PUBLIC_META_PIXEL_ID está configurado en env.
- * Si no está, no renderiza nada (no rompe nada).
- *
- * Para activarlo:
- * 1. Crear pixel en https://business.facebook.com -> Events Manager -> Pixels
- * 2. Copiar el ID
- * 3. Añadir NEXT_PUBLIC_META_PIXEL_ID=123456789 en Vercel envs
- * 4. Redeploy
- *
- * Permite crear anuncios en Facebook/Instagram que solo se muestran a quienes
- * visitaron Cluberly pero no convirtieron. CTR típico 8-12% vs 1-2% cold.
+ * Meta Pixel (Facebook/Instagram). Solo carga si:
+ *   - NEXT_PUBLIC_META_PIXEL_ID está configurado
+ *   - El usuario ha aceptado cookies (RGPD: consent-first)
  */
 export function MetaPixel() {
   const id = process.env.NEXT_PUBLIC_META_PIXEL_ID
+  const consent = useCookieConsent()
   if (!id) return null
+  if (consent !== 'accepted') return null
 
   return (
     <>

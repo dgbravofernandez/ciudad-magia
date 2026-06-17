@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { MetaPixel } from '@/components/analytics/MetaPixel'
+import { CookieBanner } from '@/components/analytics/CookieBanner'
 import './globals.css'
 
 const inter = Inter({
@@ -37,6 +38,7 @@ export default function RootLayout({
       <body className="min-h-screen antialiased">
         <MetaPixel />
         {children}
+        <CookieBanner />
         <Toaster position="top-right" richColors />
       </body>
     </html>
