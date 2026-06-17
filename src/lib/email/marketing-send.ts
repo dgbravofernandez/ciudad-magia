@@ -19,6 +19,7 @@ interface MarketingEmailPayload {
   text?: string
   fromName: string
   replyTo?: string
+  unsubscribeUrl?: string  // Para List-Unsubscribe one-click (RFC 8058)
 }
 
 const RESEND_KEY = process.env.RESEND_API_KEY
@@ -42,6 +43,9 @@ async function sendViaResend(payload: MarketingEmailPayload): Promise<{ sent: bo
   if (!resend) return { sent: false, error: 'resend_not_configured' }
 
   try {
+    const listUnsub = payload.unsubscribeUrl
+      ? `<${payload.unsubscribeUrl}>, <mailto:${MARKETING_FROM}?subject=baja>`
+      : `<mailto:${MARKETING_FROM}?subject=baja>`
     const { error } = await resend.emails.send({
       from: `${payload.fromName} <${MARKETING_FROM}>`,
       to: payload.to,
@@ -50,7 +54,8 @@ async function sendViaResend(payload: MarketingEmailPayload): Promise<{ sent: bo
       ...(payload.text ? { text: payload.text } : {}),
       replyTo: payload.replyTo ?? MARKETING_REPLY_TO,
       headers: {
-        'List-Unsubscribe': `<mailto:${MARKETING_FROM}?subject=baja>`,
+        'List-Unsubscribe': listUnsub,
+        ...(payload.unsubscribeUrl ? { 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : {}),
       },
     })
     if (error) {
@@ -74,6 +79,9 @@ async function sendViaGmail(payload: MarketingEmailPayload): Promise<{ sent: boo
   }
   const transport = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } })
   try {
+    const listUnsub = payload.unsubscribeUrl
+      ? `<${payload.unsubscribeUrl}>, <mailto:${MARKETING_REPLY_TO}?subject=baja>`
+      : `<mailto:${MARKETING_REPLY_TO}?subject=baja>`
     const info = await transport.sendMail({
       from: `${payload.fromName} <${user}>`,
       to: payload.to,
@@ -81,7 +89,10 @@ async function sendViaGmail(payload: MarketingEmailPayload): Promise<{ sent: boo
       html: payload.html,
       ...(payload.text ? { text: payload.text } : {}),
       replyTo: payload.replyTo ?? MARKETING_REPLY_TO,
-      headers: { 'List-Unsubscribe': `<mailto:${MARKETING_REPLY_TO}?subject=baja>` },
+      headers: {
+        'List-Unsubscribe': listUnsub,
+        ...(payload.unsubscribeUrl ? { 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : {}),
+      },
     })
     console.log(`[gmail] ✓ ${payload.to} (id: ${info.messageId})`)
     return { sent: true }

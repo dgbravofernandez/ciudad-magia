@@ -16,6 +16,24 @@ function timingSafeEq(a: string, b: string): boolean {
   return r === 0
 }
 
+// POST: one-click unsubscribe (RFC 8058) — usado por Gmail/Outlook
+// El cliente envía List-Unsubscribe=One-Click en el body, nosotros procesamos los params de la URL
+export async function POST(req: NextRequest) {
+  const clubId = req.nextUrl.searchParams.get('c')
+  const sendId = req.nextUrl.searchParams.get('s')
+  const token  = req.nextUrl.searchParams.get('t')
+  if (!clubId || !sendId || !token) return new NextResponse('Bad request', { status: 400 })
+  if (!timingSafeEq(token, expectedToken(sendId))) return new NextResponse('Forbidden', { status: 403 })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const { data: send } = await sb.from('marketing_email_sends').select('club_id').eq('id', sendId).maybeSingle()
+  if (!send || send.club_id !== clubId) return new NextResponse('Forbidden', { status: 403 })
+
+  await sb.from('marketing_clubs').update({ status: 'unsubscribed' }).eq('id', clubId)
+  return new NextResponse(null, { status: 200 })
+}
+
 export async function GET(req: NextRequest) {
   const clubId = req.nextUrl.searchParams.get('c')
   const sendId = req.nextUrl.searchParams.get('s')

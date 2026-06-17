@@ -154,6 +154,7 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
       text: rawText,
       fromName: settings.from_name,
       replyTo: settings.reply_to || settings.from_email,
+      unsubscribeUrl: vars.unsubscribe_url,
     })
 
     if (result.sent) {
