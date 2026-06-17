@@ -100,14 +100,14 @@ export async function registerPayment(data: {
   const season = data.season ?? getCurrentSeason()
   const { data: seasonRecs } = await sb
     .from('quota_payments')
-    .select('id, amount_due, amount_paid')
+    .select('id, amount_due, amount_paid, concept')
     .eq('club_id', clubId)
     .eq('player_id', data.playerId)
     .eq('season', season)
     .neq('status', 'refunded')
     .order('created_at', { ascending: true })
 
-  const pendingRecs = ((seasonRecs ?? []) as { id: string; amount_due: number; amount_paid: number }[])
+  const pendingRecs = ((seasonRecs ?? []) as { id: string; amount_due: number; amount_paid: number; concept: string }[])
     .filter(r => Number(r.amount_due) - Number(r.amount_paid) > 0)
 
   // ── Descuento pronto pago ───────────────────────────────────────────────────
@@ -129,27 +129,44 @@ export async function registerPayment(data: {
       const earlyPct: number = Number(clubSettings?.quota_amounts?.earlyPayDiscount ?? 0)
 
       if (earlyPct > 0) {
-        const discountedTotal = Math.round(totalRemaining * (1 - earlyPct / 100) * 100) / 100
+        // Excluir Reserva del descuento — igual que el descuento de hermanos.
+        // discountedTotal = Reserva íntegra + cuotas con descuento
+        const reservaRemaining = pendingRecs
+          .filter(r => /reserva/i.test(r.concept ?? ''))
+          .reduce((s, r) => s + Number(r.amount_due) - Number(r.amount_paid), 0)
+        const discountableRemaining = totalRemaining - reservaRemaining
+        const discountedTotal = Math.round(
+          (reservaRemaining + discountableRemaining * (1 - earlyPct / 100)) * 100,
+        ) / 100
+
         if (Math.abs(data.amount - discountedTotal) <= 1.01) {
-          // Distribuir el descuento proporcionalmente entre los registros pendientes
-          const discountEur = totalRemaining - discountedTotal
+          // Distribuir el descuento proporcionalmente entre los registros NO-Reserva,
+          // preservando el orden original de los registros para applyPaymentToRecords.
+          const discountEur = Math.round(discountableRemaining * (earlyPct / 100) * 100) / 100
           earlyDiscountNote = `Descuento pronto pago ${earlyPct}%`
           let applied = 0
+          let discountableIdx = 0
+          const discountableCount = pendingRecs.filter(r => !/reserva/i.test(r.concept ?? '')).length
           const adjusted: typeof pendingRecs = []
-          for (let i = 0; i < pendingRecs.length; i++) {
-            const rec = pendingRecs[i]
-            const remaining = Number(rec.amount_due) - Number(rec.amount_paid)
-            const isLast = i === pendingRecs.length - 1
-            const share = remaining / totalRemaining
-            const d = isLast
-              ? Math.round((discountEur - applied) * 100) / 100
-              : Math.round(discountEur * share * 100) / 100
-            applied += d
-            const newDue = Math.round((Number(rec.amount_due) - d) * 100) / 100
-            const { error: adjustErr } = await sb
-              .from('quota_payments').update({ amount_due: newDue }).eq('id', rec.id)
-            if (adjustErr) throw new Error(adjustErr.message)
-            adjusted.push({ ...rec, amount_due: newDue })
+
+          for (const rec of pendingRecs) {
+            if (/reserva/i.test(rec.concept ?? '')) {
+              adjusted.push(rec)  // Reserva: sin descuento, sin UPDATE en BD
+            } else {
+              const remaining = Number(rec.amount_due) - Number(rec.amount_paid)
+              const isLast = discountableIdx === discountableCount - 1
+              const share = discountableRemaining > 0 ? remaining / discountableRemaining : 0
+              const d = isLast
+                ? Math.round((discountEur - applied) * 100) / 100
+                : Math.round(discountEur * share * 100) / 100
+              applied += d
+              discountableIdx++
+              const newDue = Math.round((Number(rec.amount_due) - d) * 100) / 100
+              const { error: adjustErr } = await sb
+                .from('quota_payments').update({ amount_due: newDue }).eq('id', rec.id)
+              if (adjustErr) throw new Error(adjustErr.message)
+              adjusted.push({ ...rec, amount_due: newDue })
+            }
           }
           effectivePendingRecs = adjusted
         }

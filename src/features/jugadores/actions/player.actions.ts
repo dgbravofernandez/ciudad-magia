@@ -89,9 +89,9 @@ async function generatePendingFeesForPlayer(
               const cheapest = Math.min(...sibAnnuals)
               // Cuota anual de ESTE jugador
               const thisAnnual = fees.reduce((s: number, f: { amount: string }) => s + parseFloat(f.amount), 0)
-              // El jugador más barato no recibe descuento; el resto sí.
-              if (thisAnnual > cheapest + 0.01) {
-                siblingDiscountEur = cheapest * (pct / 100)
+              // El jugador más barato recibe el descuento; el más caro paga íntegro.
+              if (thisAnnual <= cheapest + 0.01) {
+                siblingDiscountEur = thisAnnual * (pct / 100)
               }
             }
           }
