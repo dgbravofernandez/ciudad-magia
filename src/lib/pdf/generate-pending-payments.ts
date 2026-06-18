@@ -87,7 +87,7 @@ export interface PendingPaymentsPDFParams {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export async function generatePendingPaymentsPDF(params: PendingPaymentsPDFParams): Promise<Buffer> {
-  const CLUB_NAME = params.clubName || 'Escuela de Fútbol Ciudad de Getafe'
+  const CLUB_NAME = params.clubName || 'Tu Club'
   const primaryHex = params.primaryColor ?? '#f2eb07'
   const COLOR_BRAND = hexToRgb(primaryHex)
   const brandIsLight = luminance(primaryHex) > 0.6

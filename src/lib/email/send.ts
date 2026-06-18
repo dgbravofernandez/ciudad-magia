@@ -15,7 +15,7 @@ const SMTP_PASS = process.env.SMTP_PASS
 const GMAIL_USER = process.env.GMAIL_USER
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD
 
-const CLUB_NAME = process.env.CLUB_EMAIL_NAME ?? 'E.F. Ciudad de Getafe'
+const CLUB_NAME = process.env.CLUB_EMAIL_NAME ?? 'Cluberly'
 
 const SMTP_OK = !!(SMTP_HOST && SMTP_USER && SMTP_PASS)
 const GMAIL_OK = !!(GMAIL_USER && GMAIL_APP_PASSWORD)

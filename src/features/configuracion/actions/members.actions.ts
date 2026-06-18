@@ -102,7 +102,7 @@ export async function createMember(
     if (rolesErr) return { success: false, error: rolesErr.message }
 
     // 4) Send credentials email
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://ciudadmagia.app'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
     await sendHtmlEmail({
       to: input.email.trim(),
       subject: `Acceso al CRM — ${clubName}`,
@@ -247,7 +247,7 @@ export async function resetMemberPassword(
     await (sb as any).from('club_members').update({ must_change_password: true }).eq('id', memberId)
 
     if (sendEmail && m.email) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://ciudadmagia.app'
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
       await sendHtmlEmail({
         to: m.email,
         subject: 'Tu contraseña del CRM ha sido restablecida',
@@ -367,7 +367,7 @@ export async function createAccountForMember(
     }
 
     // 3) Email con credenciales
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://ciudad-magia-qj91.vercel.app'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
     try {
       await sendHtmlEmail({
         to: m.email.trim(),

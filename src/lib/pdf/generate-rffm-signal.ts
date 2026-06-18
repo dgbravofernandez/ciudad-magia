@@ -1,7 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
-const CLUB_NAME = 'Escuela de Futbol Ciudad de Getafe'
-
 export interface RffmSignalReportParams {
   nombreJugador: string
   nombreEquipo: string
@@ -17,6 +15,7 @@ export interface RffmSignalReportParams {
   codjugador: string
   generatedBy: string
   generatedAt: string
+  clubName?: string
 }
 
 export async function generateRffmSignalPDF(p: RffmSignalReportParams): Promise<Buffer> {
@@ -139,7 +138,7 @@ export async function generateRffmSignalPDF(p: RffmSignalReportParams): Promise<
     start: { x: margin, y: 60 }, end: { x: width - margin, y: 60 },
     thickness: 0.5, color: rgb(0.85, 0.85, 0.85),
   })
-  page.drawText(`Generado por ${p.generatedBy} · ${CLUB_NAME}`, {
+  page.drawText(`Generado por ${p.generatedBy}${p.clubName ? ` · ${p.clubName}` : ''}`, {
     x: margin, y: 45, size: 8, font, color: rgb(0.5, 0.5, 0.5),
   })
   page.drawText('Datos extraidos de www.rffm.es — Informacion publica', {

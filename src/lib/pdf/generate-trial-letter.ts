@@ -65,7 +65,7 @@ export async function generateTrialLetterPDF(params: TrialLetterParams): Promise
   y -= 35
 
   // Date
-  page.drawText(`Getafe, a ${params.currentDate}`, {
+  page.drawText(params.currentDate, {
     x: margin,
     y,
     size: 11,

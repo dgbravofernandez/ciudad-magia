@@ -208,7 +208,7 @@ function getSourceLabel(m: CashCloseMovement): string {
 }
 
 export async function generateCashClosePDF(params: CashCloseParams): Promise<Buffer> {
-  const CLUB_NAME = params.clubName ?? 'Escuela de Futbol Ciudad de Getafe'
+  const CLUB_NAME = params.clubName ?? 'Tu Club'
   const primaryHex = params.primaryColor ?? '#003087'
   const COLOR_NAVY  = hexToRgbColor(primaryHex)
   const COLOR_HDR   = lightenColor(primaryHex)

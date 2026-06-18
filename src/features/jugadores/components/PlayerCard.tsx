@@ -896,7 +896,7 @@ function DocumentosTab({ player }: { player: PlayerWithTeam }) {
         {/* Request docs button */}
         {missingCount > 0 && p.tutor_email && (
           <a
-            href={`mailto:${p.tutor_email}?subject=Documentación pendiente - ${p.first_name} ${p.last_name}&body=Estimada familia,%0D%0A%0D%0AEn el club tenemos pendiente recibir la documentación de ${p.first_name} ${p.last_name}.%0D%0APor favor, envíe los documentos solicitados.%0D%0A%0D%0AUn saludo,%0D%0AE.F. Ciudad de Getafe`}
+            href={`mailto:${p.tutor_email}?subject=Documentación pendiente - ${p.first_name} ${p.last_name}&body=Estimada familia,%0D%0A%0D%0AEn el club tenemos pendiente recibir la documentación de ${p.first_name} ${p.last_name}.%0D%0APor favor, envíe los documentos solicitados.%0D%0A%0D%0AUn saludo,%0D%0AEl Club`}
             className="flex items-center gap-2 w-full justify-center px-3 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors mt-2"
           >
             <Send className="w-4 h-4" />

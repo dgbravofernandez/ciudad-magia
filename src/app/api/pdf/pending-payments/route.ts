@@ -157,7 +157,7 @@ export async function GET(req: NextRequest) {
     rows,
     season,
     filters: { teams: teamNamesSelected, concepts, categories, amountMin: amountMin ?? undefined },
-    clubName: clubData?.name ?? 'Escuela de Fútbol Ciudad de Getafe',
+    clubName: clubData?.name ?? undefined,
     primaryColor: clubData?.primary_color ?? undefined,
     logoUrl: clubData?.logo_url ?? null,
   })
@@ -183,7 +183,7 @@ async function buildEmptyPdfResponse(
     rows: [],
     season,
     filters: { teams: teamNamesSelected, concepts, categories, amountMin },
-    clubName: clubData?.name ?? 'Escuela de Fútbol Ciudad de Getafe',
+    clubName: clubData?.name ?? undefined,
     primaryColor: clubData?.primary_color ?? undefined,
     logoUrl: clubData?.logo_url ?? null,
   })

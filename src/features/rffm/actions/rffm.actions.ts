@@ -678,6 +678,8 @@ export async function exportSignalPdf(signalId: string): Promise<{
       if (member?.name) generatedBy = member.name
     }
 
+    const { data: clubData } = await sb.from('clubs').select('name').eq('id', clubId).single()
+
     const { generateRffmSignalPDF } = await import('@/lib/pdf/generate-rffm-signal')
     const pdf = await generateRffmSignalPDF({
       nombreJugador: signal.nombre_jugador,
@@ -694,6 +696,7 @@ export async function exportSignalPdf(signalId: string): Promise<{
       codjugador: signal.codjugador,
       generatedBy,
       generatedAt: new Date().toISOString(),
+      clubName: clubData?.name,
     })
 
     const safeName = (signal.nombre_jugador as string).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_')

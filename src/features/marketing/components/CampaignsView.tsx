@@ -54,7 +54,7 @@ export function CampaignsView(p: Props) {
   const [subject, setSubject] = useState(p.template?.subject ?? '')
   const [body, setBody] = useState(p.template?.body_html ?? '')
   const [cap, setCap] = useState(p.settings?.daily_send_cap ?? 50)
-  const [testEmail, setTestEmail] = useState('dgbravofernandez@gmail.com')
+  const [testEmail, setTestEmail] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [q, setQ] = useState(p.filters.q)
   const [showTemplate, setShowTemplate] = useState(false)

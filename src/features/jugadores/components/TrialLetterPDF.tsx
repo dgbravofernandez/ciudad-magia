@@ -117,6 +117,7 @@ const styles = StyleSheet.create({
 
 interface TrialLetterPDFProps {
   clubName: string
+  cif?: string | null
   playerName: string
   playerDob: string | null
   tutorName: string | null
@@ -127,6 +128,7 @@ interface TrialLetterPDFProps {
 
 export function TrialLetterPDF({
   clubName,
+  cif,
   playerName,
   playerDob,
   tutorName,
@@ -151,7 +153,7 @@ export function TrialLetterPDF({
           <Image src={LOGO_BASE64} style={styles.logo} />
           <View style={styles.headerText}>
             <Text style={styles.clubName}>{clubName}</Text>
-            <Text style={styles.cif}>CIF: G-79896478</Text>
+            {cif ? <Text style={styles.cif}>CIF: {cif}</Text> : null}
           </View>
         </View>
 

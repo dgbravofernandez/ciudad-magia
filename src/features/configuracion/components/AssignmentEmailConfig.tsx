@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 
 const DEFAULT_BODY = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;border:3px solid #ffcc00;border-radius:12px;color:#333;">
   <h2 style="color:#000;text-align:center;margin-bottom:4px;">Asignación de equipo — Temporada {temporada}</h2>
-  <p style="text-align:center;font-size:0.9em;color:#666;">Escuela de Fútbol Ciudad de Getafe</p>
+  <p style="text-align:center;font-size:0.9em;color:#666;">Tu Club</p>
   <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
   <p>Hola <strong>{tutor_nombre}</strong>,</p>
   <p>Nos complace comunicaros que <strong>{jugador_nombre}</strong> ha sido asignado/a al equipo:</p>
@@ -19,7 +19,7 @@ const DEFAULT_BODY = `<div style="font-family:Arial,sans-serif;max-width:600px;m
   <p>Para confirmar la plaza, os pedimos que realicéis el pago de la reserva de <strong>{importe_reserva}</strong> antes del <strong>{fecha_limite}</strong>.</p>
   <p>En caso de dudas, podéis poneros en contacto con nosotros respondiendo a este correo.</p>
   <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
-  <p style="text-align:center;font-size:0.85em;color:#888;">Un saludo,<br><strong>La Dirección — EF Ciudad de Getafe</strong></p>
+  <p style="text-align:center;font-size:0.85em;color:#888;">Un saludo,<br><strong>La Dirección</strong></p>
 </div>`
 
 const PLACEHOLDERS = [
