@@ -8,6 +8,7 @@ interface SearchParams {
   status?: string
   federation?: string
   excluded?: string
+  noEmail?: string
   page?: string
 }
 
@@ -31,7 +32,13 @@ export default async function CampanasPage({
     .select('id, name, email, location, federation, status, last_sent_at, reply_at, priority, excluded, notes', { count: 'exact' })
 
   if (sp.q) clubsQuery = clubsQuery.or(`name.ilike.%${sp.q}%,email.ilike.%${sp.q}%,location.ilike.%${sp.q}%`)
-  if (sp.status) clubsQuery = clubsQuery.eq('status', sp.status)
+  if (sp.noEmail === '1') {
+    clubsQuery = clubsQuery.eq('status', 'no_email')
+  } else if (sp.status) {
+    clubsQuery = clubsQuery.eq('status', sp.status)
+  } else {
+    clubsQuery = clubsQuery.neq('status', 'no_email')
+  }
   if (sp.federation) clubsQuery = clubsQuery.eq('federation', sp.federation)
   if (sp.excluded === '1') clubsQuery = clubsQuery.eq('excluded', true)
   if (sp.excluded === '0') clubsQuery = clubsQuery.eq('excluded', false)
@@ -52,6 +59,7 @@ export default async function CampanasPage({
     statsBounced,
     statsUnsubscribed,
     statsExcluded,
+    statsNoEmail,
     { data: lastSends },
     { data: clubs, count: filteredCount },
     sentTodayRes,
@@ -66,6 +74,7 @@ export default async function CampanasPage({
     sb.from('marketing_clubs').select('id', { count: 'exact', head: true }).eq('status', 'bounced'),
     sb.from('marketing_clubs').select('id', { count: 'exact', head: true }).eq('status', 'unsubscribed'),
     sb.from('marketing_clubs').select('id', { count: 'exact', head: true }).eq('excluded', true),
+    sb.from('marketing_clubs').select('id', { count: 'exact', head: true }).eq('status', 'no_email'),
     sb.from('marketing_email_sends')
       .select('id, sent_at, subject, bounced, error, marketing_clubs(name, email, status)')
       .order('sent_at', { ascending: false })
@@ -111,6 +120,7 @@ export default async function CampanasPage({
         bounced: statsBounced.count ?? 0,
         unsubscribed: statsUnsubscribed.count ?? 0,
         excluded: statsExcluded.count ?? 0,
+        noEmail: statsNoEmail.count ?? 0,
         sentToday: sentTodayRes.count ?? 0,
       }}
       engagement={engagement}
@@ -124,6 +134,7 @@ export default async function CampanasPage({
         status: sp.status ?? '',
         federation: sp.federation ?? '',
         excluded: sp.excluded ?? '',
+        noEmail: sp.noEmail ?? '',
       }}
       federations={federations}
     />

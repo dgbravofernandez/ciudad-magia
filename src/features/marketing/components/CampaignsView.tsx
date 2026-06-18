@@ -20,7 +20,7 @@ interface Props {
   template: AnyObj
   stats: {
     total: number; pending: number; sent: number; replied: number
-    bounced: number; unsubscribed: number; excluded: number; sentToday: number
+    bounced: number; unsubscribed: number; excluded: number; noEmail: number; sentToday: number
   }
   engagement?: {
     emailsSent: number; opens: number; clicks: number; demos: number; customers: number
@@ -30,7 +30,7 @@ interface Props {
   filteredCount: number
   page: number
   pageSize: number
-  filters: { q: string; status: string; federation: string; excluded: string }
+  filters: { q: string; status: string; federation: string; excluded: string; noEmail: string }
   federations: string[]
 }
 
@@ -216,7 +216,7 @@ export function CampaignsView(p: Props) {
   }
 
   const selectedCount = selected.size
-  const hasFilters = useMemo(() => p.filters.q || p.filters.status || p.filters.federation || p.filters.excluded, [p.filters])
+  const hasFilters = useMemo(() => p.filters.q || p.filters.status || p.filters.federation || p.filters.excluded || p.filters.noEmail, [p.filters])
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -263,6 +263,7 @@ export function CampaignsView(p: Props) {
           <Stat icon={AlertTriangle} label="Rebotados" value={p.stats.bounced} color="text-red-400" />
           <Stat icon={BanIcon} label="Bajas" value={p.stats.unsubscribed} color="text-slate-500" />
           <Stat icon={EyeOff} label="Excluidos" value={p.stats.excluded} color="text-amber-400" />
+          <Stat icon={Mail} label="Sin email" value={p.stats.noEmail} color="text-slate-600" />
         </div>
 
         <div className="mt-4">
@@ -343,6 +344,18 @@ export function CampaignsView(p: Props) {
             <option value="0">Solo NO excluidos</option>
             <option value="1">Solo excluidos</option>
           </select>
+
+          <button
+            onClick={() => pushFilter('noEmail', p.filters.noEmail === '1' ? '' : '1')}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+              p.filters.noEmail === '1'
+                ? 'bg-slate-600 border-slate-500 text-white'
+                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+            }`}
+            title="Mostrar solo clubes sin email scrapeado"
+          >
+            Sin email ({p.stats.noEmail.toLocaleString()})
+          </button>
 
           {hasFilters && (
             <button onClick={clearFilters}

@@ -418,9 +418,9 @@ export async function sendTestEmail(targetEmail: string) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
-  const { data: tpl } = await sb.from('marketing_templates').select('*').eq('key', 'email_1').eq('variant', 'A').maybeSingle()
+  const { data: tpl } = await sb.from('marketing_templates').select('*').eq('key', 'email_1').eq('active', true).order('variant').limit(1).maybeSingle()
   const { data: settings } = await sb.from('marketing_settings').select('*').eq('id', 1).single()
-  if (!tpl) return { success: false, error: 'No hay plantilla email_1 variant=A en la BD' }
+  if (!tpl) return { success: false, error: 'No hay plantilla email_1 activa en la BD' }
   if (!settings) return { success: false, error: 'No hay marketing_settings (id=1) en la BD' }
 
   const clubName = 'Club de Prueba'
