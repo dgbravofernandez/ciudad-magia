@@ -418,9 +418,9 @@ export async function sendTestEmail(targetEmail: string) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
-  const { data: tpl } = await sb.from('marketing_templates').select('*').eq('key', 'email_1').eq('active', true).order('variant').limit(1).maybeSingle()
+  const { data: templates } = await sb.from('marketing_templates').select('*').eq('key', 'email_1').eq('active', true).order('variant')
   const { data: settings } = await sb.from('marketing_settings').select('*').eq('id', 1).single()
-  if (!tpl) return { success: false, error: 'No hay plantilla email_1 activa en la BD' }
+  if (!templates?.length) return { success: false, error: 'No hay plantillas email_1 activas en la BD' }
   if (!settings) return { success: false, error: 'No hay marketing_settings (id=1) en la BD' }
 
   const clubName = 'Club de Prueba'
@@ -432,12 +432,17 @@ export async function sendTestEmail(targetEmail: string) {
     send_id: 'test',
     unsubscribe_url: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.club'}/api/marketing/unsubscribe?c=test&s=test&t=test`,
   }
-  const result = await sendMarketingEmail({
-    to: targetEmail,
-    subject: '[TEST] ' + renderTemplate(tpl.subject, vars),
-    html: renderTemplate(tpl.body_html, vars),
-    fromName: settings.from_name,
-    replyTo: settings.reply_to || settings.from_email,
-  })
-  return result.sent ? { success: true } : { success: false, error: result.error ?? 'Transport no respondió' }
+  const errors: string[] = []
+  for (const tpl of templates) {
+    const result = await sendMarketingEmail({
+      to: targetEmail,
+      subject: `[TEST-${tpl.variant}] ${renderTemplate(tpl.subject, vars)}`,
+      html: renderTemplate(tpl.body_html, vars),
+      fromName: settings.from_name,
+      replyTo: settings.reply_to || settings.from_email,
+    })
+    if (!result.sent) errors.push(`Variante ${tpl.variant}: ${result.error}`)
+  }
+  if (errors.length === templates.length) return { success: false, error: errors.join(' | ') }
+  return { success: true }
 }
