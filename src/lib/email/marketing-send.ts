@@ -43,9 +43,11 @@ async function sendViaResend(payload: MarketingEmailPayload): Promise<{ sent: bo
   if (!resend) return { sent: false, error: 'resend_not_configured' }
 
   try {
-    const listUnsub = payload.unsubscribeUrl
-      ? `<${payload.unsubscribeUrl}>, <mailto:${MARKETING_FROM}?subject=baja>`
-      : `<mailto:${MARKETING_FROM}?subject=baja>`
+    const extraHeaders: Record<string, string> = {}
+    if (payload.unsubscribeUrl) {
+      extraHeaders['List-Unsubscribe'] = `<${payload.unsubscribeUrl}>, <mailto:${MARKETING_FROM}?subject=baja>`
+      extraHeaders['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
+    }
     const { error } = await resend.emails.send({
       from: `${payload.fromName} <${MARKETING_FROM}>`,
       to: payload.to,
@@ -53,10 +55,7 @@ async function sendViaResend(payload: MarketingEmailPayload): Promise<{ sent: bo
       html: payload.html,
       ...(payload.text ? { text: payload.text } : {}),
       replyTo: payload.replyTo ?? MARKETING_REPLY_TO,
-      headers: {
-        'List-Unsubscribe': listUnsub,
-        ...(payload.unsubscribeUrl ? { 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : {}),
-      },
+      headers: extraHeaders,
     })
     if (error) {
       console.error(`[resend] ✗ ${payload.to}: ${error.message}`)
@@ -79,9 +78,11 @@ async function sendViaGmail(payload: MarketingEmailPayload): Promise<{ sent: boo
   }
   const transport = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } })
   try {
-    const listUnsub = payload.unsubscribeUrl
-      ? `<${payload.unsubscribeUrl}>, <mailto:${MARKETING_REPLY_TO}?subject=baja>`
-      : `<mailto:${MARKETING_REPLY_TO}?subject=baja>`
+    const extraHeaders: Record<string, string> = {}
+    if (payload.unsubscribeUrl) {
+      extraHeaders['List-Unsubscribe'] = `<${payload.unsubscribeUrl}>, <mailto:${MARKETING_REPLY_TO}?subject=baja>`
+      extraHeaders['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
+    }
     const info = await transport.sendMail({
       from: `${payload.fromName} <${user}>`,
       to: payload.to,
@@ -89,10 +90,7 @@ async function sendViaGmail(payload: MarketingEmailPayload): Promise<{ sent: boo
       html: payload.html,
       ...(payload.text ? { text: payload.text } : {}),
       replyTo: payload.replyTo ?? MARKETING_REPLY_TO,
-      headers: {
-        'List-Unsubscribe': listUnsub,
-        ...(payload.unsubscribeUrl ? { 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : {}),
-      },
+      headers: extraHeaders,
     })
     console.log(`[gmail] ✓ ${payload.to} (id: ${info.messageId})`)
     return { sent: true }
