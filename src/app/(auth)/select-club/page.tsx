@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
+import { setPreferredClub } from './actions'
 
 interface Club { id: string; name: string; city: string | null; plan: string }
 
@@ -10,6 +11,8 @@ export default function SelectClubPage() {
   const router = useRouter()
   const [clubs, setClubs] = useState<Club[]>([])
   const [loading, setLoading] = useState(true)
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -20,7 +23,6 @@ export default function SelectClubPage() {
       const { data: { user } } = await sb.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      // Fetch clubs via API route to use service role
       const res = await fetch('/api/user-clubs')
       if (res.ok) {
         const data = await res.json()
@@ -32,8 +34,16 @@ export default function SelectClubPage() {
   }, [router])
 
   function selectClub(clubId: string) {
-    document.cookie = `preferred_club_id=${clubId}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax; Secure`
-    window.location.href = '/dashboard'
+    setError(null)
+    startTransition(async () => {
+      const res = await setPreferredClub(clubId)
+      if (res.success) {
+        // Hard reload para que el middleware re-evalúe con la cookie firmada
+        window.location.href = '/dashboard'
+      } else {
+        setError(res.error ?? 'No se pudo seleccionar el club')
+      }
+    })
   }
 
   const isCluberlyBrand = process.env.NEXT_PUBLIC_APP_BRAND === 'cluberly'
@@ -55,6 +65,12 @@ export default function SelectClubPage() {
         <p className="text-slate-400 text-sm">Tu cuenta está vinculada a varios clubs</p>
       </div>
 
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-sm text-red-300">
+          {error}
+        </div>
+      )}
+
       <div className="space-y-3">
         {loading ? (
           <div className="text-center text-slate-400 py-8">Cargando clubs…</div>
@@ -67,7 +83,8 @@ export default function SelectClubPage() {
           <button
             key={club.id}
             onClick={() => selectClub(club.id)}
-            className="w-full text-left bg-white/95 rounded-2xl p-5 border border-white/10 shadow hover:shadow-md transition-all hover:-translate-y-0.5 group"
+            disabled={isPending}
+            className="w-full text-left bg-white/95 rounded-2xl p-5 border border-white/10 shadow hover:shadow-md transition-all hover:-translate-y-0.5 group disabled:opacity-50 disabled:cursor-wait"
           >
             <div className="flex items-center justify-between">
               <div>

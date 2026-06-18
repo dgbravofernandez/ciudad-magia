@@ -180,11 +180,31 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Determinar qué club usar: cookie > único > selección interactiva
+  // Determinar qué club usar: cookie firmada > único > selección interactiva
   let member = members[0]  // por defecto el más reciente
 
   if (members.length > 1) {
-    const preferredClubId = request.cookies.get('preferred_club_id')?.value
+    // SEC NEW-1: verificar firma HMAC de la cookie preferred_club_id antes de confiar en ella.
+    // Antes la cookie se seteaba desde cliente con document.cookie sin firma → XSS podía sustituirla.
+    // Ahora se firma desde server action (setPreferredClub) con APP_SECRET, payload "clubId:userId".
+    const rawPreferred = request.cookies.get('preferred_club_id')?.value
+    let preferredClubId: string | null = null
+    if (rawPreferred) {
+      const secret = process.env.APP_SECRET ?? 'dev-secret-replace-in-prod'
+      const verified = await verifyValue(rawPreferred, secret)
+      if (verified) {
+        const [cookieClubId, cookieUserId] = verified.split(':')
+        if (cookieUserId === user.id && cookieClubId) {
+          preferredClubId = cookieClubId
+        } else {
+          console.warn('[middleware] preferred_club_id HMAC válido pero userId no coincide')
+        }
+      } else {
+        // Cookie antigua (sin firma) o manipulada — la ignoramos y se reescribirá al re-seleccionar
+        console.warn('[middleware] preferred_club_id sin firma o firma inválida — ignorada')
+      }
+    }
+
     if (preferredClubId) {
       const preferred = members.find(m => m.club_id === preferredClubId)
       if (preferred) {
@@ -198,10 +218,13 @@ export async function middleware(request: NextRequest) {
         return resp
       }
     } else if (!pathname.startsWith('/select-club')) {
-      // Múltiples clubs sin preferencia guardada → forzar selector
+      // Sin cookie válida y múltiples clubs → forzar selector (que escribirá cookie firmada)
       const url = request.nextUrl.clone()
       url.pathname = '/select-club'
-      return NextResponse.redirect(url)
+      const resp = NextResponse.redirect(url)
+      // Por si había una cookie inválida, borrarla para evitar loop
+      if (rawPreferred) resp.cookies.delete('preferred_club_id')
+      return resp
     }
   }
 
