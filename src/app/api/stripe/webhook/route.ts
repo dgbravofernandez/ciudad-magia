@@ -70,6 +70,20 @@ export async function POST(req: NextRequest) {
         : sub.status === 'canceled' ? 'canceled'
         : sub.status
 
+      // NEW-2: validar metadata.club_id contra el customer (defense in depth).
+      // Si el evento trae club_id pero el customer apunta a otro, log y abortar.
+      const metaClubId = sub.metadata?.club_id
+      if (metaClubId) {
+        const { data: clubByCustomer } = await sb
+          .from('clubs').select('id').eq('stripe_customer_id', customerId).maybeSingle()
+        if (clubByCustomer && clubByCustomer.id !== metaClubId) {
+          console.error('[stripe-webhook] cross-tenant alert (sub.updated):', {
+            eventId: event.id, customerId, metaClubId, dbClubId: clubByCustomer.id,
+          })
+          break
+        }
+      }
+
       await sb.from('clubs').update({
         subscription_status: status,
         stripe_subscription_id: sub.id,
@@ -80,6 +94,17 @@ export async function POST(req: NextRequest) {
     case 'customer.subscription.deleted': {
       const sub = event.data.object as Stripe.Subscription
       const customerId = sub.customer as string
+      const metaClubId = sub.metadata?.club_id
+      if (metaClubId) {
+        const { data: clubByCustomer } = await sb
+          .from('clubs').select('id').eq('stripe_customer_id', customerId).maybeSingle()
+        if (clubByCustomer && clubByCustomer.id !== metaClubId) {
+          console.error('[stripe-webhook] cross-tenant alert (sub.deleted):', {
+            eventId: event.id, customerId, metaClubId, dbClubId: clubByCustomer.id,
+          })
+          break
+        }
+      }
       await sb.from('clubs').update({
         subscription_status: 'canceled',
         plan: 'starter',

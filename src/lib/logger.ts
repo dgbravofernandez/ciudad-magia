@@ -63,9 +63,37 @@ function emit(level: LogLevel, ctx: LogContext): void {
   }
 }
 
+/**
+ * OBS-1: en producción `logger.error()` también captura el evento en Sentry.
+ * Dynamic import + fire-and-forget — no bloquea ni cambia la signature sync del logger.
+ * Si Sentry no está disponible (edge runtime sin DSN, dev, etc.) falla silencioso.
+ */
+function reportToSentry(ctx: LogContext): void {
+  if (isDev) return
+  // eslint-disable-next-line @typescript-eslint/no-floating-promises
+  import('@sentry/nextjs').then(Sentry => {
+    const err = ctx.error instanceof Error
+      ? ctx.error
+      : new Error(String(ctx.error ?? ctx.action))
+    Sentry.captureException(err, {
+      tags: {
+        action: ctx.action,
+        club_id: ctx.clubId,
+        member_id: ctx.memberId,
+      },
+      extra: ctx,
+    })
+  }).catch(() => {
+    // Silent — si Sentry falla no rompemos la app
+  })
+}
+
 export const logger = {
   debug: (ctx: LogContext) => emit('debug', ctx),
   info:  (ctx: LogContext) => emit('info',  ctx),
   warn:  (ctx: LogContext) => emit('warn',  ctx),
-  error: (ctx: LogContext) => emit('error', ctx),
+  error: (ctx: LogContext) => {
+    emit('error', ctx)
+    reportToSentry(ctx)
+  },
 }
