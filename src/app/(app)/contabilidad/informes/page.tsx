@@ -24,31 +24,24 @@ export default async function InformesPage({
   const currentSeason = getCurrentSeason()
   const season = params.season && seasons.includes(params.season) ? params.season : currentSeason
 
-  // Equipos activos (y borradores, para cubrir ambas temporadas)
-  const { data: teamsRaw } = await sb
-    .from('teams')
-    .select('id, name, season')
-    .eq('club_id', clubId)
+  // Tres queries independientes — paralelizar
+  const [{ data: teamsRaw }, { data: playersRaw }, { data: paymentsRaw }] = await Promise.all([
+    sb.from('teams').select('id, name, season').eq('club_id', clubId),
+    sb.from('players')
+      .select('id, first_name, last_name, team_id, next_team_id')
+      .eq('club_id', clubId)
+      .neq('status', 'low'),
+    sb.from('quota_payments')
+      .select('player_id, amount_due, amount_paid, status')
+      .eq('club_id', clubId)
+      .eq('season', season)
+      .neq('status', 'refunded'),
+  ])
 
   const teamMap: Record<string, string> = {}
   for (const t of (teamsRaw ?? [])) {
     teamMap[t.id] = t.name
   }
-
-  // Jugadores activos con su equipo
-  const { data: playersRaw } = await sb
-    .from('players')
-    .select('id, first_name, last_name, team_id, next_team_id')
-    .eq('club_id', clubId)
-    .neq('status', 'low')
-
-  // Todos los quota_payments de la temporada para este club
-  const { data: paymentsRaw } = await sb
-    .from('quota_payments')
-    .select('player_id, amount_due, amount_paid, status')
-    .eq('club_id', clubId)
-    .eq('season', season)
-    .neq('status', 'refunded')
 
   // Determinar qué campo de equipo usar según temporada
   const isNextSeason = season !== currentSeason

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Search, Send, CheckCircle2, XCircle, Clock, ChevronDown, UserX, RefreshCw, RotateCcw, Download, ArrowUpDown, Copy, Link2, FileText, Mail, MailCheck, MailX } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import type { Player } from '@/types/database.types'
@@ -11,7 +12,7 @@ import {
   resetEmailFlag,
   sendTrialLetter,
 } from '@/features/jugadores/actions/player.actions'
-import { sendTeamAssignmentEmail } from '@/features/configuracion/actions/assignment-email.actions'
+import { sendTeamAssignmentEmail, sendBatchTeamAssignmentEmails } from '@/features/configuracion/actions/assignment-email.actions'
 import {
   previewInscriptionSync,
   applyInscriptionSync,
@@ -107,6 +108,7 @@ export function InscripcionesTable({
   const [filterNextTeams, setFilterNextTeams] = useState<Set<string>>(new Set())
   const [sortDate, setSortDate] = useState<'newest' | 'oldest' | ''>('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const router = useRouter()
   const [syncing, setSyncing] = useState(false)
   const [syncingCoaches, setSyncingCoaches] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -126,6 +128,15 @@ export function InscripcionesTable({
     players.forEach(p => counts[getStatus(p)]++)
     return counts
   }, [players])
+
+  // Jugadores con equipo asignado pero sin email de asignación enviado (y con email de tutor)
+  const pendingAssignmentCount = useMemo(() =>
+    players.filter(p => {
+      const nextTeamId = p.next_team_id ?? (p.next_team as { id: string } | null)?.id ?? null
+      return nextTeamId && !p.email_team_assignment_sent && p.tutor_email
+    }).length,
+    [players]
+  )
 
   const filtered = useMemo(() => {
     const result = players.filter(p => {
@@ -600,6 +611,26 @@ export function InscripcionesTable({
           selected={filterNextTeams}
           onChange={setFilterNextTeams}
         />
+
+        {pendingAssignmentCount > 0 && selected.size === 0 && (
+          <button
+            onClick={() => startTransition(async () => {
+              const r = await sendBatchTeamAssignmentEmails(15)
+              if (r.success) {
+                toast.success(`${r.sent} email${r.sent !== 1 ? 's' : ''} enviados${r.remaining > 0 ? ` · ${r.remaining} pendientes` : ' · ¡Todos enviados!'}`)
+                router.refresh()
+              } else {
+                toast.error(r.error ?? 'Error al enviar')
+              }
+            })}
+            disabled={isPending}
+            className="btn-primary gap-2 flex items-center text-sm ml-auto"
+            title={`${pendingAssignmentCount} jugadores con equipo asignado sin email de asignación`}
+          >
+            <Send className="w-4 h-4" />
+            Enviar pendientes · lote 15 ({pendingAssignmentCount})
+          </button>
+        )}
 
         {selected.size > 0 && (
           <div className="flex flex-wrap gap-2 ml-auto">

@@ -13,11 +13,10 @@ export default async function JugadoresPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
 
-  // Resolución robusta multi-club (header → cookie preferida → más reciente)
   const clubId = await getClubId()
   if (!clubId) return <div className="p-6 text-muted-foreground">No se pudo determinar el club.</div>
 
-  // Temporadas
+  // Temporada — necesaria antes del resto para calcular nextSeason
   const { data: settings } = await sb
     .from('club_settings')
     .select('current_season')
@@ -25,71 +24,58 @@ export default async function JugadoresPage() {
     .single()
   const currentSeason: string = settings?.current_season ?? '2025/26'
   const nextSeason = bumpSeason(currentSeason)
+  const relevantSeasons = [currentSeason, nextSeason].filter(Boolean)
 
-  // Query players
-  const { data: players, error: playersError } = await sb
-    .from('players')
-    .select('*')
-    .eq('club_id', clubId)
-    .order('last_name')
-    .limit(2000)
+  // Todas las queries independientes en paralelo
+  const [playersResult, teamsResult, nextTeamsResult, sanctionsResult, pagosResult, clubResult] =
+    await Promise.all([
+      sb.from('players').select('*').eq('club_id', clubId).order('last_name').limit(2000),
+      sb.from('teams').select('id, name').eq('club_id', clubId).eq('active', true).order('name'),
+      sb.from('teams').select('id, name').eq('club_id', clubId).eq('season', nextSeason).order('name'),
+      sb.from('player_sanctions')
+        .select('player_id, matches_banned, matches_served')
+        .eq('club_id', clubId)
+        .eq('active', true),
+      sb.from('quota_payments')
+        .select('player_id, season, amount_due, amount_paid')
+        .eq('club_id', clubId)
+        .in('season', relevantSeasons),
+      sb.from('clubs').select('name, logo_url, primary_color').eq('id', clubId).single(),
+    ])
 
-  // Equipos temporada actual (activos)
-  const { data: teams } = await sb
-    .from('teams')
-    .select('id, name')
-    .eq('club_id', clubId)
-    .eq('active', true)
-    .order('name')
-
-  // Equipos próxima temporada (borrador)
-  const { data: nextTeams } = await sb
-    .from('teams')
-    .select('id, name')
-    .eq('club_id', clubId)
-    .eq('season', nextSeason)
-    .order('name')
+  const players = playersResult.data ?? []
+  const teams = teamsResult.data ?? []
+  const nextTeams = nextTeamsResult.data ?? []
+  const sanctionsData = sanctionsResult.data ?? []
+  const pagosData = pagosResult.data ?? []
+  const clubData = clubResult.data
 
   // Mapas de equipos
   const teamMap: Record<string, { id: string; name: string }> = {}
-  for (const t of (teams ?? [])) teamMap[t.id] = t
+  for (const t of teams) teamMap[t.id] = t
 
   const nextTeamMap: Record<string, { id: string; name: string }> = {}
-  for (const t of (nextTeams ?? [])) nextTeamMap[t.id] = t
+  for (const t of nextTeams) nextTeamMap[t.id] = t
 
   // Enriquecer jugadores con info de ambos equipos
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const enrichedPlayers = (players ?? []).map((p: any) => ({
+  const enrichedPlayers = players.map((p: any) => ({
     ...p,
     teams: p.team_id ? teamMap[p.team_id] ?? null : null,
     nextTeam: p.next_team_id ? nextTeamMap[p.next_team_id] ?? null : null,
   }))
 
-  // Sanctions
-  const { data: sanctionsData } = await sb
-    .from('player_sanctions')
-    .select('player_id, matches_banned, matches_served')
-    .eq('club_id', clubId)
-    .eq('active', true)
-
+  // Sanciones activas
   const activeSanctions: Record<string, number> = {}
-  for (const s of (sanctionsData ?? [])) {
+  for (const s of sanctionsData) {
     const remaining = (s.matches_banned ?? 1) - (s.matches_served ?? 0)
     if (remaining > 0) activeSanctions[s.player_id] = remaining
   }
 
-  // Estado de pago — solo temporadas relevantes (actual + siguiente), nunca todo el histórico
-  const relevantSeasons = [currentSeason, nextSeason].filter(Boolean)
-  const { data: pagosData } = await sb
-    .from('quota_payments')
-    .select('player_id, season, amount_due, amount_paid')
-    .eq('club_id', clubId)
-    .in('season', relevantSeasons)
-
-  // Mapa: { [playerId]: { [season]: { due, paid } } }
+  // Mapa de pagos: { [playerId]: { [season]: { due, paid } } }
   const paymentsByPlayer: Record<string, Record<string, { due: number; paid: number }>> = {}
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const p of (pagosData ?? []) as any[]) {
+  for (const p of pagosData as any[]) {
     if (!p.player_id || !p.season) continue
     const playerMap = paymentsByPlayer[p.player_id] ?? (paymentsByPlayer[p.player_id] = {})
     // Normalizar al formato barra '2025/26' que usa club_settings.current_season
@@ -99,18 +85,14 @@ export default async function JugadoresPage() {
     seasonAcc.paid += Number(p.amount_paid ?? 0)
   }
 
-  // Logo del club para el PDF
-  const { data: clubData } = await sb
-    .from('clubs').select('name, logo_url, primary_color').eq('id', clubId).single()
-
   return (
     <div className="flex flex-col h-full">
       <Topbar title="Jugadores" />
       <div className="flex-1 p-6">
         <PlayerList
           players={enrichedPlayers}
-          teams={teams ?? []}
-          nextTeams={nextTeams ?? []}
+          teams={teams}
+          nextTeams={nextTeams}
           currentSeason={currentSeason}
           nextSeason={nextSeason}
           activeSanctions={activeSanctions}

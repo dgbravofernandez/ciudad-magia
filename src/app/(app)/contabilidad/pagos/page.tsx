@@ -77,57 +77,53 @@ export default async function PagosPage({
   const lastDay = new Date(Number(yearStr), Number(monthStr), 0).getDate()
   const monthEnd = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`
 
-  // KPI: total recaudado este mes — incluye pagos parciales (status='pending' pero
-  // con amount_paid > 0) para no perder transferencias y cuotas con dto pronto pago.
-  const { data: paidThisMonth } = await sb
-    .from('quota_payments')
-    .select('amount_paid')
-    .eq('club_id', clubId)
-    .eq('season', season)
-    .neq('status', 'refunded')
-    .gt('amount_paid', 0)
-    .gte('payment_date', monthStart)
-    .lte('payment_date', monthEnd)
+  // 9 queries independientes — paralelizar
+  const feesSeason = season.replace('-', '/')  // '2025-26' → '2025/26'
+  const [
+    { data: paidThisMonth },
+    { data: pendingPayments },
+    { data: players },
+    { data: teams },
+    { data: seasonPayments },
+    reminderHistory,
+    { data: seasonFeesSlash },
+    { data: seasonFeesDash },
+    { data: settings },
+  ] = await Promise.all([
+    sb.from('quota_payments').select('amount_paid')
+      .eq('club_id', clubId).eq('season', season)
+      .neq('status', 'refunded').gt('amount_paid', 0)
+      .gte('payment_date', monthStart).lte('payment_date', monthEnd),
+    sb.from('quota_payments').select('player_id, amount_due, amount_paid')
+      .eq('club_id', clubId).eq('season', season).neq('status', 'refunded'),
+    sb.from('players')
+      .select('id, first_name, last_name, dni, tutor_email, tutor_name, tutor_phone, team_id, next_team_id, birth_date, is_special_case, special_case_reason')
+      .eq('club_id', clubId).neq('status', 'low').order('last_name'),
+    sb.from('teams').select('id, name').eq('club_id', clubId),
+    sb.from('quota_payments').select('*')
+      .eq('club_id', clubId).eq('season', season).order('created_at', { ascending: false }),
+    getReminderHistory().catch(() => ({})),
+    sb.from('season_fees').select('team_id, concept, amount')
+      .eq('club_id', clubId).eq('season', feesSeason),
+    sb.from('season_fees').select('team_id, concept, amount')
+      .eq('club_id', clubId).eq('season', season),
+    sb.from('club_settings').select('quota_amounts').eq('club_id', clubId).single(),
+  ])
 
+  // KPI: total recaudado este mes
   const totalPaidThisMonth = (paidThisMonth ?? []).reduce(
     (sum: number, p: { amount_paid: number }) => sum + (p.amount_paid ?? 0),
     0,
   )
 
-  // KPI: total pending y deudores en la temporada seleccionada.
-  // Por diferencia real (amount_due - amount_paid), no por status — alineado con
-  // la lista de pendientes del componente y con registerPayment.
-  const { data: pendingPayments } = await sb
-    .from('quota_payments')
-    .select('player_id, amount_due, amount_paid')
-    .eq('club_id', clubId)
-    .eq('season', season)
-    .neq('status', 'refunded')
-
+  // KPI: total pending y deudores
   const debtRows = ((pendingPayments ?? []) as { player_id: string; amount_due: number; amount_paid: number }[])
     .filter(p => ((p.amount_due ?? 0) - (p.amount_paid ?? 0)) > 0)
-
   const totalPending = debtRows.reduce(
     (sum, p) => sum + ((p.amount_due ?? 0) - (p.amount_paid ?? 0)),
     0,
   )
-
   const uniqueDebtors = new Set(debtRows.map(p => p.player_id)).size
-
-  // Jugadores — incluir next_team_id para vista 26/27 + teléfono tutor
-  const { data: players } = await sb
-    .from('players')
-    .select('id, first_name, last_name, dni, tutor_email, tutor_name, tutor_phone, team_id, next_team_id, birth_date, is_special_case, special_case_reason')
-    .eq('club_id', clubId)
-    .neq('status', 'low')
-    .order('last_name')
-
-  // Teams — activos para temporada actual; borradores (inactive) para próxima temporada
-  // Cargar todos los equipos (activos + borradores) — next_team_id puede apuntar a cualquiera
-  const { data: teams } = await sb
-    .from('teams')
-    .select('id, name')
-    .eq('club_id', clubId)
 
   const teamMap: Record<string, { id: string; name: string }> = {}
   for (const t of (teams ?? [])) {
@@ -145,40 +141,8 @@ export default async function PagosPage({
     },
   )
 
-  // Payments de la temporada seleccionada
-  const { data: seasonPayments } = await sb
-    .from('quota_payments')
-    .select('*')
-    .eq('club_id', clubId)
-    .eq('season', season)
-    .order('created_at', { ascending: false })
-
-  // Historial de avisos de cuota enviados
-  const reminderHistory = await getReminderHistory().catch(() => ({}))
-
-  // Cuotas por temporada (season_fees) — fuente principal.
-  // Intentar ambos formatos: '2025/26' (barra, configuración manual) y '2025-26'
-  // (guión, formato de getCurrentSeason) — hay inconsistencia histórica en la BD.
-  const feesSeason = season.replace('-', '/')  // '2025-26' → '2025/26'
-  const { data: seasonFeesSlash } = await sb
-    .from('season_fees')
-    .select('team_id, concept, amount')
-    .eq('club_id', clubId)
-    .eq('season', feesSeason)
-  const { data: seasonFeesDash } = await sb
-    .from('season_fees')
-    .select('team_id, concept, amount')
-    .eq('club_id', clubId)
-    .eq('season', season)
-  // Usar el que tenga datos; si ambos tienen, el slash tiene preferencia (fuente manual)
+  // Cuotas: preferir formato barra (fuente manual)
   const seasonFees = (seasonFeesSlash ?? []).length > 0 ? seasonFeesSlash : seasonFeesDash
-
-  // Fallback legacy quota_amounts (temporada actual)
-  const { data: settings } = await sb
-    .from('club_settings')
-    .select('quota_amounts')
-    .eq('club_id', clubId)
-    .single()
 
   const quotaAmounts = settings?.quota_amounts ?? {
     annual: 360,

@@ -531,6 +531,56 @@ function buildDefaultBody(clubName = 'El Club'): string {
 </div>`
 }
 
+// ─── Envío masivo de emails de asignación pendientes ─────────────────────────
+
+export async function sendBatchTeamAssignmentEmails(
+  limit = 15
+): Promise<{ success: boolean; sent: number; failed: number; remaining: number; error?: string }> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+      return { success: false, sent: 0, failed: 0, remaining: 0, error: 'Sin permisos' }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+
+    // Jugadores con equipo asignado, sin email enviado, con email de tutor
+    const { data: pending } = await sb
+      .from('players')
+      .select('id')
+      .eq('club_id', clubId)
+      .neq('status', 'low')
+      .not('next_team_id', 'is', null)
+      .eq('email_team_assignment_sent', false)
+      .not('tutor_email', 'is', null)
+      .limit(limit)
+
+    let sent = 0
+    let failed = 0
+
+    for (const player of (pending ?? [])) {
+      const result = await sendTeamAssignmentEmail(player.id)
+      if (result.success) sent++
+      else failed++
+    }
+
+    // Contar cuántos quedan tras este lote
+    const { count: remaining } = await sb
+      .from('players')
+      .select('id', { count: 'exact', head: true })
+      .eq('club_id', clubId)
+      .neq('status', 'low')
+      .not('next_team_id', 'is', null)
+      .eq('email_team_assignment_sent', false)
+      .not('tutor_email', 'is', null)
+
+    revalidatePath('/jugadores/inscripciones')
+    return { success: true, sent, failed, remaining: remaining ?? 0 }
+  } catch (e) {
+    return { success: false, sent: 0, failed: 0, remaining: 0, error: (e as Error).message }
+  }
+}
+
 // ─── Export XLSX de asignaciones próxima temporada ────────────────────────────
 
 export interface AssignmentRow {

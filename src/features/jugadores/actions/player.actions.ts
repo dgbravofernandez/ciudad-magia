@@ -188,13 +188,29 @@ export async function updateInscriptionStatus(
     await sendEmail(playerId, autoEmailType)
   }
 
-  // Si se está asignando equipo de próxima temporada, generar cuotas pendientes automáticamente
+  // Si se está asignando equipo de próxima temporada, generar cuotas y auto-enviar email
   let feesCreated = 0
   if (data.next_team_id && clubId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sbAdmin = createAdminClient() as any
     const feesResult = await generatePendingFeesForPlayer(sbAdmin, clubId, playerId, data.next_team_id)
     feesCreated = feesResult.feesCreated
+
+    // Auto-enviar email de asignación si el jugador tiene email y aún no se le ha enviado
+    try {
+      const { data: pCheck } = await sbAdmin
+        .from('players')
+        .select('email_team_assignment_sent, tutor_email')
+        .eq('id', playerId)
+        .eq('club_id', clubId)
+        .single()
+      if (!pCheck?.email_team_assignment_sent && pCheck?.tutor_email) {
+        const { sendTeamAssignmentEmail } = await import('@/features/configuracion/actions/assignment-email.actions')
+        await sendTeamAssignmentEmail(playerId)
+      }
+    } catch {
+      // non-fatal — la asignación de equipo ya se guardó correctamente
+    }
   }
 
   revalidatePath('/jugadores/inscripciones')
