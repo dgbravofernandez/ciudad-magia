@@ -6,15 +6,16 @@ import { useTransition } from 'react'
 interface Props {
   season: string
   seasons: string[]
+  basePath?: string
 }
 
-export function SeasonSelector({ season, seasons }: Props) {
+export function SeasonSelector({ season, seasons, basePath = '/contabilidad/pagos' }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
   function handleChange(next: string) {
     startTransition(() => {
-      router.push(`/contabilidad/pagos?season=${encodeURIComponent(next)}`)
+      router.push(`${basePath}?season=${encodeURIComponent(next)}`)
     })
   }
 

@@ -94,6 +94,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Gastos', href: '/contabilidad/gastos' },
       { label: 'Actividades', href: '/contabilidad/actividades' },
       { label: 'Cierre de caja', href: '/contabilidad/caja' },
+      { label: 'Informes', href: '/contabilidad/informes' },
     ],
   },
   {
