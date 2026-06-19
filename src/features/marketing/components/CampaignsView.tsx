@@ -422,6 +422,7 @@ export function CampaignsView(p: Props) {
                 </th>
                 <th className="text-left py-2 px-2">Club</th>
                 <th className="text-left py-2 px-2">Email</th>
+                <th className="text-left py-2 px-2">Teléfono</th>
                 <th className="text-left py-2 px-2">Ubicación</th>
                 <th className="text-center py-2 px-2">Prio</th>
                 <th className="text-left py-2 px-2">Estado</th>
@@ -438,6 +439,12 @@ export function CampaignsView(p: Props) {
                   </td>
                   <td className="py-2 px-2 text-white">{c.name}</td>
                   <td className="py-2 px-2 text-slate-400 text-xs">{c.email}</td>
+                  <td className="py-2 px-2 text-xs">
+                    {c.phone
+                      ? <a href={`tel:${c.phone.replace(/\s/g, '')}`} className="text-green-400 hover:text-green-300">{c.phone}</a>
+                      : <span className="text-slate-700">—</span>
+                    }
+                  </td>
                   <td className="py-2 px-2 text-slate-500 text-xs">{c.location}</td>
                   <td className="py-2 px-2 text-center">
                     <input type="number" value={c.priority} min={1} max={999}
@@ -467,7 +474,7 @@ export function CampaignsView(p: Props) {
                 </tr>
               ))}
               {p.clubs.length === 0 && (
-                <tr><td colSpan={7} className="py-8 text-center text-slate-500 text-sm">Sin resultados con esos filtros</td></tr>
+                <tr><td colSpan={8} className="py-8 text-center text-slate-500 text-sm">Sin resultados con esos filtros</td></tr>
               )}
             </tbody>
           </table>

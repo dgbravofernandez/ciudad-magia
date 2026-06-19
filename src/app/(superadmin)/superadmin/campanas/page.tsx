@@ -29,7 +29,7 @@ export default async function CampanasPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let clubsQuery: any = sb
     .from('marketing_clubs')
-    .select('id, name, email, location, federation, status, last_sent_at, reply_at, priority, excluded, notes', { count: 'exact' })
+    .select('id, name, email, phone, location, federation, status, last_sent_at, reply_at, priority, excluded, notes', { count: 'exact' })
 
   if (sp.q) clubsQuery = clubsQuery.or(`name.ilike.%${sp.q}%,email.ilike.%${sp.q}%,location.ilike.%${sp.q}%`)
   if (sp.noEmail === '1') {

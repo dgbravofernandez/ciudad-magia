@@ -45,6 +45,7 @@ const FEDERACIONES = [
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 const EMAIL_RE = /[\w.\-+]{2,}@[\w.\-]+\.[a-z]{2,6}/gi
+const PHONE_RE = /(?:\+34[\s.]?)?(?:[67]\d{2}[\s.\-]?\d{3}[\s.\-]?\d{3}|[89]\d{2}[\s.\-]?\d{3}[\s.\-]?\d{3})/g
 const EMAIL_BLACKLIST = new Set([
   'rfef.es','rfaf.es','ffcm.es','ffrm.es','futgal.es','futbolaragon.com',
   'ffib.es','federacioncanariafutbol.es','rfcf.es','frfutbol.com','fexfutbol.com',
@@ -58,6 +59,16 @@ function normName(s: string): string {
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ').trim()
+}
+
+function extractPhone(text: string): string | null {
+  // Find Spanish phone numbers (mobile 6xx/7xx, fixed 8xx/9xx)
+  const matches = [...text.matchAll(PHONE_RE)]
+  for (const m of matches) {
+    const digits = m[0].replace(/[\s.\-+]/g, '').replace(/^34/, '')
+    if (digits.length === 9) return digits
+  }
+  return null
 }
 
 function extractEmails(text: string): string[] {
@@ -128,32 +139,55 @@ function parseNfgList(html: string): Map<string, { code: string; name: string }>
   return map
 }
 
-// Parsear ficha NFG y extraer email
-function parseNfgFicha(html: string): string | null {
-  if (!html || html.length < 200) return null
+// Parsear ficha NFG y extraer email + teléfono
+function parseNfgFicha(html: string): { email: string | null; phone: string | null } {
+  if (!html || html.length < 200) return { email: null, phone: null }
+
+  let email: string | null = null
 
   // Estrategia 1: <h5> con label Email
   const h5Re = /<h5[^>]*>.*?<strong[^>]*>Email[^<]*<\/strong>([^<]*)<\/h5>/gi
   for (const m of html.matchAll(h5Re)) {
     const emails = extractEmails(m[1])
-    if (emails.length) return emails[0]
+    if (emails.length) { email = emails[0]; break }
   }
-  // Estrategia 2: La etiqueta y el valor pueden estar en nodos separados
-  const emailLabelRe = /<strong[^>]*>[^<]*[Ee]mail[^<]*<\/strong>\s*([^<]{5,80})/gi
-  for (const m of html.matchAll(emailLabelRe)) {
-    const emails = extractEmails(m[1])
-    if (emails.length) return emails[0]
+  if (!email) {
+    // Estrategia 2: La etiqueta y el valor pueden estar en nodos separados
+    const emailLabelRe = /<strong[^>]*>[^<]*[Ee]mail[^<]*<\/strong>\s*([^<]{5,80})/gi
+    for (const m of html.matchAll(emailLabelRe)) {
+      const emails = extractEmails(m[1])
+      if (emails.length) { email = emails[0]; break }
+    }
   }
-  // Estrategia 3: mailto:
-  const mailtoRe = /href=["']mailto:([^"'?]+)/gi
-  for (const m of html.matchAll(mailtoRe)) {
-    const emails = extractEmails(m[1])
-    if (emails.length) return emails[0]
+  if (!email) {
+    // Estrategia 3: mailto:
+    const mailtoRe = /href=["']mailto:([^"'?]+)/gi
+    for (const m of html.matchAll(mailtoRe)) {
+      const emails = extractEmails(m[1])
+      if (emails.length) { email = emails[0]; break }
+    }
   }
-  // Estrategia 4: scan completo (solo zona de datos, no nav)
-  const bodyStart = html.indexOf('<div') > 0 ? html.indexOf('<div') : 0
-  const emails = extractEmails(html.slice(bodyStart, bodyStart + 30_000))
-  return emails.length ? emails[0] : null
+  if (!email) {
+    // Estrategia 4: scan completo (solo zona de datos, no nav)
+    const bodyStart = html.indexOf('<div') > 0 ? html.indexOf('<div') : 0
+    const emails = extractEmails(html.slice(bodyStart, bodyStart + 30_000))
+    if (emails.length) email = emails[0]
+  }
+
+  // Extraer teléfono: buscar cerca del label "Teléfono" o "Tlf" en la ficha
+  let phone: string | null = null
+  const phoneLabelRe = /<strong[^>]*>[^<]*(?:[Tt]el[eéf]|Tlf|Fono)[^<]*<\/strong>\s*([^<]{4,30})/gi
+  for (const m of html.matchAll(phoneLabelRe)) {
+    phone = extractPhone(m[1])
+    if (phone) break
+  }
+  if (!phone) {
+    // Fallback: scan zona de datos
+    const bodyStart = html.indexOf('<div') > 0 ? html.indexOf('<div') : 0
+    phone = extractPhone(html.slice(bodyStart, bodyStart + 30_000))
+  }
+
+  return { email, phone }
 }
 
 // ─── HANDLER ─────────────────────────────────────────────────────────────────
@@ -182,30 +216,52 @@ export async function GET(req: NextRequest) {
   // Fase 0 (bootstrap): federaciones sin ningún club en BD → descargar lista e insertar
   // Fase 1 (map):       clubs sin federation_code → emparejar nombre con código
   // Fase 2 (email):     clubs con federation_code pero sin email → fetch ficha
+  // Fase 3 (phone):     clubs con email + federation_code válido pero sin teléfono → fetch ficha
 
-  const { data: countsRaw } = await sb
-    .from('marketing_clubs')
-    .select('federation, federation_code, status')
-    .in('status', ['no_email'])
-    .eq('excluded', false)
+  const [{ data: countsRaw }, { data: phoneRaw }] = await Promise.all([
+    sb
+      .from('marketing_clubs')
+      .select('federation, federation_code, status')
+      .in('status', ['no_email'])
+      .eq('excluded', false),
+    // Fase 3: clubs con email pero sin teléfono y con federation_code real (no _checked)
+    sb
+      .from('marketing_clubs')
+      .select('federation, federation_code')
+      .neq('status', 'no_email')
+      .not('federation_code', 'is', null)
+      .not('federation_code', 'like', '%_checked%')
+      .is('phone', null)
+      .eq('excluded', false)
+      .limit(2000),
+  ])
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = (countsRaw ?? []) as any[]
   const fedInDb = new Set(rows.map((r: { federation: string }) => r.federation))
-  const fedStats: Record<string, { needsMap: number; needsEmail: number }> = {}
+  const fedStats: Record<string, { needsMap: number; needsEmail: number; needsPhone: number }> = {}
   for (const r of rows) {
     const f = r.federation as string
     if (!f) continue
     const known = FEDERACIONES.find(fed => fed.name === f)
     if (!known) continue
-    if (!fedStats[known.key]) fedStats[known.key] = { needsMap: 0, needsEmail: 0 }
+    if (!fedStats[known.key]) fedStats[known.key] = { needsMap: 0, needsEmail: 0, needsPhone: 0 }
     if (!r.federation_code) fedStats[known.key].needsMap++
     else fedStats[known.key].needsEmail++
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const r of (phoneRaw ?? []) as any[]) {
+    const f = r.federation as string
+    if (!f) continue
+    const known = FEDERACIONES.find(fed => fed.name === f)
+    if (!known) continue
+    if (!fedStats[known.key]) fedStats[known.key] = { needsMap: 0, needsEmail: 0, needsPhone: 0 }
+    fedStats[known.key].needsPhone++
   }
 
   // Prioridad 0: federación no está en BD en absoluto → bootstrap
   let chosenFed = FEDERACIONES.find(f => !fedInDb.has(f.name))
-  let phase: 'bootstrap' | 'map' | 'email' = 'bootstrap'
+  let phase: 'bootstrap' | 'map' | 'email' | 'phone' = 'bootstrap'
   if (!chosenFed) {
     // Prioridad 1: mapear names → codes
     chosenFed = FEDERACIONES.find(f => (fedStats[f.key]?.needsMap ?? 0) > 0)
@@ -216,15 +272,20 @@ export async function GET(req: NextRequest) {
     chosenFed = FEDERACIONES.find(f => (fedStats[f.key]?.needsEmail ?? 0) > 0)
     phase = 'email'
   }
+  if (!chosenFed) {
+    // Prioridad 3: fetch teléfonos de clubs que ya tienen email
+    chosenFed = FEDERACIONES.find(f => (fedStats[f.key]?.needsPhone ?? 0) > 0)
+    phase = 'phone'
+  }
 
   if (!chosenFed) {
-    log('Nada que procesar — todos los clubs tienen email o están mapeados')
+    log('Nada que procesar — todos los clubs tienen email, teléfono o están mapeados')
     return NextResponse.json({ success: true, message: 'Nada pendiente', stats })
   }
 
   stats.fedKey = chosenFed.key
   stats.phase = phase
-  log(`Procesando ${chosenFed.name} | fase: ${phase} | needsMap=${fedStats[chosenFed.key]?.needsMap ?? 0} | needsEmail=${fedStats[chosenFed.key]?.needsEmail ?? 0}`)
+  log(`Procesando ${chosenFed.name} | fase: ${phase} | needsMap=${fedStats[chosenFed.key]?.needsMap ?? 0} | needsEmail=${fedStats[chosenFed.key]?.needsEmail ?? 0} | needsPhone=${fedStats[chosenFed.key]?.needsPhone ?? 0}`)
 
   // ── HELPER: descargar lista completa NFG ─────────────────────────────────
   async function downloadFedList() {
@@ -334,19 +395,26 @@ export async function GET(req: NextRequest) {
       const fichaUrl = `${chosenFed.ficha}?cod_primaria=${chosenFed.cod}&codigo_club=${club.federation_code}`
       try {
         const { html } = await fetchHtml(fichaUrl, session)
-        const email = parseNfgFicha(html)
+        const { email, phone } = parseNfgFicha(html)
 
         if (email) {
-          await sb.from('marketing_clubs')
-            .update({ email, status: 'pending', federation_code: club.federation_code })
-            .eq('id', club.id)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const update: Record<string, any> = { email, status: 'pending', federation_code: club.federation_code }
+          if (phone) update.phone = phone
+          await sb.from('marketing_clubs').update(update).eq('id', club.id)
           stats.found++
-          log(`  OK ${club.name.slice(0, 40)} → ${email}`)
+          log(`  OK ${club.name.slice(0, 40)} → ${email}${phone ? ` | ${phone}` : ''}`)
         } else {
-          // Marcar con código negativo para no reprocesar (sin email en ficha)
-          await sb.from('marketing_clubs')
-            .update({ federation_code: `${club.federation_code}_checked` })
-            .eq('id', club.id)
+          // Si encontró teléfono aunque no email, guardarlo igualmente
+          if (phone) {
+            await sb.from('marketing_clubs')
+              .update({ phone, federation_code: `${club.federation_code}_checked` })
+              .eq('id', club.id)
+          } else {
+            await sb.from('marketing_clubs')
+              .update({ federation_code: `${club.federation_code}_checked` })
+              .eq('id', club.id)
+          }
           stats.skipped++
         }
       } catch (e) {
@@ -360,6 +428,56 @@ export async function GET(req: NextRequest) {
     log(`Emails encontrados: ${stats.found} | sin email: ${stats.skipped} | errores: ${stats.failed}`)
   }
 
+  // ── FASE 3: FETCH TELÉFONOS (clubs con email pero sin teléfono) ───────────
+  if (phase === 'phone') {
+    const { data: toProcess } = await sb
+      .from('marketing_clubs')
+      .select('id, name, federation_code')
+      .eq('federation', chosenFed.name)
+      .neq('status', 'no_email')
+      .not('federation_code', 'is', null)
+      .not('federation_code', 'like', '%_checked%')
+      .is('phone', null)
+      .eq('excluded', false)
+      .limit(BATCH_FICHAS)
+
+    log(`Fichas para teléfono: ${(toProcess ?? []).length}`)
+
+    const session = await getSession(chosenFed.ficha)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const club of (toProcess ?? []) as any[]) {
+      if (Date.now() - startMs > BUDGET_MS) break
+
+      const fichaUrl = `${chosenFed.ficha}?cod_primaria=${chosenFed.cod}&codigo_club=${club.federation_code}`
+      try {
+        const { html } = await fetchHtml(fichaUrl, session)
+        const { phone } = parseNfgFicha(html)
+
+        if (phone) {
+          await sb.from('marketing_clubs')
+            .update({ phone })
+            .eq('id', club.id)
+          stats.found++
+          log(`  TEL ${club.name.slice(0, 40)} → ${phone}`)
+        } else {
+          // Marcar federation_code como ya comprobado para no repetir
+          await sb.from('marketing_clubs')
+            .update({ federation_code: `${club.federation_code}_checked` })
+            .eq('id', club.id)
+          stats.skipped++
+        }
+      } catch (e) {
+        stats.failed++
+        log(`  ERR ${club.name.slice(0, 40)}: ${(e as Error).message}`)
+      }
+
+      await sleep(SLEEP_FICHA + Math.random() * 1000)
+    }
+
+    log(`Teléfonos encontrados: ${stats.found} | sin teléfono: ${stats.skipped} | errores: ${stats.failed}`)
+  }
+
   const elapsed = ((Date.now() - startMs) / 1000).toFixed(1)
   log(`Completado en ${elapsed}s`)
 
@@ -370,6 +488,7 @@ export async function GET(req: NextRequest) {
     remaining: {
       needsMap: fedStats[chosenFed.key]?.needsMap ?? 0,
       needsEmail: fedStats[chosenFed.key]?.needsEmail ?? 0,
+      needsPhone: fedStats[chosenFed.key]?.needsPhone ?? 0,
     },
   })
 }
