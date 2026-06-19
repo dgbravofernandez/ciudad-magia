@@ -24,6 +24,15 @@ function renderTemplate(html: string, vars: Record<string, string>): string {
   return html.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '')
 }
 
+function wrapLinksForTracking(html: string, sendId: string): string {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.club'
+  return html.replace(/href="(https?:\/\/[^"]+)"/g, (match, url: string) => {
+    if (url.includes('/api/marketing/unsubscribe')) return match
+    if (url.includes('/api/marketing/click')) return match
+    return `href="${base}/api/marketing/click/${sendId}?u=${encodeURIComponent(url)}"`
+  })
+}
+
 function htmlToPlainText(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, '\n')
@@ -143,7 +152,7 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
       club_url: clubNameUrl,
     }
     const subject = renderTemplate(tpl.subject, vars)
-    const html = renderTemplate(tpl.body_html, vars)
+    const html = wrapLinksForTracking(renderTemplate(tpl.body_html, vars), sendRow.id)
     // text/plain: usa body_text de la plantilla si existe, si no lo genera del HTML
     const rawText = tpl.body_text ? renderTemplate(tpl.body_text, vars) : htmlToPlainText(html)
 
