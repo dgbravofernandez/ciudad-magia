@@ -27,6 +27,7 @@ export const maxDuration = 300
 const FEDERACIONES = [
   { key: 'FFCM',  name: 'FFCM Castilla LM',   list: 'https://www.ffcm.es/pnfg/NPcd/NFG_Clubes',                      ficha: 'https://www.ffcm.es/pnfg/NPcd/NFG_VerClub',                      cod: '1000118' },
   { key: 'RFAF',  name: 'RFAF Andalucia',      list: 'https://www.rfaf.es/pnfg/NPcd/NFG_Clubes',                      ficha: 'https://www.rfaf.es/pnfg/NPcd/NFG_VerClub',                      cod: '1000118' },
+  { key: 'FFCV',  name: 'FFCV Valencia',       list: 'https://www.ffcv.es/pnfg/NPcd/NFG_Clubes',                      ficha: 'https://www.ffcv.es/pnfg/NPcd/NFG_VerClub',                      cod: '1000118' },
   { key: 'FEXF',  name: 'FEXF Extremadura',    list: 'https://www.fexfutbol.com/pnfg/NPcd/NFG_Clubes',                ficha: 'https://www.fexfutbol.com/pnfg/NPcd/NFG_VerClub',                cod: '1000118' },
   { key: 'IFCF',  name: 'IFCF Canarias',       list: 'https://www.federacioncanariafutbol.es/pnfg/NPcd/NFG_Clubes',   ficha: 'https://www.federacioncanariafutbol.es/pnfg/NPcd/NFG_VerClub',   cod: '1000118' },
   { key: 'FAF',   name: 'FAF Aragon',           list: 'https://www.futbolaragon.com/pnfg/NPcd/NFG_Clubes',             ficha: 'https://www.futbolaragon.com/pnfg/NPcd/NFG_VerClub',             cod: '1000118' },
@@ -105,23 +106,23 @@ async function getSession(baseUrl: string): Promise<string> {
   } catch { return '' }
 }
 
-// Parsear la lista NFG y devolver { normName → codigo_club }
-function parseNfgList(html: string): Map<string, string> {
-  const map = new Map<string, string>()
+// Parsear la lista NFG y devolver { normName → {code, originalName} }
+function parseNfgList(html: string): Map<string, { code: string; name: string }> {
+  const map = new Map<string, { code: string; name: string }>()
   if (!html) return map
 
   // Tipo A: javascript:Ver(12345) en href
   const reA = /<a[^>]+href=["']javascript:Ver\((\d+)\)["'][^>]*>\s*([^<]+?)\s*<\/a>/gi
   for (const m of html.matchAll(reA)) {
     const code = m[1], name = m[2].trim()
-    if (name && code) map.set(normName(name), code)
+    if (name && code) map.set(normName(name), { code, name })
   }
 
   // Tipo B: codigo_club= en href
   const reB = /<a[^>]+href=["'][^"']*codigo_club=(\d+)[^"']*["'][^>]*>\s*([^<]+?)\s*<\/a>/gi
   for (const m of html.matchAll(reB)) {
     const code = m[1], name = m[2].trim()
-    if (name && code) map.set(normName(name), code)
+    if (name && code) map.set(normName(name), { code, name })
   }
 
   return map
@@ -178,10 +179,10 @@ export async function GET(req: NextRequest) {
   const stats = { fedKey: '', phase: '', mapped: 0, found: 0, failed: 0, skipped: 0 }
 
   // ── DECIDIR QUÉ FEDERACIÓN PROCESAR ───────────────────────────────────────
-  // Primero las que tienen clubs sin federation_code (Fase 1)
-  // Luego las que tienen federation_code pero sin email (Fase 2)
+  // Fase 0 (bootstrap): federaciones sin ningún club en BD → descargar lista e insertar
+  // Fase 1 (map):       clubs sin federation_code → emparejar nombre con código
+  // Fase 2 (email):     clubs con federation_code pero sin email → fetch ficha
 
-  // Contar clubes pendientes por federación
   const { data: countsRaw } = await sb
     .from('marketing_clubs')
     .select('federation, federation_code, status')
@@ -190,6 +191,7 @@ export async function GET(req: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = (countsRaw ?? []) as any[]
+  const fedInDb = new Set(rows.map((r: { federation: string }) => r.federation))
   const fedStats: Record<string, { needsMap: number; needsEmail: number }> = {}
   for (const r of rows) {
     const f = r.federation as string
@@ -201,10 +203,16 @@ export async function GET(req: NextRequest) {
     else fedStats[known.key].needsEmail++
   }
 
-  // Elegir: primero fase 1 (mapear), luego fase 2 (emails)
-  let chosenFed = FEDERACIONES.find(f => (fedStats[f.key]?.needsMap ?? 0) > 0)
-  let phase: 'map' | 'email' = 'map'
+  // Prioridad 0: federación no está en BD en absoluto → bootstrap
+  let chosenFed = FEDERACIONES.find(f => !fedInDb.has(f.name))
+  let phase: 'bootstrap' | 'map' | 'email' = 'bootstrap'
   if (!chosenFed) {
+    // Prioridad 1: mapear names → codes
+    chosenFed = FEDERACIONES.find(f => (fedStats[f.key]?.needsMap ?? 0) > 0)
+    phase = 'map'
+  }
+  if (!chosenFed) {
+    // Prioridad 2: fetch emails
     chosenFed = FEDERACIONES.find(f => (fedStats[f.key]?.needsEmail ?? 0) > 0)
     phase = 'email'
   }
@@ -218,29 +226,55 @@ export async function GET(req: NextRequest) {
   stats.phase = phase
   log(`Procesando ${chosenFed.name} | fase: ${phase} | needsMap=${fedStats[chosenFed.key]?.needsMap ?? 0} | needsEmail=${fedStats[chosenFed.key]?.needsEmail ?? 0}`)
 
-  // ── FASE 1: CONSTRUIR MAPA ─────────────────────────────────────────────────
-  if (phase === 'map') {
-    const session = await getSession(chosenFed.list)
-    const fedMap = new Map<string, string>()
-
-    // Cargar todas las páginas del listado
+  // ── HELPER: descargar lista completa NFG ─────────────────────────────────
+  async function downloadFedList() {
+    const session = await getSession(chosenFed!.list)
+    const fedMap = new Map<string, { code: string; name: string }>()
     let page = 1
     while (Date.now() - startMs < BUDGET_MS - 30_000) {
-      const listUrl = `${chosenFed.list}?cod_primaria=${chosenFed.cod}&NPcd_PageLines=999&NPcd_Page=${page}&Buscar=1`
+      const listUrl = `${chosenFed!.list}?cod_primaria=${chosenFed!.cod}&NPcd_PageLines=999&NPcd_Page=${page}&Buscar=1`
       const { html } = await fetchHtml(listUrl, session)
       if (!html || html.length < 500) break
       const pageMap = parseNfgList(html)
       if (pageMap.size === 0) break
       for (const [k, v] of pageMap) fedMap.set(k, v)
-      log(`  Lista pág ${page}: ${pageMap.size} clubs (total mapeado: ${fedMap.size})`)
-      if (pageMap.size < 50) break  // última página
+      log(`  Lista pág ${page}: ${pageMap.size} clubs`)
+      if (pageMap.size < 50) break
       page++
       await sleep(SLEEP_LIST)
     }
+    return fedMap
+  }
 
+  // ── FASE 0: BOOTSTRAP ─────────────────────────────────────────────────────
+  // Federación sin ningún club en BD → descargar lista completa e insertar todos
+  if (phase === 'bootstrap') {
+    const fedMap = await downloadFedList()
+    log(`Bootstrap ${chosenFed.name}: ${fedMap.size} clubs en federación`)
+
+    if (fedMap.size === 0) {
+      log('Lista vacía — federación no responde o no usa NFG estándar')
+      return NextResponse.json({ success: true, message: 'Lista vacía', stats })
+    }
+
+    const toInsert: Record<string, string | boolean>[] = []
+    for (const [, { code, name }] of fedMap) {
+      toInsert.push({ name, federation: chosenFed.name, status: 'no_email', federation_code: code, excluded: false })
+    }
+
+    for (let i = 0; i < toInsert.length; i += 200) {
+      const { error } = await sb.from('marketing_clubs').insert(toInsert.slice(i, i + 200))
+      if (!error) stats.mapped += Math.min(200, toInsert.length - i)
+      else log(`  Error batch insert ${i}: ${error.message}`)
+    }
+    log(`Insertados ${stats.mapped} clubs nuevos de ${chosenFed.name}`)
+  }
+
+  // ── FASE 1: CONSTRUIR MAPA ─────────────────────────────────────────────────
+  if (phase === 'map') {
+    const fedMap = await downloadFedList()
     log(`Mapa federación listo: ${fedMap.size} clubs`)
 
-    // Cargar clubs sin federation_code de esta federación
     const { data: dbClubs } = await sb
       .from('marketing_clubs')
       .select('id, name')
@@ -249,27 +283,24 @@ export async function GET(req: NextRequest) {
       .is('federation_code', null)
       .limit(5000)
 
-    // Emparejar y actualizar en lotes
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updates: { id: string; code: string }[] = []
     for (const c of (dbClubs ?? []) as any[]) {
       const norm = normName(c.name)
-      let code = fedMap.get(norm)
+      let entry = fedMap.get(norm)
 
-      // Fallback: variantes sin prefijo (C.D., A.D., etc.)
-      if (!code) {
+      if (!entry) {
         const stripped = norm.replace(/^(c\.?d\.?|a\.?d\.?|e\.?f\.?|u\.?d\.?|s\.?d\.?|r\.?c\.?d\.?|c\.?f\.?|s\.?c\.?d\.?|c\.?d\.?b\.?)\s+/, '')
         for (const [k, v] of fedMap) {
           if (k.endsWith(stripped) || stripped.endsWith(k.slice(-stripped.length + 3 > 0 ? -stripped.length + 3 : -1))) {
-            code = v; break
+            entry = v; break
           }
         }
       }
 
-      if (code) updates.push({ id: c.id, code })
+      if (entry) updates.push({ id: c.id, code: entry.code })
     }
 
-    // Actualizar en lotes de 100
     for (let i = 0; i < updates.length; i += 100) {
       const batch = updates.slice(i, i + 100)
       for (const u of batch) {
@@ -277,7 +308,6 @@ export async function GET(req: NextRequest) {
       }
       stats.mapped += batch.length
     }
-
     log(`Mapeados: ${stats.mapped} / ${(dbClubs ?? []).length} clubs de BD`)
   }
 
