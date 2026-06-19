@@ -333,23 +333,26 @@ export async function registerPayment(data: {
 export async function deletePayment(paymentId: string) {
   const { sb, clubId } = await resolveClubAndMember()
 
-  // Lock check against the payment's date
+  // Lock check against the payment's date + tenant ownership check
   const { data: existing } = await sb
-    .from('quota_payments').select('payment_date').eq('id', paymentId).single()
+    .from('quota_payments').select('payment_date, club_id').eq('id', paymentId).single()
+  if (!existing) return { success: false, error: 'Pago no encontrado' }
+  if (existing.club_id !== clubId) return { success: false, error: 'No autorizado' }
   if (existing?.payment_date) {
     const check = await assertNotLocked(existing.payment_date, clubId)
     if (!check.ok) return { success: false, error: check.error }
   }
 
-  // Delete related cash_movement first (FK)
+  // Delete related cash_movement first (FK) — scoped to club as defense-in-depth
   const { error: movementError } = await sb
     .from('cash_movements')
     .delete()
     .eq('related_payment_id', paymentId)
+    .eq('club_id', clubId)
 
   if (movementError) return { success: false, error: movementError.message }
 
-  const { error } = await sb.from('quota_payments').delete().eq('id', paymentId)
+  const { error } = await sb.from('quota_payments').delete().eq('id', paymentId).eq('club_id', clubId)
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/contabilidad/pagos')
@@ -372,14 +375,15 @@ export async function updatePayment(data: {
   const dbMethod = toDbMethod(data.method)
   const isAdmin = roles.some(r => ['admin', 'direccion'].includes(r))
 
-  // Lock check: admin/direccion puede siempre reclasificar (cambiar source/concept)
-  // El lock solo aplica para cambios de importe/fecha en periodos cerrados.
-  // Para importes y fechas se mantiene siempre para proteger la integridad del arqueo.
+  // Tenant ownership + lock check
   const { data: existing } = await sb
     .from('quota_payments')
-    .select('payment_date, amount_paid')
+    .select('payment_date, amount_paid, club_id')
     .eq('id', data.paymentId)
     .single()
+
+  if (!existing) return { success: false, error: 'Pago no encontrado' }
+  if (existing.club_id !== clubId) return { success: false, error: 'No autorizado' }
 
   const isAmountChange = existing && parseFloat(String(existing.amount_paid)) !== data.amount
   const isDateChange   = existing && existing.payment_date?.slice(0, 10) !== data.date?.slice(0, 10)
@@ -428,6 +432,7 @@ export async function updatePayment(data: {
     .from('quota_payments')
     .update(paymentUpdate)
     .eq('id', data.paymentId)
+    .eq('club_id', clubId)
 
   if (paymentError) return { success: false, error: paymentError.message }
 
