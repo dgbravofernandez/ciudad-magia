@@ -53,7 +53,11 @@ export default async function InformesPage({
   // Determinar qué campo de equipo usar según temporada
   const isNextSeason = season !== currentSeason
 
-  // Agregar pagos por jugador
+  // Totales globales de todos los pagos de la temporada (incl. jugadores de baja)
+  const globalTotalPaid = (paymentsRaw ?? []).reduce((s: number, p: { amount_paid: number }) => s + (p.amount_paid ?? 0), 0)
+  const globalTotalDue = (paymentsRaw ?? []).reduce((s: number, p: { amount_due: number }) => s + (p.amount_due ?? 0), 0)
+
+  // Agregar pagos por jugador (para tabla de desglose de activos)
   const paysByPlayer: Record<string, { due: number; paid: number }> = {}
   for (const pay of (paymentsRaw ?? [])) {
     if (!paysByPlayer[pay.player_id]) paysByPlayer[pay.player_id] = { due: 0, paid: 0 }
@@ -96,7 +100,7 @@ export default async function InformesPage({
           <h2 className="text-sm text-muted-foreground">Temporada {season}</h2>
           <SeasonSelector season={season} seasons={seasons} basePath="/contabilidad/informes" />
         </div>
-        <InformePagos players={players} teams={teams} season={season} />
+        <InformePagos players={players} teams={teams} season={season} globalTotalPaid={globalTotalPaid} globalTotalDue={globalTotalDue} />
       </main>
     </div>
   )

@@ -24,6 +24,9 @@ interface Props {
   players: PlayerRow[]
   teams: TeamRow[]
   season: string
+  /** Totales globales calculados sobre todos los pagos de la temporada (incl. jugadores de baja) */
+  globalTotalPaid: number
+  globalTotalDue: number
 }
 
 function fmt(n: number) {
@@ -42,7 +45,7 @@ function StatusBadge({ paid, due }: { paid: number; due: number }) {
   return <span className="badge badge-error">Pendiente</span>
 }
 
-export function InformePagos({ players, teams, season }: Props) {
+export function InformePagos({ players, teams, season, globalTotalPaid, globalTotalDue }: Props) {
   const [tab, setTab] = useState<'equipos' | 'jugadores'>('equipos')
   const [search, setSearch] = useState('')
   const [teamFilter, setTeamFilter] = useState('')
@@ -56,9 +59,10 @@ export function InformePagos({ players, teams, season }: Props) {
     })
   }, [players, search, teamFilter])
 
-  const totalDue = players.reduce((s, p) => s + p.totalDue, 0)
-  const totalPaid = players.reduce((s, p) => s + p.totalPaid, 0)
-  const totalPending = totalDue - totalPaid
+  // Totales de jugadores activos (para tabla y métricas de deuda pendiente)
+  const activeTotalDue = players.reduce((s, p) => s + p.totalDue, 0)
+  const activeTotalPaid = players.reduce((s, p) => s + p.totalPaid, 0)
+  const activeTotalPending = activeTotalDue - activeTotalPaid
   const debtors = players.filter(p => p.totalDue - p.totalPaid > 0).length
 
   return (
@@ -67,26 +71,26 @@ export function InformePagos({ players, teams, season }: Props) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="card p-4">
           <p className="text-xs text-muted-foreground mb-1">Total recaudado</p>
-          <p className="text-xl font-bold text-green-600">{fmt(totalPaid)}</p>
-          <p className="text-xs text-muted-foreground mt-1">{pct(totalPaid, totalDue)}% del total</p>
+          <p className="text-xl font-bold text-green-600">{fmt(globalTotalPaid)}</p>
+          <p className="text-xs text-muted-foreground mt-1">Toda la temporada</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-muted-foreground mb-1">Total pendiente</p>
-          <p className="text-xl font-bold text-red-500">{fmt(totalPending)}</p>
+          <p className="text-xs text-muted-foreground mb-1">Pendiente (activos)</p>
+          <p className="text-xl font-bold text-red-500">{fmt(activeTotalPending)}</p>
           <p className="text-xs text-muted-foreground mt-1">{debtors} jugadores con deuda</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-muted-foreground mb-1">Total emitido</p>
-          <p className="text-xl font-bold">{fmt(totalDue)}</p>
+          <p className="text-xs text-muted-foreground mb-1">Emitido (activos)</p>
+          <p className="text-xl font-bold">{fmt(activeTotalDue)}</p>
           <p className="text-xs text-muted-foreground mt-1">Temporada {season}</p>
         </div>
         <div className="card p-4">
           <p className="text-xs text-muted-foreground mb-1">Tasa de cobro</p>
-          <p className="text-xl font-bold">{pct(totalPaid, totalDue)}%</p>
+          <p className="text-xl font-bold">{pct(globalTotalPaid, globalTotalDue)}%</p>
           <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
             <div
               className="h-full bg-green-500 rounded-full transition-all"
-              style={{ width: `${pct(totalPaid, totalDue)}%` }}
+              style={{ width: `${Math.min(100, pct(globalTotalPaid, globalTotalDue))}%` }}
             />
           </div>
         </div>
@@ -164,10 +168,10 @@ export function InformePagos({ players, teams, season }: Props) {
                 <tr className="bg-muted/40 font-semibold">
                   <td className="px-4 py-3">Total</td>
                   <td className="px-4 py-3 text-right text-muted-foreground">{players.length}</td>
-                  <td className="px-4 py-3 text-right">{fmt(totalDue)}</td>
-                  <td className="px-4 py-3 text-right text-green-600">{fmt(totalPaid)}</td>
-                  <td className={`px-4 py-3 text-right ${totalPending > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>{fmt(totalPending)}</td>
-                  <td className="px-4 py-3 text-center text-sm">{pct(totalPaid, totalDue)}%</td>
+                  <td className="px-4 py-3 text-right">{fmt(activeTotalDue)}</td>
+                  <td className="px-4 py-3 text-right text-green-600">{fmt(activeTotalPaid)}</td>
+                  <td className={`px-4 py-3 text-right ${activeTotalPending > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>{fmt(activeTotalPending)}</td>
+                  <td className="px-4 py-3 text-center text-sm">{pct(activeTotalPaid, activeTotalDue)}%</td>
                 </tr>
               </tfoot>
             </table>
