@@ -58,19 +58,19 @@ export default async function InformesPage({
     paysByPlayer[pay.player_id].paid += pay.amount_paid ?? 0
   }
 
-  // Solo jugadores que tienen al menos un pago registrado
+  // Todos los jugadores activos — los sin cuota asignada aparecen con 0/0
   const players: PlayerRow[] = []
   for (const p of (playersRaw ?? [])) {
     const agg = paysByPlayer[p.id]
-    if (!agg) continue
     const teamId = isNextSeason ? (p.next_team_id ?? p.team_id) : p.team_id
     players.push({
       id: p.id,
       name: `${p.first_name} ${p.last_name}`,
       teamId: teamId ?? null,
       teamName: (teamId && teamMap[teamId]) ? teamMap[teamId] : 'Sin equipo',
-      totalDue: agg.due,
-      totalPaid: agg.paid,
+      totalDue: agg?.due ?? 0,
+      totalPaid: agg?.paid ?? 0,
+      hasCuota: !!agg,
     })
   }
 
