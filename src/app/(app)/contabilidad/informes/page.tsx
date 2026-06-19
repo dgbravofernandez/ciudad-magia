@@ -1,10 +1,11 @@
-import { createAdminClient } from '@/lib/supabase/admin'
+﻿import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { Topbar } from '@/components/layout/Topbar'
 import { SeasonSelector } from '@/features/contabilidad/components/SeasonSelector'
 import { InformePagos } from '@/features/contabilidad/components/InformePagos'
 import type { PlayerRow, TeamRow } from '@/features/contabilidad/components/InformePagos'
 import { getActiveSeasons, getCurrentSeason } from '@/lib/utils/currency'
+import { getReminderHistory } from '@/features/contabilidad/actions/accounting.actions'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Informes de Pagos' }
@@ -24,8 +25,8 @@ export default async function InformesPage({
   const currentSeason = getCurrentSeason()
   const season = params.season && seasons.includes(params.season) ? params.season : currentSeason
 
-  // Tres queries independientes — paralelizar
-  const [{ data: teamsRaw }, { data: playersRaw }, { data: paymentsRaw }] = await Promise.all([
+  // Cuatro queries independientes — paralelizar
+  const [{ data: teamsRaw }, { data: playersRaw }, { data: paymentsRaw }, reminderHistory] = await Promise.all([
     sb.from('teams').select('id, name, season').eq('club_id', clubId),
     sb.from('players')
       .select('id, first_name, last_name, team_id, next_team_id')
@@ -36,6 +37,7 @@ export default async function InformesPage({
       .eq('club_id', clubId)
       .eq('season', season)
       .neq('status', 'refunded'),
+    getReminderHistory(),
   ])
 
   const teamMap: Record<string, string> = {}
@@ -93,8 +95,9 @@ export default async function InformesPage({
           <h2 className="text-sm text-muted-foreground">Temporada {season}</h2>
           <SeasonSelector season={season} seasons={seasons} basePath="/contabilidad/informes" />
         </div>
-        <InformePagos players={players} teams={teams} season={season} globalTotalPaid={globalTotalPaid} globalTotalDue={globalTotalDue} />
+        <InformePagos players={players} teams={teams} season={season} globalTotalPaid={globalTotalPaid} globalTotalDue={globalTotalDue} reminderHistory={reminderHistory} />
       </main>
     </div>
   )
 }
+

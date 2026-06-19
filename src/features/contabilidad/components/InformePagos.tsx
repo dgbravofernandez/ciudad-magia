@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Search, ArrowUpDown } from 'lucide-react'
+import { useState, useMemo, useTransition } from 'react'
+import { Search, ArrowUpDown, Bell, BellOff } from 'lucide-react'
+import { toast } from 'sonner'
+import { sendPendingReminders } from '@/features/contabilidad/actions/accounting.actions'
 
 export interface PlayerRow {
   id: string
@@ -11,6 +13,12 @@ export interface PlayerRow {
   totalDue: number
   totalPaid: number
   hasCuota?: boolean
+}
+
+export interface ReminderRecord {
+  lastSent: string
+  count: number
+  history: string[]
 }
 
 export interface TeamRow {
@@ -27,6 +35,7 @@ interface Props {
   season: string
   globalTotalPaid: number
   globalTotalDue: number
+  reminderHistory?: Record<string, ReminderRecord>
 }
 
 function fmt(n: number) {
@@ -66,7 +75,14 @@ const STATUS_LABELS: Record<StatusFilter, string> = {
   sincuota: 'Sin cuota',
 }
 
-export function InformePagos({ players, teams, season, globalTotalPaid, globalTotalDue }: Props) {
+function daysSince(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  if (days === 0) return 'hoy'
+  if (days === 1) return 'ayer'
+  return `hace ${days}d`
+}
+
+export function InformePagos({ players, teams, season, globalTotalPaid, globalTotalDue, reminderHistory = {} }: Props) {
   const [tab, setTab] = useState<'equipos' | 'jugadores'>('equipos')
   const [search, setSearch] = useState('')
   const [teamFilter, setTeamFilter] = useState('')
@@ -74,6 +90,35 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
   const [sortBy, setSortBy] = useState<SortBy>('deuda')
   const [sortAsc, setSortAsc] = useState(false)
   const [teamSort, setTeamSort] = useState<TeamSort>('nombre')
+  const [isPending, startTransition] = useTransition()
+  const [sendingIds, setSendingIds] = useState<Set<string>>(new Set())
+  const [localHistory, setLocalHistory] = useState<Record<string, ReminderRecord>>(reminderHistory)
+
+  function sendReminder(playerIds: string[]) {
+    setSendingIds(prev => new Set([...prev, ...playerIds]))
+    startTransition(async () => {
+      const res = await sendPendingReminders(playerIds)
+      if ((res as { success?: boolean })?.success) {
+        const now = new Date().toISOString()
+        setLocalHistory(prev => {
+          const next = { ...prev }
+          for (const id of playerIds) {
+            const existing = next[id]
+            next[id] = {
+              lastSent: now,
+              count: (existing?.count ?? 0) + 1,
+              history: [now, ...(existing?.history ?? [])],
+            }
+          }
+          return next
+        })
+        toast.success(`Aviso enviado a ${playerIds.length} jugador${playerIds.length !== 1 ? 'es' : ''}`)
+      } else {
+        toast.error('Error al enviar el aviso')
+      }
+      setSendingIds(prev => { const s = new Set(prev); playerIds.forEach(id => s.delete(id)); return s })
+    })
+  }
 
   // Counts per status for pills
   const statusCounts = useMemo(() => {
@@ -317,9 +362,25 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
             ))}
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            {filteredPlayers.length} de {players.length} jugador{players.length !== 1 ? 'es' : ''}
-          </p>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <p className="text-xs text-muted-foreground">
+              {filteredPlayers.length} de {players.length} jugador{players.length !== 1 ? 'es' : ''}
+            </p>
+            {(() => {
+              const deudores = filteredPlayers.filter(p => (p.totalDue - p.totalPaid) > 0)
+              if (deudores.length === 0) return null
+              return (
+                <button
+                  onClick={() => sendReminder(deudores.map(p => p.id))}
+                  disabled={isPending}
+                  className="btn btn-sm flex items-center gap-2 text-xs"
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  Avisar a {deudores.length} deudor{deudores.length !== 1 ? 'es' : ''}
+                </button>
+              )
+            })()}
+          </div>
 
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
@@ -357,14 +418,18 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
                       Pendiente <SortIcon col="deuda" />
                     </th>
                     <th className="text-center px-4 py-3 font-medium text-muted-foreground">Estado</th>
+                    <th className="text-center px-4 py-3 font-medium text-muted-foreground">Avisos</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredPlayers.length === 0 && (
-                    <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">Sin resultados</td></tr>
+                    <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Sin resultados</td></tr>
                   )}
                   {filteredPlayers.map(p => {
                     const pending = p.totalDue - p.totalPaid
+                    const rec = localHistory[p.id]
+                    const hasDebt = pending > 0
+                    const isSending = sendingIds.has(p.id)
                     return (
                       <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/20">
                         <td className="px-4 py-3 font-medium">{p.name}</td>
@@ -376,6 +441,30 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
                         </td>
                         <td className="px-4 py-3 text-center">
                           <StatusBadge player={p} />
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {hasDebt ? (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <button
+                                onClick={() => sendReminder([p.id])}
+                                disabled={isSending || isPending}
+                                title={rec ? `${rec.count} aviso${rec.count !== 1 ? 's' : ''} enviado${rec.count !== 1 ? 's' : ''}` : 'Enviar aviso de deuda'}
+                                className="text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors"
+                              >
+                                {isSending
+                                  ? <BellOff className="w-4 h-4 animate-pulse" />
+                                  : <Bell className="w-4 h-4" />
+                                }
+                              </button>
+                              {rec && (
+                                <span className="text-[10px] text-muted-foreground leading-none">
+                                  {rec.count}× {daysSince(rec.lastSent)}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground/30">—</span>
+                          )}
                         </td>
                       </tr>
                     )
