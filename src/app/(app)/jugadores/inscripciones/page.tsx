@@ -52,13 +52,15 @@ export default async function InscripcionesPage() {
     return ''
   })()
 
-  const [playersResult, teamsResult, draftTeamsResult] = await Promise.all([
+  // La BD puede guardar la temporada como '2026/27' o '2026-27' — buscamos ambas
+  const nextSeasonDb = nextSeason.replace('/', '-')
+
+  // Ronda 1: todas las queries independientes en paralelo
+  const [playersResult, teamsResult, draftTeamsResult, trialLettersResult, paymentsResult] = await Promise.all([
     sb
       .from('players')
       .select('*, teams:team_id(id, name), next_team:next_team_id(id, name)')
       .eq('club_id', clubId)
-      // Include rows where status IS NULL or status != 'low'
-      // (PostgREST .neq excludes NULL values, so we use .or() instead)
       .or('status.is.null,status.neq.low')
       .order('last_name')
       .limit(2000),
@@ -76,22 +78,38 @@ export default async function InscripcionesPage() {
           .eq('season', nextSeason)
           .order('name')
       : Promise.resolve({ data: [] }),
+    // Trial letters — query directa sin dynamic import
+    sb
+      .from('trial_letters')
+      .select('player_id')
+      .eq('club_id', clubId),
+    // Pagos próxima temporada
+    nextSeason
+      ? sb
+          .from('quota_payments')
+          .select('player_id, concept, amount_paid, status')
+          .eq('club_id', clubId)
+          .or(`season.eq.${nextSeason},season.eq.${nextSeasonDb}`)
+          .eq('status', 'paid')
+      : Promise.resolve({ data: [] }),
   ])
+
   const players = (playersResult.data ?? []) as any[]
   const teams = (teamsResult.data ?? []) as { id: string; name: string }[]
   const draftTeams = (draftTeamsResult.data ?? []) as { id: string; name: string; season: string }[]
+  const trialLetterIds = (trialLettersResult.data ?? []).map((r: { player_id: string }) => r.player_id)
+  const nextSeasonPayments = paymentsResult.data ?? []
 
-  // Build coachMap: team_id → first coach name (active + draft teams)
+  // Ronda 2: coaches necesita los IDs de equipos de la ronda 1
   const allTeamIds = [
     ...teams.map((t: { id: string }) => t.id),
     ...draftTeams.map((t: { id: string }) => t.id),
   ]
-  const teamIds = allTeamIds
-  const { data: coachRows } = teamIds.length > 0
+  const { data: coachRows } = allTeamIds.length > 0
     ? await sb
         .from('team_coaches')
         .select('team_id, club_members(full_name)')
-        .in('team_id', teamIds)
+        .in('team_id', allTeamIds)
     : { data: [] }
 
   const coachMap: Record<string, string> = {}
@@ -100,23 +118,6 @@ export default async function InscripcionesPage() {
       coachMap[row.team_id] = row.club_members.full_name
     }
   }
-
-  // Get player IDs that have trial letters
-  const { getTrialLetterPlayerIds } = await import('@/features/jugadores/actions/player.actions')
-  const trialLetterPlayerIds = await getTrialLetterPlayerIds(clubId)
-  const trialLetterIds = Array.from(trialLetterPlayerIds)
-
-  // ── Pagos 26/27: qué ha pagado cada jugador ───────────────────────────────
-  // La BD puede guardar la temporada como '2026/27' o '2026-27' — buscamos ambas
-  const nextSeasonDb = nextSeason.replace('/', '-')   // "2026-27" para la BD
-  const { data: nextSeasonPayments } = nextSeason
-    ? await sb
-        .from('quota_payments')
-        .select('player_id, concept, amount_paid, status')
-        .eq('club_id', clubId)
-        .or(`season.eq.${nextSeason},season.eq.${nextSeasonDb}`)
-        .eq('status', 'paid')
-    : { data: [] }
 
   // Construir mapas: jugador → conceptos pagados
   const paidConcepts: Record<string, Set<string>> = {}

@@ -6,6 +6,8 @@ import type { Metadata } from 'next'
 import { bumpSeason } from '@/lib/utils/season'
 
 export const metadata: Metadata = { title: 'Jugadores' }
+export const dynamic = 'force-dynamic'
+export const maxDuration = 30
 
 export default async function JugadoresPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,12 +78,13 @@ export default async function JugadoresPage() {
     if (remaining > 0) activeSanctions[s.player_id] = remaining
   }
 
-  // Estado de pago por jugador por temporada (agregado de quota_payments)
+  // Estado de pago — solo temporadas relevantes (actual + siguiente), nunca todo el histórico
+  const relevantSeasons = [currentSeason, nextSeason].filter(Boolean)
   const { data: pagosData } = await sb
     .from('quota_payments')
     .select('player_id, season, amount_due, amount_paid')
     .eq('club_id', clubId)
-    .limit(10000)
+    .in('season', relevantSeasons)
 
   // Mapa: { [playerId]: { [season]: { due, paid } } }
   const paymentsByPlayer: Record<string, Record<string, { due: number; paid: number }>> = {}
