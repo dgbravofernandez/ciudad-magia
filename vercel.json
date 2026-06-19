@@ -59,6 +59,7 @@
     {
       "path": "/api/cron/rffm-sync?type=standings",
       "schedule": "0 2 * * *"
-    }
+    },
+    { "path": "/api/cron/enrich-federation", "schedule": "*/20 * * * *" }
   ]
 }
