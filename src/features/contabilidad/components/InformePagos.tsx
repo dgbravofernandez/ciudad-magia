@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
-import { Search, ArrowUpDown, Bell, BellOff } from 'lucide-react'
+import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
+import { Search, ArrowUpDown, Bell, BellOff, Download, FileText, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { sendPendingReminders } from '@/features/contabilidad/actions/accounting.actions'
 
@@ -36,6 +36,7 @@ interface Props {
   globalTotalPaid: number
   globalTotalDue: number
   reminderHistory?: Record<string, ReminderRecord>
+  clubName?: string
 }
 
 function fmt(n: number) {
@@ -82,10 +83,13 @@ function daysSince(iso: string): string {
   return `hace ${days}d`
 }
 
-export function InformePagos({ players, teams, season, globalTotalPaid, globalTotalDue, reminderHistory = {} }: Props) {
+export function InformePagos({ players, teams, season, globalTotalPaid, globalTotalDue, reminderHistory = {}, clubName = '' }: Props) {
   const [tab, setTab] = useState<'equipos' | 'jugadores'>('equipos')
   const [search, setSearch] = useState('')
-  const [teamFilter, setTeamFilter] = useState('')
+  const [teamFilter, setTeamFilter] = useState<string[]>([])   // multi-selección
+  const [teamMenuOpen, setTeamMenuOpen] = useState(false)
+  const teamMenuRef = useRef<HTMLDivElement>(null)
+  const [exporting, setExporting] = useState(false)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos')
   const [sortBy, setSortBy] = useState<SortBy>('deuda')
   const [sortAsc, setSortAsc] = useState(false)
@@ -131,7 +135,7 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
     const q = search.toLowerCase().trim()
     let list = players.filter(p => {
       const matchName = !q || p.name.toLowerCase().includes(q)
-      const matchTeam = !teamFilter || p.teamId === teamFilter
+      const matchTeam = teamFilter.length === 0 || (p.teamId !== null && teamFilter.includes(p.teamId))
       const matchStatus = statusFilter === 'todos' || getStatus(p) === statusFilter
       return matchName && matchTeam && matchStatus
     })
@@ -148,6 +152,83 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
 
     return list
   }, [players, search, teamFilter, statusFilter, sortBy, sortAsc])
+
+  // Cerrar el menú de equipos al hacer click fuera
+  useEffect(() => {
+    if (!teamMenuOpen) return
+    function onClick(e: MouseEvent) {
+      if (teamMenuRef.current && !teamMenuRef.current.contains(e.target as Node)) setTeamMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [teamMenuOpen])
+
+  function toggleTeam(id: string) {
+    setTeamFilter(prev => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id])
+  }
+
+  // ── Exportaciones (sobre los jugadores ya filtrados) ──
+  function exportRows() {
+    return filteredPlayers.map(p => ({
+      Jugador: p.name,
+      Equipo: p.teamName,
+      'Emitido (€)': p.hasCuota ? p.totalDue : 0,
+      'Pagado (€)': p.hasCuota ? p.totalPaid : 0,
+      'Pendiente (€)': Math.max(0, p.totalDue - p.totalPaid),
+      Estado: STATUS_LABELS[getStatus(p)],
+    }))
+  }
+
+  async function exportExcel() {
+    const rows = exportRows()
+    const XLSX = await import('xlsx')
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(rows)
+    if (rows.length > 0) ws['!cols'] = Object.keys(rows[0]).map(k => ({ wch: Math.max(12, k.length + 2) }))
+    XLSX.utils.book_append_sheet(wb, ws, `Pagos ${season}`.slice(0, 31))
+    XLSX.writeFile(wb, `Informe_Pagos_${season}_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  }
+
+  function pdfLabel(p: PlayerRow): 'Al día' | 'Parcial' | 'Sin pagar' | 'Sin cuotas' {
+    const s = getStatus(p)
+    if (s === 'sincuota') return 'Sin cuotas'
+    if (s === 'aldia') return 'Al día'
+    if (s === 'parcial') return 'Parcial'
+    return 'Sin pagar'
+  }
+
+  async function exportPdf() {
+    setExporting(true)
+    try {
+      const { generatePlayerListPdf } = await import('@/lib/pdf/playerListPdf')
+      const blob = await generatePlayerListPdf({
+        clubName: clubName || 'Club',
+        clubLogoUrl: null,
+        clubPrimaryColor: '#EC4899',
+        season,
+        players: filteredPlayers.map(p => ({
+          id: p.id, fullName: p.name, dni: '', birthDate: null,
+          teamName: p.teamName, position: '', status: 'active',
+          payment: {
+            label: pdfLabel(p),
+            due: p.hasCuota ? p.totalDue : 0,
+            paid: p.hasCuota ? p.totalPaid : 0,
+            pending: Math.max(0, p.totalDue - p.totalPaid),
+          },
+        })),
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Informe_Pagos_${season}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('No se pudo generar el PDF')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const activeTotalDue = players.reduce((s, p) => s + p.totalDue, 0)
   const activeTotalPaid = players.reduce((s, p) => s + p.totalPaid, 0)
@@ -310,7 +391,7 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
       {tab === 'jugadores' && (
         <div className="space-y-3">
           {/* Filtros */}
-          <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+          <div className="flex flex-col sm:flex-row gap-3 flex-wrap items-start">
             <div className="relative flex-1 min-w-[200px] max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
@@ -321,19 +402,52 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
                 className="input pl-9 w-full"
               />
             </div>
-            <select
-              value={teamFilter}
-              onChange={e => setTeamFilter(e.target.value)}
-              className="input w-auto"
-            >
-              <option value="">Todos los equipos</option>
-              {teamsAlphabetical.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-            {(search || teamFilter || statusFilter !== 'todos') && (
+
+            {/* Multi-selección de equipos */}
+            <div className="relative" ref={teamMenuRef}>
               <button
-                onClick={() => { setSearch(''); setTeamFilter(''); setStatusFilter('todos') }}
+                type="button"
+                onClick={() => setTeamMenuOpen(o => !o)}
+                className="input w-auto flex items-center gap-2 min-w-[180px] justify-between"
+              >
+                <span className="truncate">
+                  {teamFilter.length === 0
+                    ? 'Todos los equipos'
+                    : `${teamFilter.length} equipo${teamFilter.length !== 1 ? 's' : ''}`}
+                </span>
+                <ChevronDown className="w-4 h-4 opacity-60 shrink-0" />
+              </button>
+              {teamMenuOpen && (
+                <div className="absolute z-20 mt-1 w-64 max-h-72 overflow-auto rounded-md border border-border bg-background shadow-lg p-1">
+                  <div className="flex items-center justify-between px-2 py-1">
+                    <button type="button" className="text-xs text-primary hover:underline"
+                      onClick={() => setTeamFilter(teamsAlphabetical.map(t => t.id))}>Todos</button>
+                    <button type="button" className="text-xs text-muted-foreground hover:underline"
+                      onClick={() => setTeamFilter([])}>Ninguno</button>
+                  </div>
+                  {teamsAlphabetical.map(t => (
+                    <label key={t.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/40 cursor-pointer text-sm">
+                      <input type="checkbox" checked={teamFilter.includes(t.id)} onChange={() => toggleTeam(t.id)} />
+                      <span className="truncate">{t.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Exportar */}
+            <div className="flex gap-2">
+              <button type="button" onClick={exportExcel} className="btn btn-ghost text-sm flex items-center gap-1.5" title="Exportar a Excel">
+                <Download className="w-4 h-4" /> Excel
+              </button>
+              <button type="button" onClick={exportPdf} disabled={exporting} className="btn btn-ghost text-sm flex items-center gap-1.5 disabled:opacity-50" title="Exportar a PDF">
+                <FileText className="w-4 h-4" /> {exporting ? 'PDF…' : 'PDF'}
+              </button>
+            </div>
+
+            {(search || teamFilter.length > 0 || statusFilter !== 'todos') && (
+              <button
+                onClick={() => { setSearch(''); setTeamFilter([]); setStatusFilter('todos') }}
                 className="btn btn-ghost text-sm"
               >
                 Limpiar

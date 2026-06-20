@@ -29,7 +29,7 @@ export default async function InformesPage({
   // Cuatro queries independientes — paralelizar. players y payments paginados:
   // PostgREST corta a 1000 filas y una temporada tiene >2000 cuotas → sin
   // paginar los totales salían a la mitad (ver fetchAllRows).
-  const [{ data: teamsRaw }, playersRaw, paymentsRaw, reminderHistory] = await Promise.all([
+  const [{ data: teamsRaw }, playersRaw, paymentsRaw, reminderHistory, { data: clubRow }] = await Promise.all([
     sb.from('teams').select('id, name, season').eq('club_id', clubId),
     fetchAllRows(() => sb.from('players')
       .select('id, first_name, last_name, team_id, next_team_id')
@@ -41,6 +41,7 @@ export default async function InformesPage({
       .eq('season', season)
       .neq('status', 'refunded')),
     getReminderHistory(),
+    sb.from('clubs').select('name').eq('id', clubId).single(),
   ])
 
   const teamMap: Record<string, string> = {}
@@ -50,6 +51,17 @@ export default async function InformesPage({
 
   // Determinar qué campo de equipo usar según temporada
   const isNextSeason = season !== currentSeason
+
+  // Equipos de la temporada seleccionada. OJO: teams.season usa formato barra
+  // ('2026/27') y aquí `season` viene en guión ('2026-27') → comparar ambos.
+  const seasonSlash = season.replace('-', '/')
+  const seasonDash = season.replace('/', '-')
+  const seasonTeamIds = new Set<string>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (teamsRaw ?? [])
+      .filter((t: any) => t.season === seasonSlash || t.season === seasonDash)
+      .map((t: any) => t.id as string)
+  )
 
   // Totales globales de todos los pagos de la temporada (incl. jugadores de baja)
   const globalTotalPaid = (paymentsRaw ?? []).reduce((s: number, p: { amount_paid: number }) => s + (p.amount_paid ?? 0), 0)
@@ -63,11 +75,16 @@ export default async function InformesPage({
     paysByPlayer[pay.player_id].paid += pay.amount_paid ?? 0
   }
 
-  // Todos los jugadores activos — los sin cuota asignada aparecen con 0/0
+  // Jugadores de la temporada seleccionada. En la temporada SIGUIENTE (26-27)
+  // solo los CONFIRMADOS = con next_team_id asignado (no todos los activos).
+  // Los sin cuota asignada aparecen con 0/0.
   const players: PlayerRow[] = []
   for (const p of (playersRaw ?? [])) {
+    // En la temporada siguiente, solo confirmados: next_team_id que apunte a un
+    // equipo DE esa temporada (descarta next_team_id de temporadas previas).
+    if (isNextSeason && !(p.next_team_id && seasonTeamIds.has(p.next_team_id))) continue
     const agg = paysByPlayer[p.id]
-    const teamId = isNextSeason ? (p.next_team_id ?? p.team_id) : p.team_id
+    const teamId = isNextSeason ? p.next_team_id : p.team_id
     players.push({
       id: p.id,
       name: `${p.first_name} ${p.last_name}`,
@@ -98,7 +115,7 @@ export default async function InformesPage({
           <h2 className="text-sm text-muted-foreground">Temporada {season}</h2>
           <SeasonSelector season={season} seasons={seasons} basePath="/contabilidad/informes" />
         </div>
-        <InformePagos players={players} teams={teams} season={season} globalTotalPaid={globalTotalPaid} globalTotalDue={globalTotalDue} reminderHistory={reminderHistory} />
+        <InformePagos players={players} teams={teams} season={season} globalTotalPaid={globalTotalPaid} globalTotalDue={globalTotalDue} reminderHistory={reminderHistory} clubName={clubRow?.name ?? ''} />
       </main>
     </div>
   )
