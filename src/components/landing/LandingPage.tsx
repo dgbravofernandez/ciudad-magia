@@ -312,7 +312,7 @@ export default function LandingPage() {
         position: 'relative',
         overflow: 'hidden',
       }}>
-        {/* SVG Illustration: old chaos vs modern order */}
+        {/* SVG Illustration: old chaos vs modern order — realistic illustration */}
         <svg viewBox="0 0 1400 700" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.82 }}>
           <defs>
@@ -332,9 +332,28 @@ export default function LandingPage() {
               <stop offset="0%" stopColor="#1a0014" stopOpacity="0"/>
               <stop offset="100%" stopColor="#1a0014" stopOpacity="0.92"/>
             </linearGradient>
+            <linearGradient id="parch" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#A07038"/>
+              <stop offset="12%" stopColor="#E8D5A3"/>
+              <stop offset="88%" stopColor="#DCC890"/>
+              <stop offset="100%" stopColor="#987030"/>
+            </linearGradient>
             <filter id="gbl"><feGaussianBlur stdDeviation="4"/></filter>
+            <filter id="shd"><feDropShadow dx="2" dy="4" stdDeviation="7" floodColor="#000" floodOpacity="0.28"/></filter>
+            <filter id="sshd"><feDropShadow dx="1" dy="3" stdDeviation="5" floodColor="#000" floodOpacity="0.22"/></filter>
           </defs>
-          {/* Ambient light */}
+          <style>{`
+            @keyframes dp { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+            .dl1 { stroke-dasharray: 722; stroke-dashoffset: 722; animation: dp 2s ease-out 0.8s forwards; }
+            .dl2 { stroke-dasharray: 145; stroke-dashoffset: 145; animation: dp 0.7s ease-out 2.9s forwards; }
+            .dl3 { stroke-dasharray: 190; stroke-dashoffset: 190; animation: dp 1s ease-out 3.7s forwards; }
+            .dl5 { stroke-dasharray: 290; stroke-dashoffset: 290; animation: dp 0.9s ease-out 4.8s forwards; }
+            .dl6 { stroke-dasharray: 290; stroke-dashoffset: 290; animation: dp 0.9s ease-out 5.4s forwards; }
+            .dl7 { stroke-dasharray: 155; stroke-dashoffset: 155; animation: dp 0.6s ease-out 6.1s forwards; }
+            .dl8 { stroke-dasharray: 155; stroke-dashoffset: 155; animation: dp 0.6s ease-out 6.6s forwards; }
+          `}</style>
+
+          {/* Ambient */}
           <rect width="1400" height="700" fill="url(#glow-c)"/>
           <rect width="1400" height="700" fill="url(#glow-l)"/>
           <rect width="1400" height="700" fill="url(#glow-r)"/>
@@ -357,94 +376,240 @@ export default function LandingPage() {
           <path d="M 1120 542 A 18 18 0 0 1 1102 560" fill="none" stroke="#EC4899" strokeWidth="1" strokeOpacity="0.28"/>
           <path d="M 298 560 A 18 18 0 0 1 280 542" fill="none" stroke="#EC4899" strokeWidth="1" strokeOpacity="0.28"/>
 
-          {/* ── LEFT: OLD ADMIN ── */}
-          {/* Floating wooden desk */}
-          <rect x="38" y="312" width="200" height="11" rx="3" fill="#8B5E3C" fillOpacity="0.75"/>
-          <rect x="50" y="323" width="7" height="48" rx="2" fill="#6B4226" fillOpacity="0.55"/>
-          <rect x="230" y="323" width="7" height="48" rx="2" fill="#6B4226" fillOpacity="0.55"/>
-          <ellipse cx="138" cy="382" rx="108" ry="9" fill="#000" fillOpacity="0.18" filter="url(#gbl)"/>
-          {/* Paper stack on desk */}
-          <rect x="55" y="287" width="84" height="26" rx="1" fill="#fff" fillOpacity="0.82" transform="rotate(-5,97,300)"/>
-          <line x1="60" y1="293" x2="131" y2="291" stroke="#10b981" strokeWidth="0.8" strokeOpacity="0.55" transform="rotate(-5,97,300)"/>
-          <line x1="60" y1="300" x2="131" y2="298" stroke="#10b981" strokeWidth="0.8" strokeOpacity="0.55" transform="rotate(-5,97,300)"/>
-          <line x1="60" y1="307" x2="131" y2="305" stroke="#10b981" strokeWidth="0.8" strokeOpacity="0.55" transform="rotate(-5,97,300)"/>
-          <line x1="85" y1="286" x2="83" y2="313" stroke="#10b981" strokeWidth="0.8" strokeOpacity="0.45" transform="rotate(-5,97,300)"/>
-          <line x1="106" y1="285" x2="104" y2="312" stroke="#10b981" strokeWidth="0.8" strokeOpacity="0.45" transform="rotate(-5,97,300)"/>
-          {/* Flying paper 1 */}
-          <rect x="168" y="202" width="70" height="50" rx="1" fill="#fff" fillOpacity="0.77" transform="rotate(24,203,227)"/>
-          <line x1="173" y1="211" x2="232" y2="209" stroke="#10b981" strokeWidth="0.75" strokeOpacity="0.5" transform="rotate(24,203,227)"/>
-          <line x1="173" y1="220" x2="232" y2="218" stroke="#10b981" strokeWidth="0.75" strokeOpacity="0.5" transform="rotate(24,203,227)"/>
-          <line x1="173" y1="229" x2="232" y2="227" stroke="#10b981" strokeWidth="0.75" strokeOpacity="0.5" transform="rotate(24,203,227)"/>
-          <line x1="198" y1="204" x2="196" y2="250" stroke="#10b981" strokeWidth="0.75" strokeOpacity="0.4" transform="rotate(24,203,227)"/>
-          <line x1="214" y1="203" x2="212" y2="249" stroke="#10b981" strokeWidth="0.75" strokeOpacity="0.4" transform="rotate(24,203,227)"/>
-          {/* Flying paper 2 */}
-          <rect x="99" y="162" width="58" height="44" rx="1" fill="#fff" fillOpacity="0.72" transform="rotate(-16,128,184)"/>
-          <line x1="104" y1="172" x2="151" y2="170" stroke="#10b981" strokeWidth="0.7" strokeOpacity="0.48" transform="rotate(-16,128,184)"/>
-          <line x1="104" y1="180" x2="151" y2="178" stroke="#10b981" strokeWidth="0.7" strokeOpacity="0.48" transform="rotate(-16,128,184)"/>
-          <line x1="104" y1="188" x2="151" y2="186" stroke="#10b981" strokeWidth="0.7" strokeOpacity="0.48" transform="rotate(-16,128,184)"/>
-          {/* Flying paper 3 — lines turning pink as it flies toward pitch */}
-          <rect x="218" y="282" width="74" height="54" rx="1" fill="#fff" fillOpacity="0.68" transform="rotate(10,255,309)"/>
-          <line x1="223" y1="292" x2="286" y2="290" stroke="#EC4899" strokeWidth="0.85" strokeOpacity="0.6" transform="rotate(10,255,309)"/>
-          <line x1="223" y1="302" x2="286" y2="300" stroke="#EC4899" strokeWidth="0.85" strokeOpacity="0.6" transform="rotate(10,255,309)"/>
-          <line x1="223" y1="312" x2="286" y2="310" stroke="#EC4899" strokeWidth="0.85" strokeOpacity="0.6" transform="rotate(10,255,309)"/>
-          <line x1="248" y1="284" x2="246" y2="334" stroke="#EC4899" strokeWidth="0.85" strokeOpacity="0.5" transform="rotate(10,255,309)"/>
-          <line x1="267" y1="283" x2="265" y2="333" stroke="#EC4899" strokeWidth="0.85" strokeOpacity="0.5" transform="rotate(10,255,309)"/>
-          {/* Small paper */}
-          <rect x="53" y="232" width="44" height="34" rx="1" fill="#fff" fillOpacity="0.62" transform="rotate(-28,75,249)"/>
-          <line x1="58" y1="240" x2="93" y2="238" stroke="#10b981" strokeWidth="0.7" strokeOpacity="0.48" transform="rotate(-28,75,249)"/>
-          <line x1="58" y1="248" x2="93" y2="246" stroke="#10b981" strokeWidth="0.7" strokeOpacity="0.48" transform="rotate(-28,75,249)"/>
-          {/* Old admin figure */}
-          <circle cx="138" cy="242" r="22" fill="#C8956C" fillOpacity="0.88"/>
-          <rect x="128" y="239" width="10" height="7" rx="3" fill="none" stroke="#333" strokeWidth="1.4" strokeOpacity="0.65"/>
-          <rect x="141" y="239" width="10" height="7" rx="3" fill="none" stroke="#333" strokeWidth="1.4" strokeOpacity="0.65"/>
-          <line x1="138" y1="242" x2="141" y2="242" stroke="#333" strokeWidth="1.4" strokeOpacity="0.65"/>
-          <path d="M 116 264 Q 103 297 106 322 L 170 322 Q 173 297 160 264 Z" fill="#2d3748" fillOpacity="0.82"/>
-          <polygon points="138,270 134,312 138,320 142,312" fill="#DC2626" fillOpacity="0.65"/>
-          <path d="M 116 282 Q 88 287 68 307" stroke="#C8956C" strokeWidth="10" strokeLinecap="round" fill="none" strokeOpacity="0.88"/>
-          <path d="M 160 280 Q 184 284 204 297" stroke="#C8956C" strokeWidth="10" strokeLinecap="round" fill="none" strokeOpacity="0.88"/>
-          <line x1="116" y1="224" x2="108" y2="212" stroke="#d97706" strokeWidth="1.5" strokeOpacity="0.45"/>
-          <line x1="160" y1="220" x2="170" y2="208" stroke="#d97706" strokeWidth="1.5" strokeOpacity="0.45"/>
-          <line x1="138" y1="220" x2="138" y2="208" stroke="#d97706" strokeWidth="1.5" strokeOpacity="0.45"/>
+          {/* ════════════════════════════════════════════════ */}
+          {/* LEFT — OLD ADMIN + PARCHMENT SCROLLS           */}
+          {/* ════════════════════════════════════════════════ */}
 
-          {/* ── RIGHT: MODERN PERSON ── */}
+          {/* Wooden desk */}
+          <rect x="28" y="488" width="272" height="13" rx="4" fill="#7C4A1E" fillOpacity="0.85"/>
+          <rect x="34" y="483" width="262" height="9" rx="2" fill="#A0622A" fillOpacity="0.45"/>
+          <rect x="40" y="501" width="9" height="55" rx="3" fill="#6B3D18" fillOpacity="0.7"/>
+          <rect x="278" y="501" width="9" height="55" rx="3" fill="#6B3D18" fillOpacity="0.7"/>
+          <ellipse cx="157" cy="564" rx="126" ry="10" fill="#000" fillOpacity="0.18" filter="url(#gbl)"/>
+
+          {/* SCROLL 1 — large, on desk */}
+          <g transform="rotate(-7, 93, 456)" filter="url(#sshd)">
+            <rect x="53" y="384" width="80" height="118" fill="url(#parch)"/>
+            <ellipse cx="93" cy="384" rx="40" ry="9" fill="#7B4A1C"/>
+            <ellipse cx="93" cy="384" rx="33" ry="6" fill="#B07A42" fillOpacity="0.55"/>
+            <ellipse cx="93" cy="502" rx="40" ry="9" fill="#5A3010"/>
+            <ellipse cx="93" cy="502" rx="33" ry="6" fill="#B07A42" fillOpacity="0.45"/>
+            <line x1="67" y1="408" x2="119" y2="408" stroke="#4A2808" strokeWidth="1.1" strokeOpacity="0.5"/>
+            <line x1="67" y1="420" x2="119" y2="420" stroke="#4A2808" strokeWidth="1.1" strokeOpacity="0.5"/>
+            <line x1="67" y1="432" x2="107" y2="432" stroke="#4A2808" strokeWidth="1.1" strokeOpacity="0.45"/>
+            <line x1="67" y1="444" x2="119" y2="444" stroke="#4A2808" strokeWidth="1.1" strokeOpacity="0.5"/>
+            <line x1="67" y1="456" x2="103" y2="456" stroke="#4A2808" strokeWidth="1.1" strokeOpacity="0.4"/>
+            <line x1="67" y1="468" x2="119" y2="468" stroke="#4A2808" strokeWidth="1.1" strokeOpacity="0.48"/>
+            <line x1="67" y1="480" x2="112" y2="480" stroke="#4A2808" strokeWidth="1.1" strokeOpacity="0.4"/>
+            <circle cx="93" cy="444" r="12" fill="#8B1515" fillOpacity="0.52"/>
+            <circle cx="93" cy="444" r="8.5" fill="#A52020" fillOpacity="0.42"/>
+            <text x="93" y="448" textAnchor="middle" fontSize="9" fill="#FFD700" fillOpacity="0.65" fontFamily="serif">★</text>
+          </g>
+
+          {/* SCROLL 2 — flying upper right */}
+          <g transform="rotate(31, 234, 256)" filter="url(#sshd)">
+            <rect x="196" y="208" width="76" height="96" fill="url(#parch)"/>
+            <ellipse cx="234" cy="208" rx="38" ry="8.5" fill="#7B4A1C"/>
+            <ellipse cx="234" cy="208" rx="31" ry="5.5" fill="#B07A42" fillOpacity="0.55"/>
+            <ellipse cx="234" cy="304" rx="38" ry="8.5" fill="#5A3010"/>
+            <ellipse cx="234" cy="304" rx="31" ry="5.5" fill="#B07A42" fillOpacity="0.45"/>
+            <line x1="210" y1="228" x2="258" y2="228" stroke="#4A2808" strokeWidth="1" strokeOpacity="0.5"/>
+            <line x1="210" y1="240" x2="258" y2="240" stroke="#4A2808" strokeWidth="1" strokeOpacity="0.5"/>
+            <line x1="210" y1="252" x2="247" y2="252" stroke="#4A2808" strokeWidth="1" strokeOpacity="0.45"/>
+            <line x1="210" y1="264" x2="258" y2="264" stroke="#4A2808" strokeWidth="1" strokeOpacity="0.5"/>
+            <line x1="210" y1="276" x2="251" y2="276" stroke="#4A2808" strokeWidth="1" strokeOpacity="0.4"/>
+            <line x1="210" y1="288" x2="258" y2="288" stroke="#4A2808" strokeWidth="1" strokeOpacity="0.45"/>
+          </g>
+
+          {/* SCROLL 3 — flying upper left, small */}
+          <g transform="rotate(-19, 74, 234)" filter="url(#sshd)">
+            <rect x="48" y="196" width="52" height="76" fill="url(#parch)"/>
+            <ellipse cx="74" cy="196" rx="26" ry="6" fill="#7B4A1C"/>
+            <ellipse cx="74" cy="196" rx="21" ry="4" fill="#B07A42" fillOpacity="0.55"/>
+            <ellipse cx="74" cy="272" rx="26" ry="6" fill="#5A3010"/>
+            <ellipse cx="74" cy="272" rx="21" ry="4" fill="#B07A42" fillOpacity="0.45"/>
+            <line x1="58" y1="214" x2="96" y2="214" stroke="#4A2808" strokeWidth="0.9" strokeOpacity="0.5"/>
+            <line x1="58" y1="225" x2="96" y2="225" stroke="#4A2808" strokeWidth="0.9" strokeOpacity="0.5"/>
+            <line x1="58" y1="236" x2="83" y2="236" stroke="#4A2808" strokeWidth="0.9" strokeOpacity="0.45"/>
+            <line x1="58" y1="247" x2="96" y2="247" stroke="#4A2808" strokeWidth="0.9" strokeOpacity="0.4"/>
+            <line x1="58" y1="258" x2="87" y2="258" stroke="#4A2808" strokeWidth="0.9" strokeOpacity="0.4"/>
+          </g>
+
+          {/* SCROLL 4 — small, fallen off desk edge */}
+          <g transform="rotate(74, 240, 462)" filter="url(#sshd)">
+            <rect x="212" y="430" width="56" height="64" fill="url(#parch)"/>
+            <ellipse cx="240" cy="430" rx="28" ry="6" fill="#7B4A1C"/>
+            <ellipse cx="240" cy="430" rx="23" ry="4" fill="#B07A42" fillOpacity="0.55"/>
+            <ellipse cx="240" cy="494" rx="28" ry="6" fill="#5A3010"/>
+            <ellipse cx="240" cy="494" rx="23" ry="4" fill="#B07A42" fillOpacity="0.45"/>
+            <line x1="222" y1="448" x2="258" y2="448" stroke="#4A2808" strokeWidth="0.9" strokeOpacity="0.5"/>
+            <line x1="222" y1="459" x2="258" y2="459" stroke="#4A2808" strokeWidth="0.9" strokeOpacity="0.45"/>
+            <line x1="222" y1="470" x2="248" y2="470" stroke="#4A2808" strokeWidth="0.9" strokeOpacity="0.4"/>
+          </g>
+
+          {/* ── OLD ADMIN FIGURE (stressed, round glasses, gray hair) ── */}
+          <ellipse cx="157" cy="491" rx="42" ry="7" fill="#000" fillOpacity="0.18" filter="url(#gbl)"/>
+          {/* Legs */}
+          <rect x="138" y="425" width="20" height="63" rx="7" fill="#1a2744" fillOpacity="0.92"/>
+          <rect x="162" y="427" width="20" height="61" rx="7" fill="#1a2744" fillOpacity="0.92"/>
+          {/* Shoes */}
+          <ellipse cx="148" cy="490" rx="16" ry="6.5" fill="#111" fillOpacity="0.88"/>
+          <ellipse cx="172" cy="490" rx="16" ry="6.5" fill="#111" fillOpacity="0.88"/>
+          {/* Torso — dark navy suit */}
+          <path d="M 120 314 Q 114 383 116 430 L 204 430 Q 206 383 200 314 Z" fill="#1e3a5f" fillOpacity="0.9"/>
+          {/* Shirt collar */}
+          <path d="M 147 314 L 160 336 L 173 314 L 166 310 L 160 324 L 154 310 Z" fill="#F5F5F5" fillOpacity="0.82"/>
+          {/* Tie */}
+          <path d="M 157 320 L 160 330 L 163 320 L 161 312 L 159 312 Z" fill="#8B1515" fillOpacity="0.88"/>
+          <path d="M 157 320 L 153 370 Q 160 379 167 370 L 163 320 Z" fill="#8B1515" fillOpacity="0.88"/>
+          {/* Lapels */}
+          <path d="M 147 314 L 120 346 L 131 314 Z" fill="#162D4E" fillOpacity="0.88"/>
+          <path d="M 173 314 L 200 346 L 189 314 Z" fill="#162D4E" fillOpacity="0.88"/>
+          {/* Breast pocket */}
+          <rect x="122" y="354" width="21" height="3" rx="1" fill="#F5F5F5" fillOpacity="0.38"/>
+          {/* Suit buttons */}
+          <circle cx="160" cy="400" r="2.5" fill="#F5F5F5" fillOpacity="0.22"/>
+          <circle cx="160" cy="416" r="2.5" fill="#F5F5F5" fillOpacity="0.22"/>
+          {/* LEFT ARM — hand on head, stressed */}
+          <path d="M 122 338 Q 92 320 70 290" stroke="#1e3a5f" strokeWidth="16" strokeLinecap="round" fill="none"/>
+          <path d="M 124 334 Q 94 316 72 288" stroke="#D4956A" strokeWidth="12" strokeLinecap="round" fill="none"/>
+          {/* Palm on forehead */}
+          <ellipse cx="68" cy="285" rx="14" ry="11" fill="#D4956A" fillOpacity="0.9" transform="rotate(-20,68,285)"/>
+          {/* Fingers hint */}
+          <path d="M 57 278 Q 54 282 56 287" stroke="#C07850" strokeWidth="5" strokeLinecap="round" fill="none" strokeOpacity="0.7"/>
+          <path d="M 63 274 Q 60 278 62 284" stroke="#C07850" strokeWidth="5" strokeLinecap="round" fill="none" strokeOpacity="0.7"/>
+          {/* RIGHT ARM — extended, releasing scroll */}
+          <path d="M 198 336 Q 226 320 250 340" stroke="#1e3a5f" strokeWidth="16" strokeLinecap="round" fill="none"/>
+          <path d="M 198 332 Q 224 316 248 336" stroke="#D4956A" strokeWidth="12" strokeLinecap="round" fill="none"/>
+          {/* Right hand */}
+          <circle cx="250" cy="340" r="12" fill="#D4956A" fillOpacity="0.9"/>
+          {/* Neck */}
+          <rect x="150" y="276" width="20" height="24" rx="7" fill="#D4956A" fillOpacity="0.88"/>
+          {/* HEAD */}
+          <ellipse cx="160" cy="256" rx="32" ry="34" fill="#D4956A" fillOpacity="0.92"/>
+          {/* Gray hair */}
+          <path d="M 129 250 Q 126 214 140 202 Q 154 192 170 196 Q 182 200 190 214 Q 195 228 193 250 Q 184 222 160 220 Q 136 222 129 250 Z" fill="#A8B0BC" fillOpacity="0.88"/>
+          <path d="M 128 250 Q 123 259 125 268 Q 127 254 131 250 Z" fill="#A8B0BC" fillOpacity="0.7"/>
+          <path d="M 191 250 Q 196 259 194 268 Q 192 254 188 250 Z" fill="#A8B0BC" fillOpacity="0.7"/>
+          {/* Ears */}
+          <ellipse cx="128" cy="259" rx="7" ry="11" fill="#C07850" fillOpacity="0.85"/>
+          <ellipse cx="192" cy="259" rx="7" ry="11" fill="#C07850" fillOpacity="0.85"/>
+          <ellipse cx="128" cy="259" rx="4" ry="7" fill="#D4956A" fillOpacity="0.5"/>
+          <ellipse cx="192" cy="259" rx="4" ry="7" fill="#D4956A" fillOpacity="0.5"/>
+          {/* ROUND GLASSES */}
+          <circle cx="145" cy="256" r="13" fill="none" stroke="#6B4A28" strokeWidth="2.4"/>
+          <circle cx="145" cy="256" r="13" fill="#C4E0F0" fillOpacity="0.1"/>
+          <circle cx="175" cy="256" r="13" fill="none" stroke="#6B4A28" strokeWidth="2.4"/>
+          <circle cx="175" cy="256" r="13" fill="#C4E0F0" fillOpacity="0.1"/>
+          <line x1="158" y1="256" x2="162" y2="256" stroke="#6B4A28" strokeWidth="2"/>
+          <line x1="132" y1="253" x2="128" y2="250" stroke="#6B4A28" strokeWidth="1.8"/>
+          <line x1="188" y1="253" x2="192" y2="250" stroke="#6B4A28" strokeWidth="1.8"/>
+          {/* Eyes */}
+          <circle cx="145" cy="256" r="5.5" fill="#2A1A0E" fillOpacity="0.85"/>
+          <circle cx="175" cy="256" r="5.5" fill="#2A1A0E" fillOpacity="0.85"/>
+          <circle cx="146" cy="255" r="1.8" fill="#FFF" fillOpacity="0.45"/>
+          <circle cx="176" cy="255" r="1.8" fill="#FFF" fillOpacity="0.45"/>
+          {/* Stressed brows — tilted inward */}
+          <path d="M 133 242 Q 145 237 157 240" stroke="#6A5040" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+          <path d="M 163 240 Q 175 237 187 242" stroke="#6A5040" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+          {/* Nose */}
+          <path d="M 160 262 Q 154 272 157 276 Q 160 278 163 276 Q 166 272 160 262 Z" fill="#C07850" fillOpacity="0.5"/>
+          {/* Worried mouth */}
+          <path d="M 149 284 Q 160 279 171 284" stroke="#9A6040" strokeWidth="2.3" fill="none" strokeLinecap="round"/>
+          {/* Wrinkles */}
+          <path d="M 131 242 Q 128 250 129 256" stroke="#B07050" strokeWidth="0.9" strokeOpacity="0.38" fill="none"/>
+          <path d="M 189 242 Q 192 250 191 256" stroke="#B07050" strokeWidth="0.9" strokeOpacity="0.38" fill="none"/>
+          {/* Sweat drops */}
+          <ellipse cx="108" cy="236" rx="3.5" ry="5" fill="#60A0D0" fillOpacity="0.35" transform="rotate(-15,108,236)"/>
+          <ellipse cx="116" cy="220" rx="2.5" ry="3.5" fill="#60A0D0" fillOpacity="0.28" transform="rotate(-10,116,220)"/>
+
+          <text x="157" y="624" textAnchor="middle" fill="#d97706" fillOpacity="0.45" fontSize="11" fontFamily="Georgia,serif" letterSpacing="4">ANTES</text>
+
+          {/* ════════════════════════════════════════════════ */}
+          {/* RIGHT — MODERN PERSON + ANIMATED SHEET         */}
+          {/* ════════════════════════════════════════════════ */}
+
+          {/* ANIMATED WHITE SHEET — pitch lines drawn progressively */}
+          <g transform="rotate(-3, 1148, 395)" filter="url(#shd)">
+            <rect x="1065" y="295" width="200" height="155" rx="4" fill="#FFFFFF" fillOpacity="0.97"/>
+            <rect x="1065" y="295" width="5" height="155" fill="#DDE6F0" fillOpacity="0.45"/>
+            <rect x="1260" y="295" width="5" height="155" fill="#DDE6F0" fillOpacity="0.45"/>
+            <rect x="1065" y="295" width="200" height="5" fill="#D0DAEA" fillOpacity="0.3"/>
+            {/* Nested SVG for overflow clipping */}
+            <svg x="1065" y="295" width="200" height="155" viewBox="0 0 200 155" overflow="hidden">
+              <rect className="dl1" x="12" y="12" width="176" height="131" fill="none" stroke="#EC4899" strokeWidth="1.8"/>
+              <line className="dl2" x1="100" y1="12" x2="100" y2="143" stroke="#EC4899" strokeWidth="1.5"/>
+              <circle className="dl3" cx="100" cy="78" r="30" fill="none" stroke="#EC4899" strokeWidth="1.5"/>
+              <circle cx="100" cy="78" r="3" fill="#EC4899" fillOpacity="0.65"/>
+              <rect className="dl5" x="12" y="44" width="46" height="68" fill="none" stroke="#EC4899" strokeWidth="1.3"/>
+              <rect className="dl6" x="142" y="44" width="46" height="68" fill="none" stroke="#EC4899" strokeWidth="1.3"/>
+              <rect className="dl7" x="12" y="58" width="18" height="40" fill="none" stroke="#EC4899" strokeWidth="1"/>
+              <rect className="dl8" x="170" y="58" width="18" height="40" fill="none" stroke="#EC4899" strokeWidth="1"/>
+            </svg>
+          </g>
+
           {/* Clean desk */}
-          <rect x="1148" y="312" width="208" height="9" rx="3" fill="#e2e8f0" fillOpacity="0.28"/>
-          <rect x="1162" y="321" width="6" height="44" rx="2" fill="#cbd5e1" fillOpacity="0.18"/>
-          <rect x="1344" y="321" width="6" height="44" rx="2" fill="#cbd5e1" fillOpacity="0.18"/>
-          <ellipse cx="1252" cy="328" rx="104" ry="10" fill="#3b82f6" fillOpacity="0.06" filter="url(#gbl)"/>
-          {/* Tablet */}
-          <rect x="1202" y="222" width="94" height="84" rx="6" fill="#0f172a" fillOpacity="0.88"/>
-          <rect x="1206" y="226" width="86" height="76" rx="4" fill="#1e293b" fillOpacity="0.92"/>
-          <rect x="1206" y="226" width="86" height="13" rx="2" fill="#EC4899" fillOpacity="0.65"/>
-          <rect x="1210" y="244" width="37" height="7" rx="1" fill="#e2e8f0" fillOpacity="0.2"/>
-          <rect x="1210" y="255" width="37" height="7" rx="1" fill="#e2e8f0" fillOpacity="0.15"/>
-          <rect x="1210" y="264" width="37" height="7" rx="1" fill="#e2e8f0" fillOpacity="0.15"/>
-          <rect x="1252" y="244" width="35" height="54" rx="2" fill="#EC4899" fillOpacity="0.1"/>
-          <rect x="1255" y="248" width="27" height="4" rx="1" fill="#EC4899" fillOpacity="0.38"/>
-          <rect x="1255" y="256" width="20" height="3" rx="1" fill="#e2e8f0" fillOpacity="0.18"/>
-          <rect x="1255" y="263" width="23" height="3" rx="1" fill="#e2e8f0" fillOpacity="0.18"/>
-          <circle cx="1249" cy="297" r="4" fill="#334155" fillOpacity="0.75"/>
-          <ellipse cx="1249" cy="262" rx="43" ry="38" fill="#3b82f6" fillOpacity="0.07" filter="url(#gbl)"/>
-          {/* Phone */}
-          <rect x="1312" y="254" width="41" height="66" rx="5" fill="#0f172a" fillOpacity="0.83"/>
-          <rect x="1315" y="258" width="35" height="58" rx="3" fill="#1e293b" fillOpacity="0.92"/>
-          <rect x="1315" y="258" width="35" height="13" rx="2" fill="#EC4899" fillOpacity="0.52"/>
-          <rect x="1318" y="276" x2="1345" y2="276" stroke="none"/>
-          <rect x="1318" y="276" width="28" height="4" rx="1" fill="#e2e8f0" fillOpacity="0.18"/>
-          <rect x="1318" y="284" width="22" height="3" rx="1" fill="#e2e8f0" fillOpacity="0.14"/>
-          <circle cx="1332" cy="314" r="3" fill="#334155" fillOpacity="0.75"/>
-          <ellipse cx="1332" cy="287" rx="23" ry="32" fill="#3b82f6" fillOpacity="0.07" filter="url(#gbl)"/>
-          {/* Modern figure */}
-          <circle cx="1252" cy="178" r="20" fill="#8B6A5C" fillOpacity="0.88"/>
-          <path d="M 1232 170 Q 1237 158 1252 158 Q 1267 158 1272 170 Q 1267 162 1252 162 Q 1237 162 1232 170 Z" fill="#2d1b0e" fillOpacity="0.78"/>
-          <path d="M 1234 198 Q 1220 232 1224 272 L 1280 272 Q 1284 232 1270 198 Z" fill="#334155" fillOpacity="0.78"/>
-          <path d="M 1234 216 Q 1212 227 1200 254" stroke="#8B6A5C" strokeWidth="9" strokeLinecap="round" fill="none" strokeOpacity="0.88"/>
-          <circle cx="1199" cy="256" r="6" fill="#8B6A5C" fillOpacity="0.82"/>
-          <path d="M 1270 222 Q 1297 232 1314 257" stroke="#8B6A5C" strokeWidth="9" strokeLinecap="round" fill="none" strokeOpacity="0.88"/>
+          <rect x="1085" y="490" width="295" height="10" rx="3" fill="#e2e8f0" fillOpacity="0.22"/>
+          <rect x="1094" y="498" width="8" height="46" rx="3" fill="#cbd5e1" fillOpacity="0.18"/>
+          <rect x="1366" y="498" width="8" height="46" rx="3" fill="#cbd5e1" fillOpacity="0.18"/>
+          <ellipse cx="1230" cy="502" rx="140" ry="9" fill="#3b82f6" fillOpacity="0.06" filter="url(#gbl)"/>
 
-          {/* Labels */}
-          <text x="138" y="590" textAnchor="middle" fill="#d97706" fillOpacity="0.35" fontSize="10" fontFamily="Georgia,serif" letterSpacing="4">ANTES</text>
-          <text x="1252" y="590" textAnchor="middle" fill="#3b82f6" fillOpacity="0.35" fontSize="10" fontFamily="Georgia,serif" letterSpacing="4">AHORA</text>
+          {/* ── MODERN PERSON FIGURE (confident, pointing at sheet) ── */}
+          <ellipse cx="1316" cy="492" rx="42" ry="7" fill="#000" fillOpacity="0.15" filter="url(#gbl)"/>
+          {/* Legs */}
+          <rect x="1298" y="418" width="19" height="72" rx="7" fill="#1e293b" fillOpacity="0.85"/>
+          <rect x="1322" y="420" width="19" height="70" rx="7" fill="#1e293b" fillOpacity="0.85"/>
+          {/* Shoes */}
+          <ellipse cx="1307" cy="491" rx="15" ry="6" fill="#111" fillOpacity="0.82"/>
+          <ellipse cx="1331" cy="491" rx="15" ry="6" fill="#111" fillOpacity="0.82"/>
+          {/* Belt */}
+          <rect x="1287" y="408" width="70" height="8" rx="2" fill="#0D1B2A" fillOpacity="0.48"/>
+          {/* Torso — casual teal shirt */}
+          <path d="M 1289 298 Q 1283 373 1285 422 L 1355 422 Q 1357 373 1351 298 Z" fill="#0369A1" fillOpacity="0.82"/>
+          {/* Collar */}
+          <path d="M 1315 298 L 1322 315 L 1315 325 L 1308 315 Z" fill="#F5F5F5" fillOpacity="0.55"/>
+          {/* Shirt pocket */}
+          <rect x="1291" y="336" width="24" height="20" rx="2" fill="#0284C7" fillOpacity="0.5"/>
+          {/* LEFT ARM — extended, pointing toward the sheet */}
+          <path d="M 1290 316 Q 1252 344 1228 372" stroke="#0369A1" strokeWidth="16" strokeLinecap="round" fill="none"/>
+          <path d="M 1292 312 Q 1254 340 1230 368" stroke="#C08060" strokeWidth="12" strokeLinecap="round" fill="none"/>
+          {/* Pointing hand */}
+          <circle cx="1227" cy="372" r="12" fill="#C08060" fillOpacity="0.9"/>
+          <ellipse cx="1214" cy="367" rx="15" ry="7" fill="#C08060" fillOpacity="0.88" transform="rotate(-28,1214,367)"/>
+          {/* RIGHT ARM — relaxed, slight bend */}
+          <path d="M 1349 310 Q 1372 354 1368 400" stroke="#0369A1" strokeWidth="16" strokeLinecap="round" fill="none"/>
+          <path d="M 1347 306 Q 1370 350 1366 396" stroke="#C08060" strokeWidth="12" strokeLinecap="round" fill="none"/>
+          <circle cx="1366" cy="400" r="12" fill="#C08060" fillOpacity="0.9"/>
+          {/* Neck */}
+          <rect x="1307" y="266" width="18" height="20" rx="6" fill="#C08060" fillOpacity="0.88"/>
+          {/* HEAD */}
+          <ellipse cx="1316" cy="246" rx="29" ry="31" fill="#C08060" fillOpacity="0.92"/>
+          {/* Dark hair */}
+          <path d="M 1288 238 Q 1286 206 1302 196 Q 1317 188 1332 192 Q 1344 198 1350 212 Q 1354 226 1350 238 Q 1340 214 1316 216 Q 1292 216 1288 238 Z" fill="#2d1b0e" fillOpacity="0.88"/>
+          <path d="M 1287 238 Q 1283 247 1284 255 Q 1286 244 1289 238 Z" fill="#2d1b0e" fillOpacity="0.6"/>
+          {/* Ears */}
+          <ellipse cx="1287" cy="248" rx="6" ry="9" fill="#B07050" fillOpacity="0.85"/>
+          <ellipse cx="1345" cy="248" rx="6" ry="9" fill="#B07050" fillOpacity="0.85"/>
+          {/* Eye whites */}
+          <ellipse cx="1305" cy="245" rx="7" ry="6" fill="#FFFFFF" fillOpacity="0.88"/>
+          <ellipse cx="1327" cy="245" rx="7" ry="6" fill="#FFFFFF" fillOpacity="0.88"/>
+          {/* Irises */}
+          <circle cx="1306" cy="246" r="4" fill="#3B2010" fillOpacity="0.9"/>
+          <circle cx="1328" cy="246" r="4" fill="#3B2010" fillOpacity="0.9"/>
+          {/* Shine */}
+          <circle cx="1307" cy="245" r="1.4" fill="#FFFFFF" fillOpacity="0.75"/>
+          <circle cx="1329" cy="245" r="1.4" fill="#FFFFFF" fillOpacity="0.75"/>
+          {/* Eyebrows — engaged, slightly raised */}
+          <path d="M 1297 234 Q 1306 230 1315 232" stroke="#2d1b0e" strokeWidth="2.3" fill="none" strokeLinecap="round"/>
+          <path d="M 1319 232 Q 1328 229 1337 233" stroke="#2d1b0e" strokeWidth="2.3" fill="none" strokeLinecap="round"/>
+          {/* Nose */}
+          <path d="M 1316 252 Q 1310 261 1312 265 Q 1316 268 1320 265 Q 1322 261 1316 252 Z" fill="#B07050" fillOpacity="0.48"/>
+          {/* Confident smile */}
+          <path d="M 1306 274 Q 1316 280 1326 274" stroke="#8B5040" strokeWidth="2.3" fill="none" strokeLinecap="round"/>
+          <path d="M 1304 271 Q 1303 276 1305 279" stroke="#A06050" strokeWidth="1" fill="none" strokeOpacity="0.5"/>
+          <path d="M 1326 271 Q 1327 276 1325 279" stroke="#A06050" strokeWidth="1" fill="none" strokeOpacity="0.5"/>
+
+          <text x="1165" y="624" textAnchor="middle" fill="#3b82f6" fillOpacity="0.45" fontSize="11" fontFamily="Georgia,serif" letterSpacing="4">AHORA</text>
 
           {/* Bottom fade */}
           <rect x="0" y="420" width="1400" height="280" fill="url(#fade-b)"/>
