@@ -10,7 +10,8 @@ Registro de bugs detectados pero no cerrados. Se llena con la **Acción 0** (aud
 
 | ID | Severidad | Área | Descripción | Detectado por | Estado |
 |----|-----------|------|-------------|---------------|--------|
-| INFRA-1 | media | Tests / CI | `tests/unit/accounting-utils.test.ts:7` importa `CLUB_IBAN` que no existe en `@/lib/contabilidad/constants` → `tsc --noEmit` falla. Bloquea el typecheck del CI. | Verificación Acción 0 | abierto |
+| INF-2 | — | Informes (cuotas 26/27) | **No es bug.** `getCuotasNextSeason` cuenta por `next_team_id` a propósito: con el selector de temporada en 26/27 deben salir los 648 que tienen equipo en 26/27. Comportamiento correcto. | Auditoría módulo | ✅ descartado |
+| INFRA-1 | media | Tests / CI | `tests/unit/accounting-utils.test.ts:7` importa `CLUB_IBAN` que no existe en `@/lib/contabilidad/constants` → `tsc --noEmit` falla. Bloquea el typecheck del CI. | Verificación Acción 0 | ✅ resuelto |
 | INFRA-2 | baja | Tooling | `npm run lint` usa `next lint` (deprecado en Next 16) y no hay ESLint configurado → abre prompt interactivo / falla en CI. Migrar a ESLint CLI o quitar del CI. | Verificación Acción 0 | abierto |
 
 **Sweep completo (30 archivos): hecho.** 0 críticos, 0 fugas de lectura, 0 inserts sin `club_id`. Veredicto inicial REVISAR → **6 fugas de escritura corregidas**.
@@ -28,6 +29,7 @@ Registro de bugs detectados pero no cerrados. Se llena con la **Acción 0** (aud
 | M-3 | asignaciones de staff: roles + pertenencia del member | 2026-06-20 |
 | SEC-5 | Cifrado en reposo del token (AES-256-GCM) + revoke en Google | 2026-06-20 |
 | SEC-6 | Fallo cerrado sin `APP_SECRET` (3 sitios) | 2026-06-20 |
+| INF-1 | Informes cuenta pagos parciales (`amount_paid` de lo no-refunded, no solo `status='paid'`) en `getIncomeByMonth` y `getCuotasNextSeason`. Verificado: 2025-26 ahora €15.458 (antes €6.319) | 2026-06-20 |
 | — | `0249ea9` guard `club_id` en deletePayment/updatePayment (previo) | 2026 |
 
 Detalle de seguridad: [docs/kb/04-seguridad/backlog-seguridad.md](../04-seguridad/backlog-seguridad.md). **Build verificado tras los fixes.**

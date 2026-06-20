@@ -631,12 +631,20 @@ export async function getIncomeByMonth(filters: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
 
+    // Aceptamos season en '2025-26' o '2025/26' — algunos sitios guardan con barra
+    const seasonAlt = filters.season.includes('/')
+      ? filters.season.replace('/', '-')
+      : filters.season.replace('-', '/')
+
     let query = sb
       .from('quota_payments')
       .select('amount_paid, payment_method, month, players!inner(club_id, team_id)')
       .eq('players.club_id', clubId)
-      .eq('season', filters.season)
-      .eq('status', 'paid')
+      .in('season', [filters.season, seasonAlt])
+      // INF-1: contar lo realmente pagado, incluidos los pagos parciales
+      // (filas status='pending' con amount_paid>0). NO filtrar por status='paid'.
+      .neq('status', 'refunded')
+      .gt('amount_paid', 0)
 
     if (filters.teamId) {
       query = query.eq('players.team_id', filters.teamId)
@@ -777,7 +785,9 @@ export async function getCuotasNextSeason(): Promise<{ success: boolean; data?: 
     const teamMap = new Map<string, string>((teams ?? []).map((t: any) => [t.id, t.name]))
 
     const playerIds = players.map((p: any) => p.id)
-    const { data: payments } = await sb.from('quota_payments').select('player_id, concept, amount_paid').eq('club_id', clubId).in('player_id', playerIds).in('season', [ns, nsDb]).eq('status', 'paid')
+    // INF-1: incluir pagos parciales (status='pending' con amount_paid>0); excluir solo refunded.
+    // gt('amount_paid', 0) evita contar como "pagado" filas a 0€.
+    const { data: payments } = await sb.from('quota_payments').select('player_id, concept, amount_paid').eq('club_id', clubId).in('player_id', playerIds).in('season', [ns, nsDb]).neq('status', 'refunded').gt('amount_paid', 0)
 
     const playerPaid = new Map<string, { concepts: Set<string>; total: number; reserva: number; cuota: number }>()
     for (const pmt of (payments ?? [])) {
