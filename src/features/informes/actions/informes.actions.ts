@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 
 const ALLOWED_ROLES = ['admin', 'direccion', 'director_deportivo', 'coordinador', 'entrenador']
 
@@ -536,15 +537,15 @@ export async function getPendingPayments(filters: {
       : filters.season.replace('-', '/')
 
     // 1. Pagos pendientes — SIN join (los embedded joins de PostgREST fallan
-    //    silenciosamente con filtros sobre la tabla extranjera)
-    const { data: pendings, error: pErr } = await sb
+    //    silenciosamente con filtros sobre la tabla extranjera).
+    //    Paginado: una temporada puede tener >1000 filas pendientes.
+    const pendings = await fetchAllRows(() => sb
       .from('quota_payments')
       .select('player_id, amount_due, amount_paid, month, season')
       .eq('club_id', clubId)
       .eq('status', 'pending')
-      .in('season', [filters.season, seasonAlt])
+      .in('season', [filters.season, seasonAlt]))
 
-    if (pErr) return { success: false, error: pErr.message }
     if (!pendings || pendings.length === 0) return { success: true, data: [] }
 
     // 2. Cargar jugadores referenciados
@@ -636,22 +637,20 @@ export async function getIncomeByMonth(filters: {
       ? filters.season.replace('/', '-')
       : filters.season.replace('-', '/')
 
-    let query = sb
-      .from('quota_payments')
-      .select('amount_paid, payment_method, month, players!inner(club_id, team_id)')
-      .eq('players.club_id', clubId)
-      .in('season', [filters.season, seasonAlt])
-      // INF-1: contar lo realmente pagado, incluidos los pagos parciales
-      // (filas status='pending' con amount_paid>0). NO filtrar por status='paid'.
-      .neq('status', 'refunded')
-      .gt('amount_paid', 0)
-
-    if (filters.teamId) {
-      query = query.eq('players.team_id', filters.teamId)
-    }
-
-    const { data, error } = await query
-    if (error) return { success: false, error: error.message }
+    // INF-1: contar lo realmente pagado, incluidos los pagos parciales
+    // (filas status='pending' con amount_paid>0). NO filtrar por status='paid'.
+    // Paginado: una temporada supera 1000 filas → sin paginar el total sale a la mitad.
+    const data = await fetchAllRows(() => {
+      let q = sb
+        .from('quota_payments')
+        .select('amount_paid, payment_method, month, players!inner(club_id, team_id)')
+        .eq('players.club_id', clubId)
+        .in('season', [filters.season, seasonAlt])
+        .neq('status', 'refunded')
+        .gt('amount_paid', 0)
+      if (filters.teamId) q = q.eq('players.team_id', filters.teamId)
+      return q
+    })
 
     const byMonth = new Map<string, IncomeRow>()
     for (const row of (data ?? [])) {
@@ -787,7 +786,8 @@ export async function getCuotasNextSeason(): Promise<{ success: boolean; data?: 
     const playerIds = players.map((p: any) => p.id)
     // INF-1: incluir pagos parciales (status='pending' con amount_paid>0); excluir solo refunded.
     // gt('amount_paid', 0) evita contar como "pagado" filas a 0€.
-    const { data: payments } = await sb.from('quota_payments').select('player_id, concept, amount_paid').eq('club_id', clubId).in('player_id', playerIds).in('season', [ns, nsDb]).neq('status', 'refunded').gt('amount_paid', 0)
+    // Paginado: con ~648 jugadores × varias cuotas se superan las 1000 filas.
+    const payments = await fetchAllRows(() => sb.from('quota_payments').select('player_id, concept, amount_paid').eq('club_id', clubId).in('player_id', playerIds).in('season', [ns, nsDb]).neq('status', 'refunded').gt('amount_paid', 0))
 
     const playerPaid = new Map<string, { concepts: Set<string>; total: number; reserva: number; cuota: number }>()
     for (const pmt of (payments ?? [])) {

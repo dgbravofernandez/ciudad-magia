@@ -1,5 +1,6 @@
 ﻿import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { Topbar } from '@/components/layout/Topbar'
 import { SeasonSelector } from '@/features/contabilidad/components/SeasonSelector'
 import { InformePagos } from '@/features/contabilidad/components/InformePagos'
@@ -25,18 +26,20 @@ export default async function InformesPage({
   const currentSeason = getCurrentSeason()
   const season = params.season && seasons.includes(params.season) ? params.season : currentSeason
 
-  // Cuatro queries independientes — paralelizar
-  const [{ data: teamsRaw }, { data: playersRaw }, { data: paymentsRaw }, reminderHistory] = await Promise.all([
+  // Cuatro queries independientes — paralelizar. players y payments paginados:
+  // PostgREST corta a 1000 filas y una temporada tiene >2000 cuotas → sin
+  // paginar los totales salían a la mitad (ver fetchAllRows).
+  const [{ data: teamsRaw }, playersRaw, paymentsRaw, reminderHistory] = await Promise.all([
     sb.from('teams').select('id, name, season').eq('club_id', clubId),
-    sb.from('players')
+    fetchAllRows(() => sb.from('players')
       .select('id, first_name, last_name, team_id, next_team_id')
       .eq('club_id', clubId)
-      .neq('status', 'low'),
-    sb.from('quota_payments')
+      .neq('status', 'low')),
+    fetchAllRows(() => sb.from('quota_payments')
       .select('player_id, amount_due, amount_paid, status')
       .eq('club_id', clubId)
       .eq('season', season)
-      .neq('status', 'refunded'),
+      .neq('status', 'refunded')),
     getReminderHistory(),
   ])
 
