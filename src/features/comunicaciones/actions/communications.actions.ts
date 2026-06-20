@@ -5,7 +5,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { sendHtmlEmail } from '@/lib/email/send'
 import { revalidatePath } from 'next/cache'
-import { headers } from 'next/headers'
 import { logger } from '@/lib/logger'
 
 interface RecipientRow {
@@ -156,10 +155,13 @@ export async function sendBulkEmail(input: {
 }
 
 export async function saveTemplate(formData: FormData) {
+  const { clubId, roles } = await getClubContext()
+  if (!clubId) return { success: false, error: 'Sin club' }
+  if (!roles.some((r) => ['admin', 'direccion', 'redes'].includes(r))) {
+    return { success: false, error: 'Sin permisos' }
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = await createClient() as any
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
 
   const id = (formData.get('id') as string) || null
   const name = formData.get('name') as string
@@ -192,10 +194,13 @@ export async function saveTemplate(formData: FormData) {
 }
 
 export async function deleteTemplate(templateId: string) {
+  const { clubId, roles } = await getClubContext()
+  if (!clubId) return { success: false, error: 'Sin club' }
+  if (!roles.some((r) => ['admin', 'direccion', 'redes'].includes(r))) {
+    return { success: false, error: 'Sin permisos' }
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = await createClient() as any
-  const headersList = await headers()
-  const clubId = headersList.get('x-club-id')!
 
   const { error } = await supabase
     .from('email_templates')

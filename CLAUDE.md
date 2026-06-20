@@ -2,6 +2,9 @@
 
 CRM multi-tenant para clubes de fútbol. Pensado primero para E.F. Ciudad de Getafe, después vendible como SaaS. **Fase actual: utilidad para Ciudad de Getafe. Hardcoding permitido temporalmente; se sanea antes de vender.**
 
+> 📚 **Base de conocimiento: [`docs/kb/README.md`](docs/kb/README.md)** — visión, producto, arquitectura, calidad, seguridad, pre-SaaS, comercialización, soporte y exit. Empieza ahí. Los `CLAUDE.md` anidados (`src/features/`, `src/lib/supabase/`, `supabase/migrations/`, `src/app/api/cron/`) cargan el contexto de cada área automáticamente.
+> ⚠️ La sección "Estado actual" de abajo está **desactualizada** (decía migración 016; la real es **052**). El estado verificado vive en la KB.
+
 ---
 
 ## ⚠️ Reglas de trabajo (OBLIGATORIAS)

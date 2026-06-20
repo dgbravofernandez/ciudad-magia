@@ -5,7 +5,9 @@ import { createHmac } from 'crypto'
 export const dynamic = 'force-dynamic'
 
 function expectedToken(sendId: string): string {
-  const secret = process.env.APP_SECRET ?? 'dev-secret-replace-in-prod'
+  // SEC-6: fallo cerrado sin APP_SECRET (debe coincidir con campaign.actions).
+  const secret = process.env.APP_SECRET
+  if (!secret) throw new Error('APP_SECRET no configurado')
   return createHmac('sha256', secret).update(sendId).digest('hex').slice(0, 32)
 }
 

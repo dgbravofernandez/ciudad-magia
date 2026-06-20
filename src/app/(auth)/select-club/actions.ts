@@ -50,8 +50,13 @@ export async function setPreferredClub(clubId: string): Promise<{ success: boole
     return { success: false, error: 'No perteneces a ese club' }
   }
 
-  // Firmar payload "clubId:userId" → previene reutilización entre usuarios
-  const secret = process.env.APP_SECRET ?? 'dev-secret-replace-in-prod'
+  // Firmar payload "clubId:userId" → previene reutilización entre usuarios.
+  // SEC-6: sin APP_SECRET fallamos cerrado (nunca usar un secreto por defecto conocido).
+  const secret = process.env.APP_SECRET
+  if (!secret) {
+    console.error('[select-club] APP_SECRET no configurado')
+    return { success: false, error: 'Configuración del servidor incompleta' }
+  }
   const signed = await signValue(`${clubId}:${user.id}`, secret)
 
   // Cookie httpOnly desde servidor — no manipulable por JS del cliente

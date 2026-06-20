@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getOAuthClient } from '@/lib/google/oauth'
+import { encryptToken } from '@/lib/crypto/token-crypto'
 import { google } from 'googleapis'
 
 // ──────────────────────────────────────────────────────────────
@@ -94,7 +95,8 @@ export async function GET(req: NextRequest) {
     await sb
       .from('club_settings')
       .update({
-        google_refresh_token: tokens.refresh_token,
+        // SEC-5: cifrado en reposo (AES-256-GCM). Se descifra al leerlo.
+        google_refresh_token: encryptToken(tokens.refresh_token),
         google_service_email: googleEmail,
       })
       .eq('club_id', clubId)

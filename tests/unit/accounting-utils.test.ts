@@ -1,10 +1,13 @@
 /**
  * Tests para las utilidades de contabilidad:
  *  - toDbMethod   — mapeo de etiquetas de UI al enum de BD
- *  - EMAIL_BATCH_CAP / CLUB_IBAN — documentan los valores contrato
+ *  - EMAIL_BATCH_CAP — documenta el valor contrato
+ *
+ * Nota: CLUB_IBAN se eliminó de constants.ts (des-hardcodeado; el IBAN vive ahora
+ * en club_settings por club). Su test de regresión se retiró con él.
  */
 import { describe, it, expect } from 'vitest'
-import { toDbMethod, EMAIL_BATCH_CAP, CLUB_IBAN } from '@/lib/contabilidad/constants'
+import { toDbMethod, EMAIL_BATCH_CAP } from '@/lib/contabilidad/constants'
 
 describe('toDbMethod', () => {
   it('convierte "efectivo" → "cash"', () => {
@@ -45,20 +48,5 @@ describe('EMAIL_BATCH_CAP', () => {
 
   it('es un número positivo', () => {
     expect(EMAIL_BATCH_CAP).toBeGreaterThan(0)
-  })
-})
-
-describe('CLUB_IBAN', () => {
-  it('tiene el formato IBAN correcto (sin espacios tiene 24 caracteres)', () => {
-    const noSpaces = CLUB_IBAN.replace(/\s/g, '')
-    expect(noSpaces).toHaveLength(24)
-  })
-
-  it('empieza con ES (banco español)', () => {
-    expect(CLUB_IBAN.startsWith('ES')).toBe(true)
-  })
-
-  it('el valor exacto del IBAN no cambia sin querer (test de regresión)', () => {
-    expect(CLUB_IBAN).toBe('ES58 3067 0163 1028 0449 8729')
   })
 })

@@ -61,7 +61,7 @@ export async function upsertSeasonFee(input: {
     }
 
     if (input.id) {
-      const { error } = await sb.from('season_fees').update(payload).eq('id', input.id)
+      const { error } = await sb.from('season_fees').update(payload).eq('id', input.id).eq('club_id', clubId)
       if (error) return { success: false, error: error.message }
     } else {
       const { error } = await sb.from('season_fees').insert(payload)
@@ -76,11 +76,11 @@ export async function upsertSeasonFee(input: {
 
 export async function deleteSeasonFee(id: string) {
   try {
-    const { roles } = await getClubContext()
+    const { clubId, roles } = await getClubContext()
     if (!canEdit(roles)) return { success: false, error: 'Sin permisos' }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
-    const { error } = await sb.from('season_fees').delete().eq('id', id)
+    const { error } = await sb.from('season_fees').delete().eq('id', id).eq('club_id', clubId)
     if (error) return { success: false, error: error.message }
     revalidatePath('/configuracion/cuotas')
     return { success: true }

@@ -105,17 +105,32 @@ export async function sendCoachFormLink(
   return { success: true, emailSent: sent }
 }
 
+/** Roles que pueden gestionar staff de equipos. */
+function canManageStaff(roles: string[]): boolean {
+  return roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))
+}
+
+/** Verifica que un member pertenece al club (multi-tenant). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function memberInClub(sb: any, memberId: string, clubId: string): Promise<boolean> {
+  const { data } = await sb
+    .from('club_members').select('id').eq('id', memberId).eq('club_id', clubId).maybeSingle()
+  return !!data
+}
+
 export async function assignCoachToTeam(
   memberId: string,
   teamId: string
 ): Promise<{ success: boolean; error?: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
-  const clubId = await getClubId()
+  const { clubId, roles } = await getClubContext()
+  if (!canManageStaff(roles)) return { success: false, error: 'Sin permisos' }
 
   const { data: team } = await sb
     .from('teams').select('id').eq('id', teamId).eq('club_id', clubId).single()
   if (!team) return { success: false, error: 'Equipo no encontrado' }
+  if (!(await memberInClub(sb, memberId, clubId))) return { success: false, error: 'Miembro no encontrado' }
 
   const { error } = await sb
     .from('team_coaches')
@@ -139,7 +154,8 @@ export async function removeCoachFromTeam(
 ): Promise<{ success: boolean; error?: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
-  const clubId = await getClubId()
+  const { clubId, roles } = await getClubContext()
+  if (!canManageStaff(roles)) return { success: false, error: 'Sin permisos' }
 
   const { data: team } = await sb
     .from('teams').select('id').eq('id', teamId).eq('club_id', clubId).single()
@@ -210,10 +226,12 @@ export async function assignCoordinatorToTeam(
 ): Promise<{ success: boolean; error?: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
-  const clubId = await getClubId()
+  const { clubId, roles } = await getClubContext()
+  if (!canManageStaff(roles)) return { success: false, error: 'Sin permisos' }
 
   const { data: team } = await sb.from('teams').select('id').eq('id', teamId).eq('club_id', clubId).single()
   if (!team) return { success: false, error: 'Equipo no encontrado' }
+  if (!(await memberInClub(sb, memberId, clubId))) return { success: false, error: 'Miembro no encontrado' }
 
   const { error } = await sb.from('team_coaches').upsert(
     { team_id: teamId, member_id: memberId, role: 'coordinador' },
@@ -237,6 +255,12 @@ export async function removeCoordinatorFromTeam(
 ): Promise<{ success: boolean; error?: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
+  const { clubId, roles } = await getClubContext()
+  if (!canManageStaff(roles)) return { success: false, error: 'Sin permisos' }
+
+  const { data: team } = await sb.from('teams').select('id').eq('id', teamId).eq('club_id', clubId).single()
+  if (!team) return { success: false, error: 'Equipo no encontrado' }
+
   await sb.from('team_coaches').delete().eq('member_id', memberId).eq('team_id', teamId).eq('role', 'coordinador')
   revalidatePath('/entrenadores/staff')
   revalidatePath('/entrenadores')
@@ -252,12 +276,27 @@ export async function saveEvaluation(data: {
   nivelRating: number
   ajenoRating: number
   notes: string
-  clubId: string
+  clubId?: string // ignorado: el club se deriva del contexto (multi-tenant)
 }): Promise<{ success: boolean; error?: string }> {
+  // SEC: club del contexto + validación de roles y pertenencia, nunca del input.
+  const { clubId, roles } = await getClubContext()
+  if (!clubId) return { success: false, error: 'Sin club' }
+  if (!roles.some((r) => ['admin', 'direccion', 'director_deportivo', 'coordinador'].includes(r))) {
+    return { success: false, error: 'Sin permisos' }
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
+
+  // Verificar que equipo y entrenador evaluado pertenecen al club
+  const [{ data: team }, coachOk] = await Promise.all([
+    sb.from('teams').select('id').eq('id', data.teamId).eq('club_id', clubId).maybeSingle(),
+    memberInClub(sb, data.memberId, clubId),
+  ])
+  if (!team) return { success: false, error: 'Equipo no encontrado' }
+  if (!coachOk) return { success: false, error: 'Entrenador no encontrado' }
+
   const { error } = await sb.from('coordinator_observations').upsert({
-    club_id: data.clubId, team_id: data.teamId, observer_id: data.observerId,
+    club_id: clubId, team_id: data.teamId, observer_id: data.observerId,
     coach_id: data.memberId, period: data.period, season: data.season,
     nivel_rating: data.nivelRating, ajeno_rating: data.ajenoRating, notes: data.notes,
   }, { onConflict: 'observer_id,team_id,period,season' })

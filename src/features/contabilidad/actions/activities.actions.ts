@@ -94,7 +94,7 @@ export async function createActivity(input: {
 
 export async function updateActivity(id: string, input: Partial<Activity>) {
   try {
-    const { roles } = await getClubContext()
+    const { clubId, roles } = await getClubContext()
     if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
@@ -102,6 +102,7 @@ export async function updateActivity(id: string, input: Partial<Activity>) {
       .from('activities')
       .update({ ...input, updated_at: new Date().toISOString() })
       .eq('id', id)
+      .eq('club_id', clubId)
     if (error) return { success: false, error: error.message }
     revalidatePath('/contabilidad/actividades')
     revalidatePath(`/contabilidad/actividades/${id}`)
@@ -113,11 +114,11 @@ export async function updateActivity(id: string, input: Partial<Activity>) {
 
 export async function deleteActivity(id: string) {
   try {
-    const { roles } = await getClubContext()
+    const { clubId, roles } = await getClubContext()
     if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
-    const { error } = await sb.from('activities').delete().eq('id', id)
+    const { error } = await sb.from('activities').delete().eq('id', id).eq('club_id', clubId)
     if (error) return { success: false, error: error.message }
     revalidatePath('/contabilidad/actividades')
     return { success: true }
@@ -334,6 +335,7 @@ export async function markChargePaid(
       .from('activity_charges')
       .select('activity_id, amount, amount_paid, participant_name, participant_email, concept, paid, player_id, activities(name)')
       .eq('id', chargeId)
+      .eq('club_id', clubId)
       .single()
     if (fetchErr || !charge) return { success: false, error: fetchErr?.message ?? 'No existe' }
     if (charge.paid) return { success: false, error: 'Ya está pagada' }
@@ -355,6 +357,7 @@ export async function markChargePaid(
         payment_date: date,
       })
       .eq('id', chargeId)
+      .eq('club_id', clubId)
     if (error) return { success: false, error: error.message }
 
     if (paymentMethod === 'cash' || paymentMethod === 'card') {
@@ -463,7 +466,7 @@ export async function markChargePaid(
 
 export async function deleteCharge(chargeId: string) {
   try {
-    const { roles } = await getClubContext()
+    const { clubId, roles } = await getClubContext()
     if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
@@ -471,8 +474,10 @@ export async function deleteCharge(chargeId: string) {
       .from('activity_charges')
       .select('activity_id')
       .eq('id', chargeId)
+      .eq('club_id', clubId)
       .single()
-    const { error } = await sb.from('activity_charges').delete().eq('id', chargeId)
+    if (!charge) return { success: false, error: 'No existe' }
+    const { error } = await sb.from('activity_charges').delete().eq('id', chargeId).eq('club_id', clubId)
     if (error) return { success: false, error: error.message }
     if (charge?.activity_id) revalidatePath(`/contabilidad/actividades/${charge.activity_id}`)
     return { success: true }
@@ -580,7 +585,7 @@ export async function addActivityIncome(input: {
 
 export async function deleteActivityExpense(id: string) {
   try {
-    const { roles } = await getClubContext()
+    const { clubId, roles } = await getClubContext()
     if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
@@ -588,8 +593,10 @@ export async function deleteActivityExpense(id: string) {
       .from('activity_expenses')
       .select('activity_id')
       .eq('id', id)
+      .eq('club_id', clubId)
       .single()
-    const { error } = await sb.from('activity_expenses').delete().eq('id', id)
+    if (!exp) return { success: false, error: 'No existe' }
+    const { error } = await sb.from('activity_expenses').delete().eq('id', id).eq('club_id', clubId)
     if (error) return { success: false, error: error.message }
     if (exp?.activity_id) revalidatePath(`/contabilidad/actividades/${exp.activity_id}`)
     return { success: true }

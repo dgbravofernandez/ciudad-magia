@@ -56,7 +56,9 @@ function htmlToPlainText(html: string): string {
  * Antes era HMAC(clubId), filtrable y reutilizable.
  */
 function unsubscribeToken(sendId: string): string {
-  const secret = process.env.APP_SECRET ?? 'dev-secret-replace-in-prod'
+  // SEC-6: fallo cerrado sin APP_SECRET (debe coincidir con api/marketing/unsubscribe).
+  const secret = process.env.APP_SECRET
+  if (!secret) throw new Error('APP_SECRET no configurado')
   return createHmac('sha256', secret).update(sendId).digest('hex').slice(0, 32)
 }
 

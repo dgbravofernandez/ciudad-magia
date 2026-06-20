@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { exportClubToBackendSheet, type BackendExportResult } from '@/lib/google/backend-export'
 import { checkSheetAccess, createSpreadsheet } from '@/lib/google/sheets-writer'
 import { getOAuthClient, GOOGLE_SCOPES } from '@/lib/google/oauth'
+import { decryptToken, revokeGoogleToken } from '@/lib/crypto/token-crypto'
 import { cookies } from 'next/headers'
 import { randomBytes } from 'crypto'
 
@@ -123,7 +124,7 @@ export async function exportToBackendSheet(): Promise<{
     if (!sheetId) {
       return { success: false, error: 'Configura primero el ID de la hoja' }
     }
-    const refreshToken = settings?.google_refresh_token as string | null
+    const refreshToken = decryptToken(settings?.google_refresh_token as string | null)
 
     const result = await exportClubToBackendSheet(clubId, sheetId, refreshToken)
 
@@ -186,6 +187,15 @@ export async function disconnectGoogle(): Promise<{ success: boolean; error?: st
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
+
+    // SEC-5: revocar el token en Google antes de limpiarlo de la BD (best-effort).
+    const { data: current } = await sb
+      .from('club_settings')
+      .select('google_refresh_token')
+      .eq('club_id', clubId)
+      .single()
+    await revokeGoogleToken(decryptToken(current?.google_refresh_token as string | null))
+
     await sb
       .from('club_settings')
       .update({ google_refresh_token: null, google_service_email: null })
@@ -219,7 +229,7 @@ export async function createBackendSheet(): Promise<{
       .select('google_refresh_token')
       .eq('club_id', clubId)
       .single()
-    const refreshToken = settings?.google_refresh_token as string | null
+    const refreshToken = decryptToken(settings?.google_refresh_token as string | null)
     const { id, url } = await createSpreadsheet('Ciudad Magia — Datos del Club', refreshToken)
     const { error } = await sb
       .from('club_settings')
@@ -254,7 +264,7 @@ export async function checkBackendSheet(): Promise<{
     if (!sheetId) {
       return { success: false, error: 'Configura primero el ID de la hoja' }
     }
-    const refreshToken = settings?.google_refresh_token as string | null
+    const refreshToken = decryptToken(settings?.google_refresh_token as string | null)
     const data = await checkSheetAccess(sheetId, refreshToken)
     return { success: true, data }
   } catch (e) {
