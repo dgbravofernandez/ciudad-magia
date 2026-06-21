@@ -32,6 +32,9 @@ Registro de bugs detectados pero no cerrados. Se llena con la **Acción 0** (aud
 | SEC-5 | Cifrado en reposo del token (AES-256-GCM) + revoke en Google | 2026-06-20 |
 | SEC-6 | Fallo cerrado sin `APP_SECRET` (3 sitios) | 2026-06-20 |
 | INF-1 | Informes cuenta pagos parciales (`amount_paid` de lo no-refunded, no solo `status='paid'`) en `getIncomeByMonth` y `getCuotasNextSeason`. Verificado: 2025-26 ahora €15.458 (antes €6.319) | 2026-06-20 |
+| INF-3 | Paginación `fetchAllRows` en los 4 reports de dinero — tope 1000 falseaba totales (2026-27: €55.103 real, antes €27.634). Verificado por el usuario en prod | 2026-06-21 |
+| INF-4 | `/contabilidad/informes` 26-27 solo lista jugadores confirmados (next_team con equipo de esa temporada) → ~643, no 1022. Multiselección de equipo + export Excel/PDF | 2026-06-21 |
+| RFFM-1 | Goleadores ordenados por GOLES totales (antes por ratio goles/partido + tope 1000 → ocultaba a los de 50/30 goles y a los de F11). Filtro de género (Fem/Masc). Export de tabla a Excel/PDF (`generateGoleadoresPdf`) | 2026-06-21 |
 | — | `0249ea9` guard `club_id` en deletePayment/updatePayment (previo) | 2026 |
 
 Detalle de seguridad: [docs/kb/04-seguridad/backlog-seguridad.md](../04-seguridad/backlog-seguridad.md). **Build verificado tras los fixes.**
