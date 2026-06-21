@@ -66,29 +66,25 @@ export async function getPlayerMinutes(filters: {
 
     // Filtramos directamente por club_id en sessions y players
     // (session_attendance no tiene club_id propio)
-    let query = sb
-      .from('session_attendance')
-      .select(`
+    // Paginado: session_attendance de una temporada puede superar 1000 filas
+    // (muchos partidos × jugadores) → sin paginar las stats salen incompletas.
+    const data = await fetchAllRows(() => {
+      let q = sb
+        .from('session_attendance')
+        .select(`
         minutes_played,
         players!inner(id, first_name, last_name, club_id, team_id, teams(name)),
         sessions!inner(session_type, session_date, club_id, season)
       `)
-      .eq('sessions.club_id', clubId)
-      .eq('sessions.session_type', 'match')
-      .eq('players.club_id', clubId)
-      .not('minutes_played', 'is', null)
-      .gt('minutes_played', 0)
-
-    // Filtramos por temporada solo si la columna ya existe (migration 031)
-    if (filters.season) {
-      query = query.eq('sessions.season', filters.season)
-    }
-    if (filters.teamId) {
-      query = query.eq('players.team_id', filters.teamId)
-    }
-
-    const { data, error } = await query
-    if (error) return { success: false, error: error.message }
+        .eq('sessions.club_id', clubId)
+        .eq('sessions.session_type', 'match')
+        .eq('players.club_id', clubId)
+        .not('minutes_played', 'is', null)
+        .gt('minutes_played', 0)
+      if (filters.season) q = q.eq('sessions.season', filters.season)
+      if (filters.teamId) q = q.eq('players.team_id', filters.teamId)
+      return q
+    })
 
     // Agregar por jugador
     const byPlayer = new Map<string, PlayerMinutesRow>()
@@ -151,26 +147,22 @@ export async function getPlayerGoals(filters: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
 
-    let query = sb
-      .from('session_attendance')
-      .select(`
+    // Paginado: ver getPlayerMinutes (tope 1000 de PostgREST).
+    const data = await fetchAllRows(() => {
+      let q = sb
+        .from('session_attendance')
+        .select(`
         goals, assists, yellow_cards, red_cards, rating,
         players!inner(id, first_name, last_name, club_id, team_id, teams(name)),
         sessions!inner(session_type, club_id, season)
       `)
-      .eq('sessions.club_id', clubId)
-      .eq('sessions.session_type', 'match')
-      .eq('players.club_id', clubId)
-
-    if (filters.season) {
-      query = query.eq('sessions.season', filters.season)
-    }
-    if (filters.teamId) {
-      query = query.eq('players.team_id', filters.teamId)
-    }
-
-    const { data, error } = await query
-    if (error) return { success: false, error: error.message }
+        .eq('sessions.club_id', clubId)
+        .eq('sessions.session_type', 'match')
+        .eq('players.club_id', clubId)
+      if (filters.season) q = q.eq('sessions.season', filters.season)
+      if (filters.teamId) q = q.eq('players.team_id', filters.teamId)
+      return q
+    })
 
     const byPlayer = new Map<string, PlayerGoalsRow & { rating_sum: number; rating_count: number }>()
     for (const row of (data ?? [])) {
@@ -240,26 +232,22 @@ export async function getPlayerAttendance(filters: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
 
-    let query = sb
-      .from('session_attendance')
-      .select(`
+    // Paginado: ver getPlayerMinutes (tope 1000 de PostgREST).
+    const data = await fetchAllRows(() => {
+      let q = sb
+        .from('session_attendance')
+        .select(`
         status,
         players!inner(id, first_name, last_name, club_id, team_id, teams(name)),
         sessions!inner(session_type, club_id, season)
       `)
-      .eq('sessions.club_id', clubId)
-      .eq('sessions.session_type', 'training')
-      .eq('players.club_id', clubId)
-
-    if (filters.season) {
-      query = query.eq('sessions.season', filters.season)
-    }
-    if (filters.teamId) {
-      query = query.eq('players.team_id', filters.teamId)
-    }
-
-    const { data, error } = await query
-    if (error) return { success: false, error: error.message }
+        .eq('sessions.club_id', clubId)
+        .eq('sessions.session_type', 'training')
+        .eq('players.club_id', clubId)
+      if (filters.season) q = q.eq('sessions.season', filters.season)
+      if (filters.teamId) q = q.eq('players.team_id', filters.teamId)
+      return q
+    })
 
     const byPlayer = new Map<string, PlayerAttendanceRow>()
     for (const row of (data ?? [])) {
