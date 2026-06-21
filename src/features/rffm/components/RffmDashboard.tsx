@@ -255,13 +255,14 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
   const [filterMinValor, setFilterMinValor] = useState(0)
   const [filterDivision, setFilterDivision] = useState(0)
   const [filterTipo, setFilterTipo] = useState('all')
+  const [filterGenero, setFilterGenero] = useState<'all' | 'fem' | 'masc'>('all')
   const [filterEstado, setFilterEstado] = useState<string>('nuevo')
   const [searchText, setSearchText] = useState('')
   const [showAll, setShowAll] = useState(false)
 
   // Sort
   type SortKey = 'valor_score' | 'goles' | 'goles_por_partido' | 'partidos_jugados' | 'anio_nacimiento' | 'division_level' | 'nombre_jugador'
-  const [sortKey, setSortKey] = useState<SortKey>('valor_score')
+  const [sortKey, setSortKey] = useState<SortKey>('goles')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   function toggleSort(key: SortKey) {
@@ -300,7 +301,7 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
   // Default: no mostrar nada hasta que haya filtro real (búsqueda
   // o se pulse "Mostrar todo"), para no abrumar con cientos de filas.
   const hasActiveFilter = !!searchText || filterMinValor > 0 || filterDivision > 0 ||
-    filterMinRatio > 0 || filterTipo !== 'all' || filterEstado !== 'nuevo' ||
+    filterMinRatio > 0 || filterTipo !== 'all' || filterGenero !== 'all' || filterEstado !== 'nuevo' ||
     filterAnioMin !== 1990 || filterAnioMax !== CURRENT_YEAR
   const shouldList = showAll || hasActiveFilter
 
@@ -322,6 +323,12 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
         if (filterTipo === '1' && isF7) return false   // '1' = F11 → excluir F7
         if (filterTipo === '2' && !isF7) return false  // '2' = F7 → excluir F11
       }
+    }
+    // Género: las competiciones femeninas llevan "FEMENINO" en el nombre.
+    if (filterGenero !== 'all') {
+      const esFemenino = /femenin/i.test(nombreComp)
+      if (filterGenero === 'fem' && !esFemenino) return false
+      if (filterGenero === 'masc' && esFemenino) return false
     }
     // Filtro de año:
     // - Si el filtro está en defaults abiertos (1990–año actual) dejamos pasar todo (incluyendo sin año)
@@ -357,6 +364,74 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
     if (typeof an === 'number' && typeof bn === 'number') return (an - bn) * dir
     return String(an).localeCompare(String(bn)) * dir
   }).slice(0, 500) // tope de seguridad para no colgar el render
+
+  // ── Export de la TABLA de goleadores (sobre lo filtrado) ─────
+  const [tablePdfBusy, setTablePdfBusy] = useState(false)
+  function signalModalidad(s: Signal): string {
+    if (s.cod_tipojuego === '1') return 'F11'
+    if (s.cod_tipojuego === '2') return 'F7'
+    return /F-?7|FUTBOL 7|FÚTBOL 7/i.test(s.nombre_competicion ?? '') ? 'F7' : 'F11'
+  }
+  function signalGenero(s: Signal): string {
+    return /femenin/i.test(s.nombre_competicion ?? '') ? 'Fem' : 'Masc'
+  }
+  function filtrosDesc(): string {
+    const parts: string[] = []
+    if (filterTipo === '1') parts.push('F11'); else if (filterTipo === '2') parts.push('F7')
+    if (filterGenero === 'fem') parts.push('Femenino'); else if (filterGenero === 'masc') parts.push('Masculino')
+    if (filterAnioMin !== 1990 || filterAnioMax !== CURRENT_YEAR) parts.push(`Nac. ${filterAnioMin}–${filterAnioMax}`)
+    if (filterDivision > 0) parts.push(`Div ≥ ${filterDivision}`)
+    if (searchText) parts.push(`"${searchText}"`)
+    return parts.length ? parts.join(' · ') : 'Todos'
+  }
+  async function exportGoleadoresExcel() {
+    if (filteredSignals.length === 0) { toast.error('No hay jugadores que exportar'); return }
+    const XLSX = await import('xlsx')
+    const rows = filteredSignals.map((s, i) => ({
+      '#': i + 1,
+      Jugador: s.nombre_jugador ?? '',
+      Equipo: s.nombre_equipo ?? '',
+      Competición: s.nombre_competicion ?? '',
+      Modalidad: signalModalidad(s),
+      Género: signalGenero(s),
+      'Año nac.': s.anio_nacimiento ?? '',
+      Goles: s.goles,
+      PJ: s.partidos_jugados,
+      'G/PJ': Number(s.goles_por_partido).toFixed(2),
+      División: s.division_level ?? '',
+    }))
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(rows)
+    ws['!cols'] = Object.keys(rows[0]).map(k => ({ wch: Math.max(8, k.length + 2) }))
+    XLSX.utils.book_append_sheet(wb, ws, 'Goleadores')
+    XLSX.writeFile(wb, `Goleadores_RFFM_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  }
+  async function exportGoleadoresPdf() {
+    if (filteredSignals.length === 0) { toast.error('No hay jugadores que exportar'); return }
+    setTablePdfBusy(true)
+    try {
+      const { generateGoleadoresPdf } = await import('@/lib/pdf/goleadoresPdf')
+      const blob = await generateGoleadoresPdf({
+        clubName: 'E.F. Ciudad de Getafe',
+        filtros: filtrosDesc(),
+        rows: filteredSignals.map(s => ({
+          id: s.id, nombre: s.nombre_jugador ?? '', equipo: s.nombre_equipo ?? '',
+          competicion: s.nombre_competicion ?? '', modalidad: signalModalidad(s), genero: signalGenero(s),
+          anio: s.anio_nacimiento, goles: s.goles, partidos: s.partidos_jugados,
+          golesPorPartido: s.goles_por_partido, division: s.division_level,
+        })),
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `Goleadores_RFFM_${new Date().toISOString().slice(0, 10)}.pdf`
+      document.body.appendChild(a); a.click(); a.remove()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('No se pudo generar el PDF')
+    } finally {
+      setTablePdfBusy(false)
+    }
+  }
 
   // ── Actions ──────────────────────────────────────────────────
 
@@ -789,6 +864,14 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
                 </select>
               </div>
               <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Género</label>
+                <select value={filterGenero} onChange={e => setFilterGenero(e.target.value as 'all' | 'fem' | 'masc')} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                  <option value="all">Todos</option>
+                  <option value="masc">Masculino</option>
+                  <option value="fem">Femenino</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Año nac. mín</label>
                 <input type="number" value={filterAnioMin} onChange={e => setFilterAnioMin(parseInt(e.target.value) || 2010)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
               </div>
@@ -821,12 +904,24 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
                     })()}</>
                   : <>Hay <strong className="text-gray-600">{signals.length}</strong> señales en total · usa la búsqueda o cambia un filtro para verlas</>}
               </p>
-              <button
-                onClick={() => setShowAll(v => !v)}
-                className="text-xs text-blue-600 hover:underline"
-              >
-                {showAll ? 'Ocultar todo por defecto' : 'Mostrar todo igualmente'}
-              </button>
+              <div className="flex items-center gap-3">
+                {shouldList && filteredSignals.length > 0 && (
+                  <>
+                    <button onClick={exportGoleadoresExcel} className="text-xs flex items-center gap-1 px-2 py-1 border border-gray-300 rounded hover:bg-gray-50" title="Exportar tabla a Excel">
+                      <FileDown className="w-3.5 h-3.5" /> Excel
+                    </button>
+                    <button onClick={exportGoleadoresPdf} disabled={tablePdfBusy} className="text-xs flex items-center gap-1 px-2 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50" title="Exportar tabla a PDF">
+                      <FileDown className="w-3.5 h-3.5" /> {tablePdfBusy ? 'PDF…' : 'PDF'}
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => setShowAll(v => !v)}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  {showAll ? 'Ocultar todo por defecto' : 'Mostrar todo igualmente'}
+                </button>
+              </div>
             </div>
           </div>
 

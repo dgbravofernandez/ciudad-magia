@@ -11,7 +11,7 @@
  *   fetchAllRows(() => sb.from('quota_payments').select('*').eq('club_id', id))
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function fetchAllRows(build: () => any, pageSize = 1000): Promise<any[]> {
+export async function fetchAllRows(build: () => any, pageSize = 1000, maxRows = Infinity): Promise<any[]> {
   let from = 0
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const out: any[] = []
@@ -19,8 +19,8 @@ export async function fetchAllRows(build: () => any, pageSize = 1000): Promise<a
     const { data, error } = await build().range(from, from + pageSize - 1)
     if (error || !data || data.length === 0) break
     out.push(...data)
-    if (data.length < pageSize) break
+    if (data.length < pageSize || out.length >= maxRows) break
     from += pageSize
   }
-  return out
+  return maxRows === Infinity ? out : out.slice(0, maxRows)
 }

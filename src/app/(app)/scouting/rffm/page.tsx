@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { Topbar } from '@/components/layout/Topbar'
 import { RffmDashboard } from '@/features/rffm/components/RffmDashboard'
 import { getRffmHealth } from '@/features/rffm/actions/health.actions'
@@ -18,20 +19,23 @@ export default async function RffmPage() {
   const SIGNAL_COLS = 'id,codjugador,nombre_jugador,nombre_equipo,nombre_competicion,nombre_grupo,cod_tipojuego,goles,partidos_jugados,goles_por_partido,anio_nacimiento,division_level,valor_score,estado'
 
   const [
-    { data: signals },
+    signals,
     { data: cardAlerts },
     { data: trackedComps },
     { data: lastSync },
     { data: matches },
     { data: standings },
   ] = await Promise.all([
-    sb
+    // Goleadores: ordenar por GOLES TOTALES (no por ratio goles/partido, que
+    // colaba a quien mete 5 en 1 partido por delante de quien mete 50). Paginado
+    // hasta 5000 para que los cracks reales (F7 y F11) entren — PostgREST corta a 1000.
+    fetchAllRows(() => sb
       .from('rffm_scouting_signals')
       .select(SIGNAL_COLS)
       .eq('club_id', clubId)
       .neq('estado', 'descartado')
-      .order('goles_por_partido', { ascending: false })
-      .limit(1000),
+      .order('goles', { ascending: false })
+      .order('id', { ascending: true }), 1000, 5000),
     sb
       .from('rffm_card_alerts')
       .select('id,codjugador,nombre_jugador,amarillas_ciclo_actual,proximo_umbral,alerta_activa,tracked_competition_id,rffm_tracked_competitions(nombre_competicion,nombre_grupo)')
