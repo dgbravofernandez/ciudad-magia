@@ -8,7 +8,9 @@ import {
   Calendar, Mail, Phone, FileText, Heart, Euro, AlertTriangle,
   ExternalLink, CheckCircle2, XCircle, Send, Trash2, Plus, MessageSquare, Pencil
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { deletePlayer, sendTrialLetter, addInjury, addPlayerObservation, updateInjury, deleteInjury, updatePlayerObservation, deletePlayerObservation, getPlayerPerformance, type PlayerPerformance } from '@/features/jugadores/actions/player.actions'
+import { updateQuotaAmountDue } from '@/features/contabilidad/actions/accounting.actions'
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer
 } from 'recharts'
@@ -724,6 +726,11 @@ function InjuryEditModal({ injury, onClose, onSaved }: { injury: Injury; onClose
 }
 
 function PagosTab({ payments }: { payments: QuotaPayment[] }) {
+  const router = useRouter()
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [saving, setSaving] = useState(false)
+
   const totalPending = payments
     .filter((p) => p.status === 'pending' || p.status === 'partial')
     .reduce((sum, p) => sum + (p.amount_due - p.amount_paid), 0)
@@ -739,6 +746,24 @@ function PagosTab({ payments }: { payments: QuotaPayment[] }) {
     pending: 'Pendiente',
     partial: 'Parcial',
     exempt: 'Exento',
+  }
+
+  function startEdit(p: QuotaPayment) {
+    setEditingId(p.id)
+    setEditValue(String(p.amount_due))
+  }
+
+  async function saveEdit(p: QuotaPayment) {
+    const newDue = Math.round(parseFloat(editValue.replace(',', '.')) * 100) / 100
+    if (!isFinite(newDue) || newDue < 0) { toast.error('Importe inválido'); return }
+    if (newDue === p.amount_due) { setEditingId(null); return }
+    const label = p.concept ?? (p.month ? `${getMonthName(p.month)} ${p.season}` : p.season)
+    if (!window.confirm(`¿Cambiar el importe de "${label}" de ${formatCurrency(p.amount_due)} a ${formatCurrency(newDue)}?`)) return
+    setSaving(true)
+    const res = await updateQuotaAmountDue(p.id, newDue)
+    setSaving(false)
+    if (res.success) { toast.success('Importe actualizado'); setEditingId(null); router.refresh() }
+    else toast.error(res.error ?? 'Error al actualizar')
   }
 
   return (
@@ -764,6 +789,7 @@ function PagosTab({ payments }: { payments: QuotaPayment[] }) {
               <th className="text-right py-2 font-medium text-muted-foreground">Pagado</th>
               <th className="text-center py-2 font-medium text-muted-foreground">Estado</th>
               <th className="text-left py-2 font-medium text-muted-foreground">Forma pago</th>
+              <RoleGuard roles={['admin', 'direccion']}><th className="text-center py-2 font-medium text-muted-foreground w-10"></th></RoleGuard>
             </tr>
           </thead>
           <tbody>
@@ -775,7 +801,19 @@ function PagosTab({ payments }: { payments: QuotaPayment[] }) {
                 <td className="py-2 text-muted-foreground">
                   {p.payment_date ? formatDate(p.payment_date) : '—'}
                 </td>
-                <td className="py-2 text-right font-medium">{formatCurrency(p.amount_due)}</td>
+                <td className="py-2 text-right font-medium">
+                  {editingId === p.id ? (
+                    <input
+                      type="number" step="0.01" autoFocus
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(p); if (e.key === 'Escape') setEditingId(null) }}
+                      className="input h-8 w-24 text-right"
+                    />
+                  ) : (
+                    formatCurrency(p.amount_due)
+                  )}
+                </td>
                 <td className="py-2 text-right">{formatCurrency(p.amount_paid)}</td>
                 <td className="py-2 text-center">
                   <span className={cn('badge', PAYMENT_STATUS_COLORS[p.status])}>
@@ -783,6 +821,24 @@ function PagosTab({ payments }: { payments: QuotaPayment[] }) {
                   </span>
                 </td>
                 <td className="py-2 text-muted-foreground capitalize">{p.payment_method ?? '—'}</td>
+                <RoleGuard roles={['admin', 'direccion']}>
+                  <td className="py-2 text-center">
+                    {editingId === p.id ? (
+                      <div className="flex items-center gap-1 justify-center">
+                        <button onClick={() => saveEdit(p)} disabled={saving} className="text-green-600 hover:text-green-700 disabled:opacity-40" title="Guardar">
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => setEditingId(null)} disabled={saving} className="text-muted-foreground hover:text-foreground" title="Cancelar">
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => startEdit(p)} className="text-muted-foreground hover:text-primary" title="Editar importe">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </td>
+                </RoleGuard>
               </tr>
             ))}
           </tbody>
@@ -791,6 +847,11 @@ function PagosTab({ payments }: { payments: QuotaPayment[] }) {
           <p className="text-sm text-muted-foreground py-4 text-center">Sin pagos registrados</p>
         )}
       </div>
+      <RoleGuard roles={['admin', 'direccion']}>
+        <p className="text-xs text-muted-foreground mt-3">
+          ✏️ Puedes corregir el importe emitido de cualquier cuota (casos especiales). Pedirá confirmación.
+        </p>
+      </RoleGuard>
     </div>
   )
 }

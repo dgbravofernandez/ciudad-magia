@@ -1382,6 +1382,41 @@ export async function updatePendingPaymentAmount(paymentId: string, amountDue: n
   return { success: true }
 }
 
+// ── updateQuotaAmountDue ──────────────────────────────────────────────────────
+// Edita el importe TOTAL emitido (amount_due) de una cuota y recalcula el estado.
+// Para correcciones por jugador (casos especiales). Requiere admin/dirección.
+export async function updateQuotaAmountDue(paymentId: string, newAmountDue: number) {
+  try {
+    const { sb, clubId, roles } = await resolveClubAndMember()
+    if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    if (!isFinite(newAmountDue) || newAmountDue < 0) {
+      return { success: false, error: 'Importe inválido' }
+    }
+    const { data: existing } = await sb
+      .from('quota_payments').select('amount_paid, status, club_id')
+      .eq('id', paymentId).eq('club_id', clubId).single()
+    if (!existing) return { success: false, error: 'Cuota no encontrada' }
+    if (existing.status === 'refunded') return { success: false, error: 'No se puede editar una cuota reembolsada' }
+
+    const due = Math.round(newAmountDue * 100) / 100
+    const paid = Number(existing.amount_paid) || 0
+    const status = paid >= due - 0.01 ? 'paid' : 'pending'
+
+    const { error } = await sb.from('quota_payments')
+      .update({ amount_due: due, status })
+      .eq('id', paymentId).eq('club_id', clubId)
+    if (error) return { success: false, error: error.message }
+
+    revalidatePath('/contabilidad/informes')
+    revalidatePath('/contabilidad/pagos')
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+}
+
 // ── updateCashMovement ───────────────────────────────────────────────────────
 // Edita un movimiento de caja directamente (no cuota). Actualiza también el
 // registro enlazado si existe (quota_payment o expense).
