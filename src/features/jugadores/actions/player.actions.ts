@@ -8,7 +8,7 @@ import { revalidatePath } from 'next/cache'
 import { sendHtmlEmail } from '@/lib/email/send'
 import { generateTrialLetterPDF } from '@/lib/pdf/generate-trial-letter'
 import { getNextSeason } from '@/lib/utils/currency'
-import { discountedSiblingId } from '@/lib/contabilidad/sibling-discount'
+import { siblingDiscountPlan } from '@/lib/contabilidad/sibling-discount'
 
 /**
  * Genera los registros de cuotas pendientes para un jugador en la próxima temporada
@@ -57,10 +57,12 @@ async function generatePendingFeesForPlayer(
     if (familyGroupId) {
       const { data: settings } = await sb
         .from('club_settings')
-        .select('sibling_discount_enabled, sibling_discount_percent')
+        .select('sibling_discount_enabled, sibling_discount_percent, quota_amounts')
         .eq('club_id', clubId).single()
       const enabled: boolean = !!settings?.sibling_discount_enabled
       const pct: number = Number(settings?.sibling_discount_percent ?? 0)
+      // Cuota fija del 3er hermano — configurable en Configuración → Cuotas (no hardcode).
+      const thirdFixed: number = Number(settings?.quota_amounts?.siblingThirdFixed ?? 120)
       if (enabled && pct > 0) {
         // Hermanos del club con team_id asignado para 26/27 (incluye este jugador)
         const { data: siblings } = await sb
@@ -85,14 +87,17 @@ async function generatePendingFeesForPlayer(
             for (const f of (allFees ?? [])) {
               annualByTeam[f.team_id] = (annualByTeam[f.team_id] ?? 0) + Number(f.amount)
             }
-            // SOLO el hermano más barato recibe el 40% (lógica pura testeada,
-            // desempate determinista — evita el doble-descuento en hermanos del
-            // mismo equipo).
+            // Plan por hermano (lógica pura testeada, desempate determinista):
+            //  · más barato → 40% · 3º en adelante → cuota fija · más caro → íntegro.
             const sibAnnualList = sibList
               .map(s => ({ id: s.id, annual: annualByTeam[(s.next_team_id || s.team_id) ?? ''] ?? 0 }))
-            if (discountedSiblingId(sibAnnualList) === playerId) {
-              const thisAnnual = fees.reduce((s: number, f: { amount: string }) => s + parseFloat(f.amount), 0)
+            const kind = siblingDiscountPlan(sibAnnualList)[playerId] ?? 'full'
+            const thisAnnual = fees.reduce((s: number, f: { amount: string }) => s + parseFloat(f.amount), 0)
+            if (kind === 'percent') {
               siblingDiscountEur = thisAnnual * (pct / 100)
+            } else if (kind === 'fixed') {
+              // 3er hermano: paga la cuota fija configurada (descuento = anual − fija).
+              siblingDiscountEur = Math.max(0, Math.round((thisAnnual - thirdFixed) * 100) / 100)
             }
           }
         }

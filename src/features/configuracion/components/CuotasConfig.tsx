@@ -24,6 +24,7 @@ type QuotaAmounts = {
   earlyPayDiscount: number
   installments: { label: string; amount: number; deadline: string }[]
   teams: Record<string, number>
+  siblingThirdFixed?: number   // cuota fija del 3er hermano (configurable)
 }
 
 const DEFAULT_INSTALLMENTS = [
@@ -48,6 +49,7 @@ export function CuotasConfig({ clubId, settings, teams }: Props) {
   const [teamAmounts, setTeamAmounts] = useState<Record<string, number>>(raw.teams ?? {})
   const [siblingEnabled, setSiblingEnabled] = useState<boolean>((settings?.sibling_discount_enabled as boolean) ?? false)
   const [siblingDiscount, setSiblingDiscount] = useState<number>((settings?.sibling_discount_percent as number) ?? 40)
+  const [siblingThird, setSiblingThird] = useState<number>(raw.siblingThirdFixed ?? 120)
   const [isPending, startTransition] = useTransition()
 
   function updateInstallment(index: number, field: 'amount' | 'deadline' | 'label', value: string) {
@@ -84,6 +86,7 @@ export function CuotasConfig({ clubId, settings, teams }: Props) {
           earlyPayDiscount: earlyDiscount,
           installments,
           teams: teamAmounts,
+          siblingThirdFixed: siblingThird,
         },
         deadlineDay: (settings?.quota_deadline_day as number) ?? 5,
         siblingDiscountEnabled: siblingEnabled,
@@ -257,18 +260,32 @@ export function CuotasConfig({ clubId, settings, teams }: Props) {
           <span className="text-sm">Activar descuento por hermanos</span>
         </label>
         {siblingEnabled && (
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-muted-foreground">Porcentaje:</label>
-            <input
-              type="number"
-              step="1"
-              min="0"
-              max="100"
-              className="input w-24"
-              value={siblingDiscount}
-              onChange={(e) => setSiblingDiscount(parseFloat(e.target.value) || 0)}
-            />
-            <span className="text-xs text-muted-foreground">% sobre la cuota anual del más barato</span>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-muted-foreground w-32">2º hermano (%):</label>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                max="100"
+                className="input w-24"
+                value={siblingDiscount}
+                onChange={(e) => setSiblingDiscount(parseFloat(e.target.value) || 0)}
+              />
+              <span className="text-xs text-muted-foreground">% sobre la cuota anual del más barato</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-muted-foreground w-32">3er hermano (€):</label>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                className="input w-24"
+                value={siblingThird}
+                onChange={(e) => setSiblingThird(parseFloat(e.target.value) || 0)}
+              />
+              <span className="text-xs text-muted-foreground">cuota fija total para el 3er hermano (y siguientes)</span>
+            </div>
           </div>
         )}
       </div>

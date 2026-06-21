@@ -1,6 +1,6 @@
 # Bugs conocidos — registro vivo
 
-**Owner:** Diego · **Última actualización:** 2026-06-20
+**Owner:** Diego · **Última actualización:** 2026-06-21
 
 Registro de bugs detectados pero no cerrados. Se llena con la **Acción 0** (auditoría: `/code-review` + `/security-review` + `revisor-multitenant`) y con lo que reporte Sentry. Cerrar = mover a "Resueltos" con el commit.
 
@@ -15,6 +15,7 @@ Registro de bugs detectados pero no cerrados. Se llena con la **Acción 0** (aud
 | INFRA-2 | baja | Tooling | `npm run lint` usa `next lint` (deprecado en Next 16) y no hay ESLint configurado → abre prompt interactivo / falla en CI. Migrar a ESLint CLI o quitar del CI. | Verificación Acción 0 | abierto |
 | INF-3 | **CRÍTICA** | Contabilidad/Informes | **Tope de 1000 filas de PostgREST.** Las queries de `quota_payments` por temporada (>2000 filas en 26-27) y de `players` (>1000) no paginaban → agregados a la MITAD. Síntoma real: `/contabilidad/informes` 26-27 mostraba 27.634€ de 55.103€ reales; Diego Torne 167,50€ de 427,50€ (le faltaban Cuota 2 y 3, filas pasadas la 1000). Afectaba a `/contabilidad/informes`, `getIncomeByMonth`, `getPendingPayments` y `getCuotasNextSeason`. Fix: helper `fetchAllRows` (paginación .range) en los 4 sitios. | Captura usuario + datos | ✅ resuelto |
 | SCT-1 | baja | Scouting/RFFM | Código muerto: `src/app/api/scouting/rffm/verify/route.ts` no lo llama ningún frontend y lee `rffm_player_stats` (tabla **vacía**, ningún sync la puebla). Su "goleadMadrid" filtra `clubs.city ilike '%Madrid%'` → 0 (ninguna club tiene `city`). El scouting real usa `rffm_scouting_signals` (22k filas, syncs sanos). Recomendación: eliminar ruta + tabla huérfana. | Auditoría scouting/rffm | abierto |
+| CUOTA-1 | alta | Cuotas 26-27 | Concepto legado **"Cuota mensual"** en **207 jugadores** (de un import antiguo): 84 infra-facturados (p.ej. Iker 60€ en vez de 450), 32 sobre-facturados (Thiago 580), 91 ok. Previsualización consciente de descuentos en `/contabilidad/reconciliacion`. **Aplicación masiva pendiente** de revisión del usuario (Excel). Casos "Revisar": pago > tarifa (Alejandro: campamento/torneo dentro de la cuota) y familias 3+. | Repaso de cuotas | abierto (preview listo) |
 
 **Sweep completo (30 archivos): hecho.** 0 críticos, 0 fugas de lectura, 0 inserts sin `club_id`. Veredicto inicial REVISAR → **6 fugas de escritura corregidas**.
 
@@ -35,6 +36,10 @@ Registro de bugs detectados pero no cerrados. Se llena con la **Acción 0** (aud
 | INF-3 | Paginación `fetchAllRows` en los 4 reports de dinero — tope 1000 falseaba totales (2026-27: €55.103 real, antes €27.634). Verificado por el usuario en prod | 2026-06-21 |
 | INF-4 | `/contabilidad/informes` 26-27 solo lista jugadores confirmados (next_team con equipo de esa temporada) → ~643, no 1022. Multiselección de equipo + export Excel/PDF | 2026-06-21 |
 | RFFM-1 | Goleadores ordenados por GOLES totales (antes por ratio goles/partido + tope 1000 → ocultaba a los de 50/30 goles y a los de F11). Filtro de género (Fem/Masc). Export de tabla a Excel/PDF (`generateGoleadoresPdf`) | 2026-06-21 |
+| RFFM-2 | Selector de temporada en scouting RFFM — histórico consultable por `cod_temporada` (21=2025-26); el sync ya conserva temporadas | 2026-06-21 |
+| INF-5 | `sendPendingReminders` no lanza al cliente (try/catch) + `maxDuration=60`. El email SÍ salía pero daba "algo salió mal". Log de avisos con fecha dd/mm/aaaa | 2026-06-21 |
+| HNO-1 | Descuento de hermanos **40% solo al más barato** (antes a los dos en empate → infra-cobro). Lógica pura testeada (`siblingDiscountPlan`). **3er hermano: cuota fija configurable** en Config→Cuotas (no hardcode) | 2026-06-21 |
+| — | Editor del importe de cualquier cuota por jugador (ficha→Pagos, con confirmación). "Generar cuotas faltantes" para confirmados sin cuota. Paso A: agregación pura + tests | 2026-06-21 |
 | — | `0249ea9` guard `club_id` en deletePayment/updatePayment (previo) | 2026 |
 
 Detalle de seguridad: [docs/kb/04-seguridad/backlog-seguridad.md](../04-seguridad/backlog-seguridad.md). **Build verificado tras los fixes.**
