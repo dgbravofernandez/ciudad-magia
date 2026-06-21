@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
-import { Search, ArrowUpDown, Bell, BellOff, Download, FileText, ChevronDown } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Search, ArrowUpDown, Bell, BellOff, Download, FileText, ChevronDown, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { sendPendingReminders } from '@/features/contabilidad/actions/accounting.actions'
+import { generateMissingNextSeasonFees } from '@/features/jugadores/actions/player.actions'
 
 export interface PlayerRow {
   id: string
@@ -37,6 +39,7 @@ interface Props {
   globalTotalDue: number
   reminderHistory?: Record<string, ReminderRecord>
   clubName?: string
+  isNextSeason?: boolean
 }
 
 function fmt(n: number) {
@@ -83,7 +86,9 @@ function daysSince(iso: string): string {
   return `hace ${days}d`
 }
 
-export function InformePagos({ players, teams, season, globalTotalPaid, globalTotalDue, reminderHistory = {}, clubName = '' }: Props) {
+export function InformePagos({ players, teams, season, globalTotalPaid, globalTotalDue, reminderHistory = {}, clubName = '', isNextSeason = false }: Props) {
+  const router = useRouter()
+  const [generatingFees, setGeneratingFees] = useState(false)
   const [tab, setTab] = useState<'equipos' | 'jugadores'>('equipos')
   const [search, setSearch] = useState('')
   const [teamFilter, setTeamFilter] = useState<string[]>([])   // multi-selección
@@ -230,6 +235,23 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
     }
   }
 
+  async function handleGenerateFees() {
+    setGeneratingFees(true)
+    const res = await generateMissingNextSeasonFees()
+    setGeneratingFees(false)
+    if (res.success) {
+      const fixed = res.playersFixed ?? 0
+      const skipped = res.skippedNoFees ?? 0
+      toast.success(
+        `Cuotas generadas para ${fixed} jugador${fixed !== 1 ? 'es' : ''}` +
+        (skipped > 0 ? ` · ${skipped} sin tarifa de equipo configurada` : '')
+      )
+      router.refresh()
+    } else {
+      toast.error(res.error ?? 'Error generando cuotas')
+    }
+  }
+
   const activeTotalDue = players.reduce((s, p) => s + p.totalDue, 0)
   const activeTotalPaid = players.reduce((s, p) => s + p.totalPaid, 0)
   const activeTotalPending = activeTotalDue - activeTotalPaid
@@ -290,6 +312,23 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
           </div>
         </div>
       </div>
+
+      {/* Aviso: confirmados sin cuota en temporada siguiente → generar */}
+      {isNextSeason && statusCounts.sincuota > 0 && (
+        <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-amber-300 bg-amber-50 flex-wrap">
+          <p className="text-sm text-amber-800">
+            <strong>{statusCounts.sincuota}</strong> jugador{statusCounts.sincuota !== 1 ? 'es' : ''} confirmado{statusCounts.sincuota !== 1 ? 's' : ''} para {season} sin cuota asignada (se añadieron a su equipo después de generar las cuotas).
+          </p>
+          <button
+            onClick={handleGenerateFees}
+            disabled={generatingFees}
+            className="btn btn-sm flex items-center gap-2 text-sm disabled:opacity-50 whitespace-nowrap"
+          >
+            <Wand2 className="w-4 h-4" />
+            {generatingFees ? 'Generando…' : `Generar cuotas faltantes (${statusCounts.sincuota})`}
+          </button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">

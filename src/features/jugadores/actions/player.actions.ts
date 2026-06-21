@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getClubContext } from '@/lib/supabase/get-club-id'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { revalidatePath } from 'next/cache'
 import { sendHtmlEmail } from '@/lib/email/send'
 import { generateTrialLetterPDF } from '@/lib/pdf/generate-trial-letter'
@@ -142,6 +144,58 @@ async function generatePendingFeesForPlayer(
     return { feesCreated: 0, error: error.message }
   }
   return { feesCreated: records.length }
+}
+
+/**
+ * Genera las cuotas faltantes de la PRÓXIMA temporada para todos los jugadores
+ * confirmados (activos, con next_team_id de un equipo de esa temporada) que aún
+ * NO tengan ninguna cuota. Backfill para jugadores asignados por vías que no
+ * pasaron por updateInscriptionStatus (importación masiva, activación, etc.).
+ */
+export async function generateMissingNextSeasonFees(): Promise<{
+  success: boolean; error?: string; playersFixed?: number; feesCreated?: number; skippedNoFees?: number
+}> {
+  try {
+    const { clubId, roles } = await getClubContext()
+    if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
+      return { success: false, error: 'Sin permisos' }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+    const nextSeason = getNextSeason()                 // '2026-27'
+    const feesSeason = nextSeason.replace('-', '/')    // '2026/27'
+
+    // Equipos de la próxima temporada (teams.season usa barra)
+    const { data: nsTeams } = await sb.from('teams').select('id')
+      .eq('club_id', clubId).in('season', [feesSeason, nextSeason])
+    const nsTeamIds: string[] = (nsTeams ?? []).map((t: { id: string }) => t.id)
+    if (nsTeamIds.length === 0) return { success: true, playersFixed: 0, feesCreated: 0, skippedNoFees: 0 }
+
+    // Confirmados: activos con next_team de la próxima temporada
+    const confirmados = await fetchAllRows(() => sb.from('players')
+      .select('id, next_team_id')
+      .eq('club_id', clubId).eq('status', 'active').in('next_team_id', nsTeamIds))
+
+    // Jugadores que YA tienen alguna fila de cuota para la próxima temporada
+    const conCuota = new Set<string>(
+      (await fetchAllRows(() => sb.from('quota_payments').select('player_id')
+        .eq('club_id', clubId).eq('season', nextSeason)))
+        .map((r: { player_id: string }) => r.player_id))
+
+    let playersFixed = 0, feesCreated = 0, skippedNoFees = 0
+    for (const p of confirmados as Array<{ id: string; next_team_id: string }>) {
+      if (conCuota.has(p.id)) continue
+      const r = await generatePendingFeesForPlayer(sb, clubId, p.id, p.next_team_id)
+      if (r.feesCreated > 0) { playersFixed++; feesCreated += r.feesCreated }
+      else skippedNoFees++   // equipo sin season_fees configuradas
+    }
+
+    revalidatePath('/contabilidad/informes')
+    revalidatePath('/contabilidad/pagos')
+    return { success: true, playersFixed, feesCreated, skippedNoFees }
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
 }
 
 export async function updateInscriptionStatus(

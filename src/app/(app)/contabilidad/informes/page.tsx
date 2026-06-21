@@ -115,7 +115,7 @@ export default async function InformesPage({
           <h2 className="text-sm text-muted-foreground">Temporada {season}</h2>
           <SeasonSelector season={season} seasons={seasons} basePath="/contabilidad/informes" />
         </div>
-        <InformePagos players={players} teams={teams} season={season} globalTotalPaid={globalTotalPaid} globalTotalDue={globalTotalDue} reminderHistory={reminderHistory} clubName={clubRow?.name ?? ''} />
+        <InformePagos players={players} teams={teams} season={season} globalTotalPaid={globalTotalPaid} globalTotalDue={globalTotalDue} reminderHistory={reminderHistory} clubName={clubRow?.name ?? ''} isNextSeason={isNextSeason} />
       </main>
     </div>
   )
