@@ -8,6 +8,7 @@ import { revalidatePath } from 'next/cache'
 import { sendHtmlEmail } from '@/lib/email/send'
 import { generateTrialLetterPDF } from '@/lib/pdf/generate-trial-letter'
 import { getNextSeason } from '@/lib/utils/currency'
+import { discountedSiblingId } from '@/lib/contabilidad/sibling-discount'
 
 /**
  * Genera los registros de cuotas pendientes para un jugador en la próxima temporada
@@ -84,20 +85,14 @@ async function generatePendingFeesForPlayer(
             for (const f of (allFees ?? [])) {
               annualByTeam[f.team_id] = (annualByTeam[f.team_id] ?? 0) + Number(f.amount)
             }
-            // Anual por hermano (con tarifa > 0). SOLO el más barato recibe el 40%;
-            // el resto paga íntegro. Desempate determinista por id para no dar el
-            // descuento a DOS hermanos cuando van al mismo equipo (mismo importe).
+            // SOLO el hermano más barato recibe el 40% (lógica pura testeada,
+            // desempate determinista — evita el doble-descuento en hermanos del
+            // mismo equipo).
             const sibAnnualList = sibList
               .map(s => ({ id: s.id, annual: annualByTeam[(s.next_team_id || s.team_id) ?? ''] ?? 0 }))
-              .filter(x => x.annual > 0)
-            if (sibAnnualList.length >= 2) {
-              sibAnnualList.sort((a, b) => (a.annual - b.annual) || a.id.localeCompare(b.id))
-              const cheapestId = sibAnnualList[0].id
-              // Cuota anual de ESTE jugador
+            if (discountedSiblingId(sibAnnualList) === playerId) {
               const thisAnnual = fees.reduce((s: number, f: { amount: string }) => s + parseFloat(f.amount), 0)
-              if (playerId === cheapestId) {
-                siblingDiscountEur = thisAnnual * (pct / 100)
-              }
+              siblingDiscountEur = thisAnnual * (pct / 100)
             }
           }
         }
