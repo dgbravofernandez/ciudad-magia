@@ -59,6 +59,7 @@ interface Signal {
   nombre_competicion: string
   nombre_grupo: string
   cod_tipojuego: string | null   // '1'=F11, '2'=F7, '4'=Sala
+  cod_temporada: string | null   // código RFFM de temporada (p.ej. '21'=2025-26)
   goles: number
   partidos_jugados: number
   goles_por_partido: number
@@ -66,6 +67,13 @@ interface Signal {
   division_level: number
   valor_score: number
   estado: 'nuevo' | 'visto' | 'descartado' | 'captado'
+}
+
+/** Código RFFM de temporada → etiqueta 'YYYY-YY'. Código 21 = 2025-26 (2004 + código). */
+function temporadaLabel(code: string | null): string {
+  if (!code) return '—'
+  const start = 2004 + parseInt(code, 10)
+  return isNaN(start) ? code : `${start}-${String(start + 1).slice(2)}`
 }
 
 interface CardAlert {
@@ -257,6 +265,17 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
   const [filterTipo, setFilterTipo] = useState('all')
   const [filterGenero, setFilterGenero] = useState<'all' | 'fem' | 'masc'>('all')
   const [filterEstado, setFilterEstado] = useState<string>('nuevo')
+
+  // Temporadas disponibles (el histórico se conserva por cod_temporada). Por
+  // defecto se muestra la más reciente; el resto queda consultable.
+  const availableSeasons = useMemo(
+    () => [...new Set(signals.map(s => s.cod_temporada).filter(Boolean) as string[])].sort().reverse(),
+    [signals]
+  )
+  const [filterTemporada, setFilterTemporada] = useState<string>('')
+  useEffect(() => {
+    if (!filterTemporada && availableSeasons.length > 0) setFilterTemporada(availableSeasons[0])
+  }, [availableSeasons, filterTemporada])
   const [searchText, setSearchText] = useState('')
   const [showAll, setShowAll] = useState(false)
 
@@ -310,6 +329,8 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
     const nombreJug = s.nombre_jugador ?? ''
     const nombreEq = s.nombre_equipo ?? ''
 
+    // Temporada (histórico): mostrar solo la seleccionada
+    if (filterTemporada && s.cod_temporada !== filterTemporada) return false
     if (filterEstado !== 'all' && s.estado !== filterEstado) return false
     if (filterTipo !== 'all') {
       // Usar cod_tipojuego directo ('1'=F11, '2'=F7). Fallback: detección por nombre.
@@ -377,6 +398,7 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
   }
   function filtrosDesc(): string {
     const parts: string[] = []
+    if (filterTemporada) parts.push(`Temp. ${temporadaLabel(filterTemporada)}`)
     if (filterTipo === '1') parts.push('F11'); else if (filterTipo === '2') parts.push('F7')
     if (filterGenero === 'fem') parts.push('Femenino'); else if (filterGenero === 'masc') parts.push('Masculino')
     if (filterAnioMin !== 1990 || filterAnioMax !== CURRENT_YEAR) parts.push(`Nac. ${filterAnioMin}–${filterAnioMax}`)
@@ -846,6 +868,15 @@ export function RffmDashboard({ signals, cardAlerts, trackedComps, recentSyncs, 
           {/* Filters bar */}
           <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Temporada</label>
+                <select value={filterTemporada} onChange={e => setFilterTemporada(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                  {availableSeasons.length === 0 && <option value="">—</option>}
+                  {availableSeasons.map(code => (
+                    <option key={code} value={code}>{temporadaLabel(code)}</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Estado</label>
                 <select value={filterEstado} onChange={e => setFilterEstado(e.target.value)} className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
