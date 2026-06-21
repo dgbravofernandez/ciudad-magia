@@ -6,6 +6,7 @@ import { Search, ArrowUpDown, Bell, BellOff, Download, FileText, ChevronDown, Wa
 import { toast } from 'sonner'
 import { sendPendingReminders } from '@/features/contabilidad/actions/accounting.actions'
 import { generateMissingNextSeasonFees } from '@/features/jugadores/actions/player.actions'
+import { paymentStatus } from '@/lib/contabilidad/payments-report'
 
 export interface PlayerRow {
   id: string
@@ -56,11 +57,7 @@ type SortBy = 'deuda' | 'nombre' | 'equipo' | 'pagado' | 'emitido'
 type TeamSort = 'deuda' | 'nombre'
 
 function getStatus(p: PlayerRow): StatusFilter {
-  if (!p.hasCuota && p.totalDue === 0 && p.totalPaid === 0) return 'sincuota'
-  const pending = p.totalDue - p.totalPaid
-  if (pending <= 0) return 'aldia'
-  if (p.totalPaid > 0) return 'parcial'
-  return 'pendiente'
+  return paymentStatus(p.totalDue, p.totalPaid, !!p.hasCuota)
 }
 
 function StatusBadge({ player }: { player: PlayerRow }) {

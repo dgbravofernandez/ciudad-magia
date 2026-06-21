@@ -1,6 +1,7 @@
 ﻿import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { fetchAllRows } from '@/lib/supabase/paginate'
+import { aggregateByPlayer, type QuotaRow } from '@/lib/contabilidad/payments-report'
 import { Topbar } from '@/components/layout/Topbar'
 import { SeasonSelector } from '@/features/contabilidad/components/SeasonSelector'
 import { InformePagos } from '@/features/contabilidad/components/InformePagos'
@@ -69,13 +70,8 @@ export default async function InformesPage({
   const globalTotalPaid = (paymentsRaw ?? []).reduce((s: number, p: { amount_paid: number }) => s + (p.amount_paid ?? 0), 0)
   const globalTotalDue = (paymentsRaw ?? []).reduce((s: number, p: { amount_due: number }) => s + (p.amount_due ?? 0), 0)
 
-  // Agregar pagos por jugador (para tabla de desglose de activos)
-  const paysByPlayer: Record<string, { due: number; paid: number }> = {}
-  for (const pay of (paymentsRaw ?? [])) {
-    if (!paysByPlayer[pay.player_id]) paysByPlayer[pay.player_id] = { due: 0, paid: 0 }
-    paysByPlayer[pay.player_id].due += pay.amount_due ?? 0
-    paysByPlayer[pay.player_id].paid += pay.amount_paid ?? 0
-  }
+  // Agregar pagos por jugador (lógica pura testeada — ver payments-report.ts)
+  const paysByPlayer = aggregateByPlayer((paymentsRaw ?? []) as QuotaRow[])
 
   // Jugadores de la temporada seleccionada. En la temporada SIGUIENTE (26-27)
   // solo los CONFIRMADOS = con next_team_id asignado (no todos los activos).
