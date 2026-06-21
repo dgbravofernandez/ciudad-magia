@@ -828,6 +828,7 @@ function sleep(ms: number) {
 }
 
 export async function sendPendingReminders(playerIds: string[]) {
+ try {
   const { sb, clubId, memberId } = await resolveClubAndMember()
 
   if (playerIds.length === 0) {
@@ -1016,6 +1017,10 @@ export async function sendPendingReminders(playerIds: string[]) {
     failed,
     errors: errorList.slice(0, 5),  // limit
   }
+ } catch (e) {
+   // Nunca lanzar al cliente: si algo falla tras enviar, devolver error estructurado
+   return { success: false, error: (e as Error).message }
+ }
 }
 
 function buildReminderHtml(opts: {

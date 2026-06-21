@@ -80,10 +80,11 @@ const STATUS_LABELS: Record<StatusFilter, string> = {
 }
 
 function daysSince(iso: string): string {
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  const d = new Date(iso)
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000)
   if (days === 0) return 'hoy'
   if (days === 1) return 'ayer'
-  return `hace ${days}d`
+  return d.toLocaleDateString('es-ES')  // dd/mm/aaaa
 }
 
 export function InformePagos({ players, teams, season, globalTotalPaid, globalTotalDue, reminderHistory = {}, clubName = '', isNextSeason = false }: Props) {
@@ -601,7 +602,7 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
                               <button
                                 onClick={() => sendReminder([p.id])}
                                 disabled={isSending || isPending}
-                                title={rec ? `${rec.count} aviso${rec.count !== 1 ? 's' : ''} enviado${rec.count !== 1 ? 's' : ''}` : 'Enviar aviso de deuda'}
+                                title={rec ? `${rec.count} aviso${rec.count !== 1 ? 's' : ''} · último: ${new Date(rec.lastSent).toLocaleString('es-ES')}` : 'Enviar aviso de deuda'}
                                 className="text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors"
                               >
                                 {isSending

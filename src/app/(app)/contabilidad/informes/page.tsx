@@ -11,6 +11,8 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Informes de Pagos' }
 export const dynamic = 'force-dynamic'
+// Los avisos de pago (server action) envían email — pueden tardar; ampliamos el límite.
+export const maxDuration = 60
 
 export default async function InformesPage({
   searchParams,
