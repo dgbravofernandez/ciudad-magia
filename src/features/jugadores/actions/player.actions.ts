@@ -84,15 +84,18 @@ async function generatePendingFeesForPlayer(
             for (const f of (allFees ?? [])) {
               annualByTeam[f.team_id] = (annualByTeam[f.team_id] ?? 0) + Number(f.amount)
             }
-            const sibAnnuals = sibList
-              .map(s => annualByTeam[(s.next_team_id || s.team_id) ?? ''] ?? 0)
-              .filter(a => a > 0)
-            if (sibAnnuals.length >= 2) {
-              const cheapest = Math.min(...sibAnnuals)
+            // Anual por hermano (con tarifa > 0). SOLO el más barato recibe el 40%;
+            // el resto paga íntegro. Desempate determinista por id para no dar el
+            // descuento a DOS hermanos cuando van al mismo equipo (mismo importe).
+            const sibAnnualList = sibList
+              .map(s => ({ id: s.id, annual: annualByTeam[(s.next_team_id || s.team_id) ?? ''] ?? 0 }))
+              .filter(x => x.annual > 0)
+            if (sibAnnualList.length >= 2) {
+              sibAnnualList.sort((a, b) => (a.annual - b.annual) || a.id.localeCompare(b.id))
+              const cheapestId = sibAnnualList[0].id
               // Cuota anual de ESTE jugador
               const thisAnnual = fees.reduce((s: number, f: { amount: string }) => s + parseFloat(f.amount), 0)
-              // El jugador más barato recibe el descuento; el más caro paga íntegro.
-              if (thisAnnual <= cheapest + 0.01) {
+              if (playerId === cheapestId) {
                 siblingDiscountEur = thisAnnual * (pct / 100)
               }
             }
