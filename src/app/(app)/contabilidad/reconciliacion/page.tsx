@@ -23,7 +23,7 @@ export default async function ReconciliacionPage() {
             {res.error ?? 'No se pudo cargar la previsualización'}
           </div>
         ) : (
-          <ReconciliacionTable rows={res.rows ?? []} season={res.season ?? ''} totals={res.totals ?? { jugadores: 0, emitidoActual: 0, pagadoReal: 0, tarifaCorrecta: 0 }} />
+          <ReconciliacionTable rows={res.rows ?? []} season={res.season ?? ''} totals={res.totals ?? { jugadores: 0, pagadoReal: 0, tarifaCorrecta: 0, revisar: 0 }} />
         )}
       </main>
     </div>
