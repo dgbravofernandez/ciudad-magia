@@ -3,13 +3,14 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Calendar, Plus, Phone, Video, MapPin, Check, X, AlertCircle, TrendingUp } from 'lucide-react'
+import { Calendar, Plus, Phone, Video, MapPin, Check, X, AlertCircle, TrendingUp, Mail, Clock } from 'lucide-react'
 import { scheduleDemo, updateDemoStatus, cancelDemo } from '../actions/demos.actions'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = any
 
 interface Props {
+  requests?: AnyObj[]
   upcoming: AnyObj[]
   past: AnyObj[]
   weekDemos: AnyObj[]
@@ -31,7 +32,7 @@ const STATUS_LABELS: Record<string, string> = {
   converted: '🎉 Cliente',
 }
 
-export function DemosView({ upcoming, past, weekDemos, weekStart }: Props) {
+export function DemosView({ requests = [], upcoming, past, weekDemos, weekStart }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [showModal, setShowModal] = useState(false)
@@ -187,6 +188,59 @@ export function DemosView({ upcoming, past, weekDemos, weekStart }: Props) {
           ))}
         </div>
       </div>
+
+      {/* Solicitudes de llamada — "dime cuándo y me adapto" */}
+      {requests.length > 0 && (
+        <div className="bg-gradient-to-br from-slate-900 to-pink-950/20 border border-pink-900/40 rounded-xl p-5">
+          <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
+            <Phone className="w-4 h-4 text-pink-400" />
+            Solicitudes de llamada ({requests.length})
+          </h2>
+          <p className="text-xs text-slate-400 mb-3">Pidieron que les llames tú. Contáctalos en su franja y márcalos como hechos.</p>
+          <div className="space-y-2">
+            {requests.map((d) => {
+              const club = Array.isArray(d.marketing_clubs) ? d.marketing_clubs[0] : d.marketing_clubs
+              return (
+                <div key={d.id} className="rounded-lg bg-slate-800/40 hover:bg-slate-800 p-3">
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium truncate">{d.contact_name} {club && <span className="text-slate-400 font-normal">· {club.name}</span>}</p>
+                      {d.preferred_time && (
+                        <p className="text-sm text-pink-300 mt-0.5 flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> Le viene bien: <strong>{d.preferred_time}</strong>
+                        </p>
+                      )}
+                      {d.notes && <p className="text-xs text-slate-500 mt-1 italic">{d.notes}</p>}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {d.contact_phone && (
+                        <a href={`tel:${d.contact_phone}`} className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-900/60 hover:bg-emerald-900 text-emerald-300 text-xs">
+                          <Phone className="w-3 h-3" /> {d.contact_phone}
+                        </a>
+                      )}
+                      {d.contact_email && (
+                        <a href={`mailto:${d.contact_email}`} className="flex items-center gap-1 px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs">
+                          <Mail className="w-3 h-3" /> Email
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 mt-2">
+                    <button onClick={() => handleStatusChange(d.id, 'done')} disabled={isPending}
+                      className="px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded">Llamado / Hecha</button>
+                    <button onClick={() => handleStatusChange(d.id, 'converted')} disabled={isPending}
+                      className="px-2 py-1 text-xs bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 rounded">Cliente</button>
+                    <button onClick={() => handleCancel(d.id)} disabled={isPending}
+                      className="p-1 hover:bg-red-900/40 text-slate-400 hover:text-red-300 rounded">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Próximas demos */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">

@@ -8,6 +8,91 @@ import { sendMarketingEmail } from '@/lib/email/marketing-send'
  * Valida horario L-V 14:30-16:30, valida que el slot no esté ocupado, manda
  * confirmación al cliente y notificación al admin.
  */
+/**
+ * Solicitud de llamada SIN hora fija (público). "Dime cuándo te viene y me adapto".
+ * El lead deja su disponibilidad en texto libre; Diego le llama cuando encaje.
+ * Reduce el abandono de quien no puede en los huecos fijos de tarde.
+ */
+export async function requestCallbackPublic(input: {
+  marketingClubId?: string | null
+  clubName: string
+  contactName: string
+  contactEmail: string
+  contactPhone?: string
+  preferredTime: string   // texto libre: "mañanas", "después de las 18h", etc.
+  notes?: string
+}) {
+  if (!input.clubName?.trim() || input.clubName.length < 2) return { success: false, error: 'Falta el nombre del club' }
+  if (!input.contactName?.trim() || input.contactName.length < 2) return { success: false, error: 'Falta tu nombre' }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.contactEmail)) return { success: false, error: 'Email no válido' }
+  if (!input.contactPhone?.trim() && !input.contactEmail?.trim()) {
+    return { success: false, error: 'Déjame un teléfono o un email para contactarte' }
+  }
+  if (!input.preferredTime?.trim()) return { success: false, error: 'Dime cuándo te viene mejor' }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+
+  const { data: demo, error: insErr } = await sb.from('marketing_demos').insert({
+    club_id: input.marketingClubId || null,
+    contact_name: input.contactName.trim(),
+    contact_email: input.contactEmail.trim().toLowerCase(),
+    contact_phone: input.contactPhone?.trim() || null,
+    scheduled_at: null,                 // sin hora fija — se cuadra luego
+    preferred_time: input.preferredTime.trim().slice(0, 300),
+    duration_min: 30,
+    channel: 'call',
+    status: 'requested',
+    notes: input.notes ? `[${input.clubName}] ${input.notes}` : `[${input.clubName}]`,
+  }).select('id').single()
+
+  if (insErr || !demo) return { success: false, error: insErr?.message ?? 'Error al enviar la solicitud' }
+
+  // Marcar club como demo_booked (mismo embudo que una reserva fija)
+  if (input.marketingClubId) {
+    await sb.from('marketing_clubs').update({ status: 'demo_booked' }).eq('id', input.marketingClubId)
+  }
+
+  // Confirmación al cliente
+  await sendMarketingEmail({
+    to: input.contactEmail,
+    subject: 'Recibido — te escribo para cuadrar la demo de Cluberly',
+    fromName: 'Diego Bravo · Cluberly',
+    html: `
+<div style="font-family:Georgia,serif;color:#222;line-height:1.55;font-size:15px;max-width:600px">
+<p>Hola ${input.contactName.split(' ')[0]},</p>
+<p>¡Recibido! Me has dicho que te viene bien <strong>${input.preferredTime.trim()}</strong>, así que te escribo o te llamo en ese rato para enseñarte Cluberly sobre el ${input.clubName}.</p>
+<p>Si prefieres adelantar algo, respóndeme a este email directamente.</p>
+<p>Hasta enseguida,<br/>
+Diego Bravo<br/>
+665 676 341</p>
+</div>`,
+  })
+
+  // Notificación al admin
+  const adminEmail = process.env.MARKETING_GMAIL_USER ?? 'iakevoapp@gmail.com'
+  await sendMarketingEmail({
+    to: adminEmail,
+    subject: `📞 Solicitud de llamada: ${input.clubName}`,
+    fromName: 'Cluberly Bot',
+    html: `
+<div style="font-family:system-ui;line-height:1.5;font-size:14px">
+<h2>Nueva solicitud de llamada (sin hora fija)</h2>
+<table cellpadding="6" style="border-collapse:collapse">
+<tr><td><strong>Club:</strong></td><td>${input.clubName}</td></tr>
+<tr><td><strong>Contacto:</strong></td><td>${input.contactName}</td></tr>
+<tr><td><strong>Email:</strong></td><td><a href="mailto:${input.contactEmail}">${input.contactEmail}</a></td></tr>
+<tr><td><strong>Teléfono:</strong></td><td>${input.contactPhone ? `<a href="tel:${input.contactPhone}">${input.contactPhone}</a>` : '—'}</td></tr>
+<tr><td><strong>Cuándo le viene:</strong></td><td>${input.preferredTime.trim()}</td></tr>
+<tr><td><strong>Notas:</strong></td><td>${input.notes || '—'}</td></tr>
+</table>
+<p><a href="https://cluberly.club/superadmin/demos">Ver en el panel</a></p>
+</div>`,
+  })
+
+  return { success: true, demoId: demo.id }
+}
+
 export async function bookDemoPublic(input: {
   marketingClubId?: string | null
   clubName: string

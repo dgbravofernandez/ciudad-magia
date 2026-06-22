@@ -15,17 +15,26 @@ export default async function DemosPage() {
   endOfWeek.setDate(startOfWeek.getDate() + 7)
 
   const [
+    { data: requests },
     { data: upcoming },
     { data: past },
     { data: weekDemos },
   ] = await Promise.all([
+    // Solicitudes de llamada sin hora fija ("dime cuándo y me adapto")
     sb.from('marketing_demos')
       .select('*, marketing_clubs(name, email, location, federation)')
+      .eq('status', 'requested')
+      .order('created_at', { ascending: false })
+      .limit(50),
+    sb.from('marketing_demos')
+      .select('*, marketing_clubs(name, email, location, federation)')
+      .eq('status', 'scheduled')
       .gte('scheduled_at', now.toISOString())
       .order('scheduled_at', { ascending: true })
       .limit(50),
     sb.from('marketing_demos')
       .select('*, marketing_clubs(name, email, location)')
+      .not('scheduled_at', 'is', null)
       .lt('scheduled_at', now.toISOString())
       .order('scheduled_at', { ascending: false })
       .limit(30),
@@ -38,6 +47,7 @@ export default async function DemosPage() {
 
   return (
     <DemosView
+      requests={requests ?? []}
       upcoming={upcoming ?? []}
       past={past ?? []}
       weekDemos={weekDemos ?? []}
