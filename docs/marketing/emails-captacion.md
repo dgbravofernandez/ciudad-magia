@@ -24,6 +24,11 @@ La E.F. Ciudad de Getafe tenía el mismo lío con 280 jugadores. Desde que usan
 Cluberly, los recordatorios de cuota se envían solos y cobran el 95% sin tener
 que llamar a nadie. La secretaría recuperó unas 6 horas a la semana.
 
+"Llevábamos años con Excel y persiguiendo pagos por WhatsApp. El primer mes
+ con Cluberly cerramos con el 95% de las cuotas cobradas sin llamar a un solo
+ padre."
+— Diego Bravo, Coordinador deportivo, E.F. Ciudad de Getafe
+
 Cluberly es un sistema pensado para clubes españoles: jugadores, cuotas,
 asistencia, comunicaciones y contabilidad, en un solo sitio. Sin Excel.
 
@@ -32,7 +37,7 @@ Si lo prefieres, te paso acceso de prueba gratis 14 días y lo ves tú mismo.
 
 Un saludo,
 Diego — Cluberly
-cluberly.vercel.app
+cluberly.club
 ```
 
 ---
@@ -56,6 +61,7 @@ Y si una familia ya pagó, lo marca con un clic y deja de recibir avisos.
 
 Un saludo,
 Diego — Cluberly
+cluberly.club
 ```
 
 ---
@@ -71,7 +77,7 @@ No quiero ser pesado, así que este es mi último correo.
 
 Te dejo dos cosas por si en algún momento os viene bien:
 
-1. Prueba gratis 14 días, sin tarjeta: cluberly.vercel.app
+1. Prueba gratis 14 días, sin tarjeta: cluberly.club
 2. Si migráis desde Excel, os paso yo mismo todos vuestros datos sin coste.
 
 Si ahora no es el momento, sin problema — aquí me tienes cuando queráis dar el

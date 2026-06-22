@@ -62,7 +62,7 @@
 ---
 
 ### 🎬 1:50–2:00 — CIERRE + CTA
-**En pantalla:** pantalla final con logo + texto "Prueba gratis 14 días — cluberly.vercel.app"
+**En pantalla:** pantalla final con logo + texto "Prueba gratis 14 días — cluberly.club"
 **Voz en off:**
 > "Pruébalo gratis 14 días, sin tarjeta. Si migras desde Excel, te subimos los
 > datos nosotros. Cluberly: el club bien llevado."

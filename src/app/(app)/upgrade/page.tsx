@@ -17,7 +17,7 @@ const PLANS = [
     annualPrice: 390,
     annualMonthly: 33,
     limit: 'Hasta 100 jugadores',
-    features: ['Jugadores y altas', 'Cuotas', 'Comunicaciones email', 'Formulario de inscripción', 'Soporte email'],
+    features: ['Jugadores y altas', 'Cuotas', 'Recordatorios automáticos de cobro', 'Comunicaciones email', 'Formulario de inscripción', 'Soporte email'],
   },
   {
     id: 'pro',
@@ -29,7 +29,7 @@ const PLANS = [
     annualMonthly: 74,
     limit: 'Hasta 300 jugadores',
     popular: true,
-    features: ['Todo Básico', 'Sesiones y asistencia', 'Contabilidad completa', 'Informes', 'Recordatorios automáticos de cobro', 'Soporte WhatsApp'],
+    features: ['Todo Básico', 'Sesiones y asistencia', 'Contabilidad completa', 'Informes', 'Soporte WhatsApp'],
   },
   {
     id: 'club',
@@ -172,6 +172,9 @@ export default function UpgradePage() {
                 )}
               </div>
               {annual && plan.id !== 'personalizado' && <p className="text-xs text-gray-400 mb-1">€{plan.annualPrice}/año</p>}
+              {plan.id !== 'personalizado' && (
+                <p className="text-xs text-amber-600 font-medium mb-1">+ €99 setup único al alta</p>
+              )}
               <p className="text-xs font-semibold text-gray-500 mb-4">{plan.limit}</p>
 
               <ul className="flex flex-col gap-1.5 mb-5 flex-1">
