@@ -110,13 +110,16 @@ export default async function CampanasPage({
     { data: clickDetailsRaw },
     { data: windowSendsRaw },
   ] = await Promise.all([
-    // Sends con apertura en la ventana temporal, con info del club
+    // Sends con apertura O clic en la ventana temporal, con info del club.
+    // Importante incluir clic aunque opened_at sea null: Gmail bloquea el pixel
+    // de apertura pero el clic sí se registra → un clic es señal MÁS fuerte que
+    // una apertura, no puede faltar del panel de leads.
     sb.from('marketing_email_sends')
       .select('id, sent_at, opened_at, clicked_at, subject, club_id, marketing_clubs(id, name, email, phone, federation, location, status)')
-      .not('opened_at', 'is', null)
+      .or('opened_at.not.is.null,clicked_at.not.is.null')
       .gte('sent_at', windowStart)
       .order('clicked_at', { ascending: false, nullsFirst: false })
-      .order('opened_at', { ascending: false })
+      .order('opened_at', { ascending: false, nullsFirst: false })
       .limit(50),
     // Todos los clics registrados (destino + send_id para cruzar con leads)
     sb.from('marketing_email_clicks')

@@ -57,7 +57,8 @@ function relativeTime(iso: string | null): string {
 }
 
 function heatInfo(lead: EngagementLead, clickDetails: ClickDetail[]) {
-  if (!lead.openedAt) return null
+  // Un clic implica apertura aunque opened_at sea null (pixel bloqueado por Gmail).
+  if (!lead.openedAt && !lead.clickedAt) return null
   const leadClicks = clickDetails.filter(c => c.sendId === lead.sendId)
   const hasDemo = leadClicks.some(c => /\/demo|\/reservar/.test(c.destination))
   const hasAnyClick = !!lead.clickedAt
@@ -108,7 +109,14 @@ export function EngagementPanel({ leads, clickDetails, clickDests, subjectPerf, 
   const sortedLeads = [...leads]
     .map(l => ({ ...l, heat: heatInfo(l, clickDetails) }))
     .filter(l => l.heat)
-    .sort((a, b) => (b.heat?.score ?? 0) - (a.heat?.score ?? 0) || new Date(b.openedAt!).getTime() - new Date(a.openedAt!).getTime())
+    .sort((a, b) => {
+      const scoreDiff = (b.heat?.score ?? 0) - (a.heat?.score ?? 0)
+      if (scoreDiff !== 0) return scoreDiff
+      // Más reciente primero, usando clic o apertura (lo que haya)
+      const ta = new Date(a.clickedAt ?? a.openedAt ?? a.sentAt).getTime()
+      const tb = new Date(b.clickedAt ?? b.openedAt ?? b.sentAt).getTime()
+      return tb - ta
+    })
 
   const hotCount = sortedLeads.filter(l => (l.heat?.score ?? 0) >= 2).length
 
