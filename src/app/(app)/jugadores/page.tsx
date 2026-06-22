@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubId } from '@/lib/supabase/get-club-id'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { PlayerList } from '@/features/jugadores/components/PlayerList'
 import { Topbar } from '@/components/layout/Topbar'
 import type { Metadata } from 'next'
@@ -26,28 +27,29 @@ export default async function JugadoresPage() {
   const nextSeason = bumpSeason(currentSeason)
   const relevantSeasons = [currentSeason, nextSeason].filter(Boolean)
 
-  // Todas las queries independientes en paralelo
-  const [playersResult, teamsResult, nextTeamsResult, sanctionsResult, pagosResult, clubResult] =
+  // Todas las queries independientes en paralelo.
+  // players y quota_payments usan fetchAllRows: PostgREST corta a 1000 filas y
+  // un .limit(2000) NO lo evita → con >1000 jugadores los últimos (orden alfabético)
+  // desaparecían del listado, y los pagos quedaban truncados falseando estados.
+  const [players, teamsResult, nextTeamsResult, sanctionsResult, pagosData, clubResult] =
     await Promise.all([
-      sb.from('players').select('*').eq('club_id', clubId).order('last_name').limit(2000),
+      fetchAllRows(() => sb.from('players').select('*').eq('club_id', clubId).order('last_name')),
       sb.from('teams').select('id, name').eq('club_id', clubId).eq('active', true).order('name'),
       sb.from('teams').select('id, name').eq('club_id', clubId).eq('season', nextSeason).order('name'),
       sb.from('player_sanctions')
         .select('player_id, matches_banned, matches_served')
         .eq('club_id', clubId)
         .eq('active', true),
-      sb.from('quota_payments')
+      fetchAllRows(() => sb.from('quota_payments')
         .select('player_id, season, amount_due, amount_paid')
         .eq('club_id', clubId)
-        .in('season', relevantSeasons),
+        .in('season', relevantSeasons)),
       sb.from('clubs').select('name, logo_url, primary_color').eq('id', clubId).single(),
     ])
 
-  const players = playersResult.data ?? []
   const teams = teamsResult.data ?? []
   const nextTeams = nextTeamsResult.data ?? []
   const sanctionsData = sanctionsResult.data ?? []
-  const pagosData = pagosResult.data ?? []
   const clubData = clubResult.data
 
   // Mapas de equipos
