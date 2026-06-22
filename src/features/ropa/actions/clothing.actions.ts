@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 import { assertNotLocked } from '@/lib/accounting/lock'
 import { sendPaymentReceiptEmail } from '@/lib/email/send-receipt'
@@ -11,10 +10,7 @@ export interface ClothingCatalogItem { name: string; price: number }
 export async function updateClothingCatalog(
   items: ClothingCatalogItem[]
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createAdminClient()
-  const { clubId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb, clubId } = await getScopedClient()
   const { error } = await sb
     .from('club_settings')
     .update({ clothing_catalog: items })
@@ -39,8 +35,7 @@ export async function createClothingOrder(input: CreateClothingOrderInput): Prom
   error?: string
   orderId?: string
 }> {
-  const supabase = createAdminClient()
-  const { clubId, memberId } = await getClubContext()
+  const { sb, clubId, memberId } = await getScopedClient()
 
   const name = input.playerName.trim()
   const description = input.description.trim()
@@ -51,9 +46,6 @@ export async function createClothingOrder(input: CreateClothingOrderInput): Prom
   const quantity = Math.max(1, Math.floor(input.quantity || 1))
   const unitPrice = Number.isFinite(input.price) ? Math.max(0, input.price) : 0
   const totalAmount = +(unitPrice * quantity).toFixed(2)
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
 
   // Si se pasó un playerId explícito (seleccionado del combo en la UI) → usarlo directamente.
   // Si no, guardar el nombre como texto manual en notes (sin fuzzy-match que da falsos positivos).
@@ -123,10 +115,7 @@ export async function markClothingOrderPaid(
   paymentMethod: ClothingPaymentMethod,
   partialAmount?: number   // si se omite → paga el total pendiente
 ): Promise<{ success: boolean; error?: string; emailSent?: boolean; emailError?: string }> {
-  const supabase = createAdminClient()
-  const { clubId, memberId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb, clubId, memberId } = await getScopedClient()
 
   // Fetch order (verify club ownership + get data for cash_movement description)
   const { data: order, error: fetchErr } = await sb
@@ -276,10 +265,7 @@ export async function markClothingOrderPaid(
 export async function refundClothingOrder(
   orderId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createAdminClient()
-  const { clubId, memberId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb, clubId, memberId } = await getScopedClient()
 
   const { data: order, error: fetchErr } = await sb
     .from('clothing_orders')
@@ -358,10 +344,7 @@ export async function refundClothingOrder(
  * de caja asociado (si la caja de ese día está cerrada → no se puede).
  */
 export async function deleteClothingOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
-  const supabase = createAdminClient()
-  const { clubId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb, clubId } = await getScopedClient()
 
   const { data: order, error: fetchErr } = await sb
     .from('clothing_orders')
@@ -405,10 +388,7 @@ export async function updateClothingOrder(input: {
   price: number
   notes?: string | null
 }): Promise<{ success: boolean; error?: string }> {
-  const supabase = createAdminClient()
-  const { clubId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb, clubId } = await getScopedClient()
 
   const { data: order, error: fetchErr } = await sb
     .from('clothing_orders')

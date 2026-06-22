@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 
 /**
@@ -11,9 +10,7 @@ import { revalidatePath } from 'next/cache'
  */
 export async function getClubRffmCodigo(): Promise<string | null> {
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
     const { data } = await sb
       .from('club_settings')
       .select('rffm_codigo_club')
@@ -31,7 +28,7 @@ export async function getRffmConfig(): Promise<{
   codigoClub?: string | null
 }> {
   try {
-    const { roles } = await getClubContext()
+    const { roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Solo admin / dirección' }
     }
@@ -44,7 +41,7 @@ export async function getRffmConfig(): Promise<{
 
 export async function saveRffmCodigoClub(codigo: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Solo admin / dirección' }
     }
@@ -58,8 +55,6 @@ export async function saveRffmCodigoClub(codigo: string): Promise<{ success: boo
       return { success: false, error: 'Código inválido. Pega solo el número (ej. 3824) o la URL /fichaclub/3824' }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb
       .from('club_settings')
       .update({ rffm_codigo_club: codigoClub })

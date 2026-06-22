@@ -1,13 +1,13 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 
 const ALLOWED_ROLES = ['admin', 'direccion', 'director_deportivo', 'coordinador', 'entrenador']
 
 async function getCtx() {
-  const ctx = await getClubContext()
+  const ctx = await getScopedClient()
   if (!ctx.roles.some(r => ALLOWED_ROLES.includes(r))) {
     throw new Error('Sin permisos para ver informes')
   }

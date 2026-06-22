@@ -1,7 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 
 export interface ScheduleSlotInput {
@@ -18,9 +18,7 @@ function canEdit(roles: string[]) {
 }
 
 export async function getTeamSchedule(teamId: string) {
-  const { clubId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
+  const { sb, clubId } = await getScopedClient()
   const { data, error } = await sb
     .from('team_schedule')
     .select('*')
@@ -35,11 +33,9 @@ export async function getTeamSchedule(teamId: string) {
 
 export async function addScheduleSlot(input: ScheduleSlotInput) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!canEdit(roles)) return { success: false, error: 'Sin permisos' }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb.from('team_schedule').insert({
       club_id: clubId,
       team_id: input.team_id,
@@ -61,11 +57,9 @@ export async function addScheduleSlot(input: ScheduleSlotInput) {
 
 export async function updateScheduleSlot(slotId: string, patch: Partial<ScheduleSlotInput> & { active?: boolean }) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!canEdit(roles)) return { success: false, error: 'Sin permisos' }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { data: existing } = await sb.from('team_schedule').select('club_id').eq('id', slotId).single()
     if (!existing || existing.club_id !== clubId) return { success: false, error: 'Slot no encontrado' }
 
@@ -81,11 +75,9 @@ export async function updateScheduleSlot(slotId: string, patch: Partial<Schedule
 
 export async function deleteScheduleSlot(slotId: string) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!canEdit(roles)) return { success: false, error: 'Sin permisos' }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { data: existing } = await sb.from('team_schedule').select('club_id').eq('id', slotId).single()
     if (!existing || existing.club_id !== clubId) return { success: false, error: 'Slot no encontrado' }
 

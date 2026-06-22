@@ -1,13 +1,10 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 
 export async function createSession(formData: FormData) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId, memberId } = await getClubContext()
+  const { sb: supabase, clubId, memberId } = await getScopedClient()
 
   const sessionType = formData.get('session_type') as string
   const teamIdRaw = (formData.get('team_id') as string) || ''
@@ -57,9 +54,7 @@ export async function createSession(formData: FormData) {
 }
 
 export async function deleteSession(sessionId: string): Promise<{ success: boolean; error?: string }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId } = await getClubContext()
+  const { sb: supabase, clubId } = await getScopedClient()
 
   // Verify the session belongs to this club
   const { data: existing, error: fetchErr } = await supabase
@@ -97,9 +92,7 @@ export async function updateSession(input: {
   notes?: string | null
   session_type?: 'training' | 'match' | 'futsal' | 'friendly'
 }): Promise<{ success: boolean; error?: string }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId } = await getClubContext()
+  const { sb: supabase, clubId } = await getScopedClient()
 
   const patch: Record<string, unknown> = {}
   if (input.session_date !== undefined) patch.session_date = input.session_date
@@ -141,9 +134,7 @@ export async function updateSessionAttendance(
   sessionId: string,
   attendance: AttendanceRecord[]
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId } = await getClubContext()
+  const { sb: supabase, clubId } = await getScopedClient()
 
   // Verify session belongs to club
   const { data: session } = await supabase
@@ -187,9 +178,7 @@ export interface MatchEvent {
 }
 
 export async function addMatchEvent(sessionId: string, event: MatchEvent) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId } = await getClubContext()
+  const { sb: supabase, clubId } = await getScopedClient()
 
   const { data: session } = await supabase
     .from('sessions')
@@ -236,9 +225,7 @@ export async function addMatchEvent(sessionId: string, event: MatchEvent) {
 }
 
 export async function completeSession(sessionId: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId } = await getClubContext()
+  const { sb: supabase, clubId } = await getScopedClient()
 
   const { data: session } = await supabase
     .from('sessions')
@@ -321,9 +308,7 @@ function parseInt0(v: FormDataEntryValue | null): number | null {
 }
 
 export async function createExercise(formData: FormData) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId, memberId } = await getClubContext()
+  const { sb: supabase, clubId, memberId } = await getScopedClient()
 
   const tagsRaw = formData.get('objective_tags') as string
   const tags = tagsRaw ? tagsRaw.split(',').map((t) => t.trim()).filter(Boolean) : []
@@ -359,9 +344,7 @@ export async function createExercise(formData: FormData) {
 }
 
 export async function updateExercise(exerciseId: string, formData: FormData) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId, memberId, roles } = await getClubContext()
+  const { sb: supabase, clubId, memberId, roles } = await getScopedClient()
   const isAdmin = roles.some((r) => ['admin', 'direccion'].includes(r))
 
   // Ownership check: only author or admin can edit
@@ -412,9 +395,7 @@ export async function updateExercise(exerciseId: string, formData: FormData) {
 }
 
 export async function deleteExercise(exerciseId: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId, memberId, roles } = await getClubContext()
+  const { sb: supabase, clubId, memberId, roles } = await getScopedClient()
   const isAdmin = roles.some((r) => ['admin', 'direccion'].includes(r))
 
   const { data: existing } = await supabase
@@ -437,9 +418,7 @@ export async function deleteExercise(exerciseId: string) {
 }
 
 export async function toggleExerciseFavorite(exerciseId: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { memberId } = await getClubContext()
+  const { sb: supabase, memberId } = await getScopedClient()
 
   // Check if already favorited
   const { data: existing } = await supabase
@@ -469,9 +448,7 @@ export async function toggleExerciseFavorite(exerciseId: string) {
 }
 
 export async function createExerciseCategory(name: string, color: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId, roles } = await getClubContext()
+  const { sb: supabase, clubId, roles } = await getScopedClient()
   const canCreate = roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))
 
   if (!canCreate) return { success: false, error: 'Solo admin/direccion/director deportivo puede crear categorias' }
@@ -499,9 +476,7 @@ export async function createExerciseCategory(name: string, color: string) {
 }
 
 export async function deleteExerciseCategory(categoryId: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId, roles } = await getClubContext()
+  const { sb: supabase, clubId, roles } = await getScopedClient()
   const canDelete = roles.some((r) => ['admin', 'direccion', 'director_deportivo'].includes(r))
 
   if (!canDelete) return { success: false, error: 'No tienes permiso' }
@@ -524,9 +499,7 @@ export async function addSessionExercise(
   slotOrder: number,
   notes?: string
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId } = await getClubContext()
+  const { sb: supabase, clubId } = await getScopedClient()
 
   const { data: session } = await supabase
     .from('sessions')
@@ -552,9 +525,7 @@ export async function addSessionExercise(
 }
 
 export async function removeSessionExercise(sessionId: string, slotOrder: number) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId } = await getClubContext()
+  const { sb: supabase, clubId } = await getScopedClient()
 
   const { data: session } = await supabase
     .from('sessions')
@@ -581,9 +552,7 @@ export async function updateSessionPlanning(
   sessionId: string,
   data: { microcycle?: string | null; macrocycle?: string | null; session_number?: number | null },
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId } = await getClubContext()
+  const { sb: supabase, clubId } = await getScopedClient()
 
   const update: Record<string, string | number | null> = {}
   if (data.microcycle !== undefined) update.microcycle = data.microcycle?.trim() || null
@@ -609,9 +578,7 @@ export async function updateSessionPlanning(
 }
 
 export async function updateSessionObjectives(sessionId: string, objectives: string[]) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId } = await getClubContext()
+  const { sb: supabase, clubId } = await getScopedClient()
 
   const { error } = await supabase
     .from('sessions')
@@ -629,9 +596,7 @@ export async function updatePlayerBibs(
   sessionId: string,
   assignments: { player_id: string; group_color: 'orange' | 'pink' | 'white' | null; is_goalkeeper: boolean }[]
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId } = await getClubContext()
+  const { sb: supabase, clubId } = await getScopedClient()
 
   const { data: session } = await supabase
     .from('sessions')
@@ -670,10 +635,8 @@ export async function saveScoutingReport(
   }
 ) {
   try {
-    const { clubId, memberId } = await getClubContext()
+    const { sb: supabase, clubId, memberId } = await getScopedClient()
     if (!clubId) return { success: false, error: 'Sin club activo' }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = createAdminClient() as any
 
     const payload = {
       club_id: clubId,
@@ -703,9 +666,7 @@ export async function saveScoutingReport(
 }
 
 export async function createObservation(formData: FormData) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId, memberId } = await getClubContext()
+  const { sb: supabase, clubId, memberId } = await getScopedClient()
 
   const playerRatingsRaw = formData.get('player_ratings') as string
   const playerRatings = playerRatingsRaw ? JSON.parse(playerRatingsRaw) : null
@@ -731,9 +692,7 @@ export async function createObservation(formData: FormData) {
 }
 
 export async function deleteObservation(observationId: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId, memberId, roles } = await getClubContext()
+  const { sb: supabase, clubId, memberId, roles } = await getScopedClient()
 
   // Allow authors + admin/direccion/director_deportivo
   const { data: obs } = await supabase
@@ -760,9 +719,7 @@ export async function deleteObservation(observationId: string) {
 }
 
 export async function updateObservationComment(observationId: string, comment: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId, memberId, roles } = await getClubContext()
+  const { sb: supabase, clubId, memberId, roles } = await getScopedClient()
 
   const { data: obs } = await supabase
     .from('coordinator_observations')

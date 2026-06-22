@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import { getNextSeason } from '@/lib/utils/currency'
 
@@ -31,12 +30,10 @@ export async function previewLegacyCuotaReconciliation(): Promise<{
   totals?: { jugadores: number; pagadoReal: number; tarifaCorrecta: number; revisar: number }
 }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const season = getNextSeason()
     const feesSeason = season.replace('-', '/')
 

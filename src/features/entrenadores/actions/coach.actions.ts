@@ -3,7 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { getClubId, getClubContext } from '@/lib/supabase/get-club-id'
+import { getClubId } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { sendHtmlEmail } from '@/lib/email/send'
 
 /** Lee nombre del club + link de formulario de entrenadores desde club_settings.
@@ -122,9 +123,7 @@ export async function assignCoachToTeam(
   memberId: string,
   teamId: string
 ): Promise<{ success: boolean; error?: string }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
-  const { clubId, roles } = await getClubContext()
+  const { sb, clubId, roles } = await getScopedClient()
   if (!canManageStaff(roles)) return { success: false, error: 'Sin permisos' }
 
   const { data: team } = await sb
@@ -152,9 +151,7 @@ export async function removeCoachFromTeam(
   memberId: string,
   teamId: string
 ): Promise<{ success: boolean; error?: string }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
-  const { clubId, roles } = await getClubContext()
+  const { sb, clubId, roles } = await getScopedClient()
   if (!canManageStaff(roles)) return { success: false, error: 'Sin permisos' }
 
   const { data: team } = await sb
@@ -179,9 +176,7 @@ export interface CoachForPlanning {
 }
 
 export async function getCoachesForPlanning(): Promise<{ success: boolean; coaches?: CoachForPlanning[]; error?: string }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
-  const { clubId } = await getClubContext()
+  const { sb, clubId } = await getScopedClient()
 
   if (!clubId) return { success: false, error: 'No se pudo obtener el club' }
 
@@ -224,9 +219,7 @@ export async function assignCoordinatorToTeam(
   memberId: string,
   teamId: string
 ): Promise<{ success: boolean; error?: string }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
-  const { clubId, roles } = await getClubContext()
+  const { sb, clubId, roles } = await getScopedClient()
   if (!canManageStaff(roles)) return { success: false, error: 'Sin permisos' }
 
   const { data: team } = await sb.from('teams').select('id').eq('id', teamId).eq('club_id', clubId).single()
@@ -253,9 +246,7 @@ export async function removeCoordinatorFromTeam(
   memberId: string,
   teamId: string
 ): Promise<{ success: boolean; error?: string }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
-  const { clubId, roles } = await getClubContext()
+  const { sb, clubId, roles } = await getScopedClient()
   if (!canManageStaff(roles)) return { success: false, error: 'Sin permisos' }
 
   const { data: team } = await sb.from('teams').select('id').eq('id', teamId).eq('club_id', clubId).single()
@@ -279,13 +270,11 @@ export async function saveEvaluation(data: {
   clubId?: string // ignorado: el club se deriva del contexto (multi-tenant)
 }): Promise<{ success: boolean; error?: string }> {
   // SEC: club del contexto + validación de roles y pertenencia, nunca del input.
-  const { clubId, roles } = await getClubContext()
+  const { sb, clubId, roles } = await getScopedClient()
   if (!clubId) return { success: false, error: 'Sin club' }
   if (!roles.some((r) => ['admin', 'direccion', 'director_deportivo', 'coordinador'].includes(r))) {
     return { success: false, error: 'Sin permisos' }
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
 
   // Verificar que equipo y entrenador evaluado pertenecen al club
   const [{ data: team }, coachOk] = await Promise.all([

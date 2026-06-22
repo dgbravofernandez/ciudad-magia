@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 
 export interface UpdateClubBasicsInput {
@@ -20,11 +19,8 @@ export interface UpdateClubBasicsInput {
  * because some users may not have direct UPDATE grants on clubs.
  */
 export async function updateClubBasics(input: UpdateClubBasicsInput) {
-  const { clubId } = await getClubContext()
+  const { sb: supabase, clubId } = await getScopedClient()
   if (!clubId) return { success: false as const, error: 'No autenticado' }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
 
   // ---- clubs table ----
   const clubUpdate: Record<string, string | null> = {}
@@ -81,7 +77,7 @@ export async function updateClubBasics(input: UpdateClubBasicsInput) {
  * the resulting public URL in clubs.logo_url.
  */
 export async function uploadClubLogo(formData: FormData) {
-  const { clubId } = await getClubContext()
+  const { sb: supabase, clubId } = await getScopedClient()
   if (!clubId) return { success: false as const, error: 'No autenticado' }
 
   const file = formData.get('file')
@@ -91,9 +87,6 @@ export async function uploadClubLogo(formData: FormData) {
   if (file.size > 3 * 1024 * 1024) {
     return { success: false as const, error: 'El archivo supera los 3 MB' }
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
 
   // Derive extension from mime type, fallback to .png
   const ext = (file.type.split('/')[1] ?? 'png').toLowerCase().replace('jpeg', 'jpg')
@@ -136,10 +129,8 @@ export interface Sponsor {
 }
 
 export async function listSponsors(): Promise<Sponsor[]> {
-  const { clubId } = await getClubContext()
+  const { sb, clubId } = await getScopedClient()
   if (!clubId) return []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
   const { data } = await sb
     .from('club_sponsors')
     .select('id, name, logo_url, website, sort_order, active')
@@ -151,14 +142,12 @@ export async function listSponsors(): Promise<Sponsor[]> {
 
 export async function addSponsor(input: { name: string; logo_url?: string | null; website?: string | null }) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!clubId) return { success: false, error: 'No autenticado' }
     if (!roles.some((r) => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
     if (!input.name.trim()) return { success: false, error: 'Nombre requerido' }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb.from('club_sponsors').insert({
       club_id: clubId,
       name: input.name.trim(),
@@ -176,13 +165,11 @@ export async function addSponsor(input: { name: string; logo_url?: string | null
 
 export async function updateSponsor(id: string, patch: Partial<Pick<Sponsor, 'name' | 'logo_url' | 'website' | 'sort_order' | 'active'>>) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!clubId) return { success: false, error: 'No autenticado' }
     if (!roles.some((r) => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb
       .from('club_sponsors')
       .update(patch)
@@ -198,13 +185,11 @@ export async function updateSponsor(id: string, patch: Partial<Pick<Sponsor, 'na
 
 export async function deleteSponsor(id: string) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!clubId) return { success: false, error: 'No autenticado' }
     if (!roles.some((r) => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb
       .from('club_sponsors')
       .delete()
@@ -223,7 +208,7 @@ export async function deleteSponsor(id: string) {
  * No asocia el archivo a ningún sponsor — el llamador guarda la URL vía updateSponsor.
  */
 export async function uploadSponsorLogo(formData: FormData) {
-  const { clubId, roles } = await getClubContext()
+  const { sb: supabase, clubId, roles } = await getScopedClient()
   if (!clubId) return { success: false as const, error: 'No autenticado' }
   if (!roles.some((r) => ['admin', 'direccion'].includes(r))) {
     return { success: false as const, error: 'Sin permisos' }
@@ -236,9 +221,6 @@ export async function uploadSponsorLogo(formData: FormData) {
   if (file.size > 3 * 1024 * 1024) {
     return { success: false as const, error: 'El archivo supera los 3 MB' }
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
   const ext = (file.type.split('/')[1] ?? 'png').toLowerCase().replace('jpeg', 'jpg')
   const path = `club-sponsors/${clubId}-${Date.now()}.${ext}`
 

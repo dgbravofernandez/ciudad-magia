@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/logger'
 import { bumpSeason } from '@/lib/utils/season'
@@ -14,8 +13,7 @@ import { bumpSeason } from '@/lib/utils/season'
  * - current season string
  */
 export async function getSeasonPreview() {
-  const supabase = createAdminClient()
-  const { clubId } = await getClubContext()
+  const { sb: supabase, clubId } = await getScopedClient()
 
   const [{ data: settings }, { data: teams }, { data: players }] = await Promise.all([
     supabase.from('club_settings').select('current_season').eq('club_id', clubId).single(),
@@ -55,9 +53,7 @@ export async function initNextSeasonPlanning(): Promise<{
   teams?: { id: string; name: string; season: string }[]
   alreadyExisted?: boolean
 }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId, roles } = await getClubContext()
+  const { sb: supabase, clubId, roles } = await getScopedClient()
   if (!roles.some((r: string) => ['admin', 'direccion'].includes(r))) {
     return { success: false, error: 'Sin permisos' }
   }
@@ -98,9 +94,7 @@ export async function initNextSeasonPlanning(): Promise<{
 
 /** Añade un equipo borrador para la próxima temporada */
 export async function addDraftTeam(name: string): Promise<{ success: boolean; error?: string; team?: { id: string; name: string; season: string } }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId, roles } = await getClubContext()
+  const { sb: supabase, clubId, roles } = await getScopedClient()
   if (!roles.some((r: string) => ['admin', 'direccion'].includes(r))) {
     return { success: false, error: 'Sin permisos' }
   }
@@ -135,9 +129,7 @@ export async function activateNextSeason(): Promise<{
   lowPlayers?: number
   teamsActivated?: number
 }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId, roles } = await getClubContext()
+  const { sb: supabase, clubId, roles } = await getScopedClient()
   if (!roles.some((r: string) => ['admin', 'direccion'].includes(r))) {
     return { success: false, error: 'Sin permisos' }
   }
@@ -194,9 +186,7 @@ export async function activateNextSeason(): Promise<{
  * Start a new season (legacy — mantenido por compatibilidad con SeasonManagement)
  */
 export async function startNewSeason() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabase = createAdminClient() as any
-  const { clubId, roles } = await getClubContext()
+  const { sb: supabase, clubId, roles } = await getScopedClient()
 
   // Permission check
   if (!roles.some((r: string) => ['admin', 'direccion'].includes(r))) {
@@ -308,8 +298,7 @@ export async function startNewSeason() {
  * Export season data as CSV strings (client downloads them)
  */
 export async function exportSeasonData() {
-  const supabase = createAdminClient()
-  const { clubId, roles } = await getClubContext()
+  const { sb: supabase, clubId, roles } = await getScopedClient()
 
   if (!roles.some((r: string) => ['admin', 'direccion'].includes(r))) {
     return { success: false, error: 'Sin permisos' }

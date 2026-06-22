@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 import { randomUUID } from 'crypto'
 
@@ -18,12 +17,10 @@ export async function linkSiblings(
   playerId2: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo', 'coordinador'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     // Verificar que ambos pertenecen al club
     const { data: players, error: fetchErr } = await sb
@@ -62,12 +59,10 @@ export async function unlinkSibling(
   playerId: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo', 'coordinador'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     const { error } = await sb
       .from('players')
@@ -90,9 +85,7 @@ export async function getSiblings(
   playerId: string,
 ): Promise<{ siblings: SiblingPlayer[]; error?: string }> {
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
 
     const { data: player } = await sb
       .from('players')
@@ -124,9 +117,7 @@ export async function searchPlayersForSibling(
 ): Promise<SiblingPlayer[]> {
   if (!query.trim() || query.length < 2) return []
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
 
     const { data } = await sb
       .from('players')

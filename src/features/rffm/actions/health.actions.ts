@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 
 export interface RffmHealth {
   trackedTotal: number
@@ -42,11 +41,8 @@ export async function getRffmHealth(): Promise<RffmHealth> {
   }
 
   try {
-    const { clubId } = await getClubContext()
+    const { sb, clubId } = await getScopedClient()
     if (!clubId) return empty
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     const cutoffStale = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
     const cutoff10min = new Date(Date.now() - 10 * 60 * 1000).toISOString()

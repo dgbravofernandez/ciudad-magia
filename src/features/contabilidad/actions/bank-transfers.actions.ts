@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 import { parseBankPdf, matchConceptToPlayer, type PlayerCandidate } from '@/lib/accounting/parse-bank-pdf'
 
@@ -17,7 +16,7 @@ export async function uploadBankTransfersPdf(formData: FormData): Promise<{
   autoMatched?: number
 }> {
   try {
-    const { clubId, memberId, roles } = await getClubContext()
+    const { sb, clubId, memberId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
@@ -36,9 +35,6 @@ export async function uploadBankTransfersPdf(formData: FormData): Promise<{
     if (transfers.length === 0) {
       return { success: false, error: 'No se detectaron transferencias en el PDF' }
     }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     // Carga jugadores activos del club para hacer fuzzy match
     const { data: players } = await sb
@@ -103,12 +99,10 @@ export async function assignBankTransfer(input: {
   paymentNotes?: string
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     const { data: transfer, error: tErr } = await sb
       .from('bank_transfers')
@@ -174,12 +168,10 @@ export async function assignBankTransfer(input: {
 
 export async function ignoreBankTransfer(transferId: string, notes?: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb
       .from('bank_transfers')
       .update({ status: 'ignored', notes: notes ?? null, updated_at: new Date().toISOString() })
@@ -197,12 +189,10 @@ export async function ignoreBankTransfer(transferId: string, notes?: string): Pr
 
 export async function resetBankTransfer(transferId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb
       .from('bank_transfers')
       .update({
@@ -224,12 +214,10 @@ export async function resetBankTransfer(transferId: string): Promise<{ success: 
 
 export async function deleteBankTransferUpload(uploadId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb
       .from('bank_transfer_uploads')
       .delete()

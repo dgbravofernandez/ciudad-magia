@@ -1,7 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 import { sendHtmlEmail } from '@/lib/email/send'
 import type { Role } from '@/types/roles'
@@ -44,14 +44,13 @@ export async function createMember(
   input: NewMemberInput
 ): Promise<{ success: boolean; error?: string; memberId?: string; tempPassword?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     requireAdmin(roles)
 
     if (!input.email?.trim()) return { success: false, error: 'Email requerido' }
     if (!input.full_name?.trim()) return { success: false, error: 'Nombre requerido' }
     if (input.roles.length === 0) return { success: false, error: 'Asigna al menos un rol' }
 
-    const sb = createAdminClient()
     const tempPassword = randomPassword(14)
 
     // Nombre del club para emails
@@ -131,10 +130,8 @@ export async function updateMemberRoles(
   teamId: string | null = null
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     requireAdmin(roles)
-
-    const sb = createAdminClient()
 
     // verify club
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -164,11 +161,9 @@ export async function updateMemberProfile(
   patch: { full_name?: string; phone?: string | null; email?: string }
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     requireAdmin(roles)
-    const sb = createAdminClient()
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: m } = await (sb as any)
       .from('club_members')
       .select('club_id, user_id')
@@ -198,9 +193,8 @@ export async function setMemberActive(
   active: boolean
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     requireAdmin(roles)
-    const sb = createAdminClient()
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: m } = await (sb as any).from('club_members').select('club_id').eq('id', memberId).single()
@@ -222,9 +216,8 @@ export async function resetMemberPassword(
   sendEmail: boolean = true
 ): Promise<{ success: boolean; error?: string; tempPassword?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     requireAdmin(roles)
-    const sb = createAdminClient()
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: m } = await (sb as any)
@@ -271,11 +264,9 @@ export async function deleteMember(
   memberId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles, memberId: myId } = await getClubContext()
+    const { sb, clubId, roles, memberId: myId } = await getScopedClient()
     requireAdmin(roles)
     if (memberId === myId) return { success: false, error: 'No puedes eliminarte a ti mismo' }
-
-    const sb = createAdminClient()
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: m } = await (sb as any)
@@ -316,9 +307,8 @@ export async function createAccountForMember(
   memberId: string,
 ): Promise<{ success: boolean; error?: string; tempPassword?: string; skipped?: boolean; reason?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     requireAdmin(roles)
-    const sb = createAdminClient()
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: m } = await (sb as any)
@@ -406,9 +396,8 @@ export async function bulkCreateAccountsForMembers(): Promise<{
   errors?: string[]
 }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     requireAdmin(roles)
-    const sb = createAdminClient()
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: members } = await (sb as any)

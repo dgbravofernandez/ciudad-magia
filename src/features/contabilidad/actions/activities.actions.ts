@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 import { sendPaymentReceiptEmail } from '@/lib/email/send-receipt'
 
@@ -66,11 +65,9 @@ export async function createActivity(input: {
   end_date?: string
 }) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
     if (!input.name.trim()) return { success: false, error: 'Nombre requerido' }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { data, error } = await sb
       .from('activities')
       .insert({
@@ -94,10 +91,8 @@ export async function createActivity(input: {
 
 export async function updateActivity(id: string, input: Partial<Activity>) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb
       .from('activities')
       .update({ ...input, updated_at: new Date().toISOString() })
@@ -114,10 +109,8 @@ export async function updateActivity(id: string, input: Partial<Activity>) {
 
 export async function deleteActivity(id: string) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb.from('activities').delete().eq('id', id).eq('club_id', clubId)
     if (error) return { success: false, error: error.message }
     revalidatePath('/contabilidad/actividades')
@@ -142,15 +135,12 @@ export async function addCharge(input: {
   notes?: string | null
 }) {
   try {
-    const { clubId, memberId, roles } = await getClubContext()
+    const { sb, clubId, memberId, roles } = await getScopedClient()
     if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
     if (!input.playerId && !input.participantName?.trim()) {
       return { success: false, error: 'Indica jugador o nombre del participante' }
     }
     if (input.amount < 0) return { success: false, error: 'Importe inválido' }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     // Obtener nombre de la actividad + nombre del jugador (si es jugador del club)
     const [{ data: activity }, playerRow] = await Promise.all([
@@ -251,13 +241,10 @@ export async function addChargesBulk(input: {
   paymentDate?: string | null
 }): Promise<{ success: boolean; error?: string; inserted?: number }> {
   try {
-    const { clubId, memberId, roles } = await getClubContext()
+    const { sb, clubId, memberId, roles } = await getScopedClient()
     if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
     if (!input.playerIds?.length) return { success: false, error: 'No hay jugadores seleccionados' }
     if (input.amount < 0) return { success: false, error: 'Importe inválido' }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     // Cargar nombres de los jugadores para incluir en el cash_movement description
     const { data: players } = await sb
@@ -326,10 +313,8 @@ export async function markChargePaid(
   paymentDate?: string,
 ) {
   try {
-    const { clubId, memberId, roles } = await getClubContext()
+    const { sb, clubId, memberId, roles } = await getScopedClient()
     if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const date = paymentDate ?? new Date().toISOString().slice(0, 10)
     const { data: charge, error: fetchErr } = await sb
       .from('activity_charges')
@@ -466,10 +451,8 @@ export async function markChargePaid(
 
 export async function deleteCharge(chargeId: string) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { data: charge } = await sb
       .from('activity_charges')
       .select('activity_id')
@@ -500,12 +483,10 @@ export async function addActivityExpense(input: {
   receiptUrl?: string | null
 }) {
   try {
-    const { clubId, memberId, roles } = await getClubContext()
+    const { sb, clubId, memberId, roles } = await getScopedClient()
     if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
     if (!input.concept.trim()) return { success: false, error: 'Concepto requerido' }
     if (input.amount <= 0) return { success: false, error: 'Importe inválido' }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     const isPaid = !!input.paid
     const paidAt = isPaid ? input.expenseDate : null
@@ -557,12 +538,10 @@ export async function addActivityIncome(input: {
   incomeDate: string
 }) {
   try {
-    const { clubId, memberId, roles } = await getClubContext()
+    const { sb, clubId, memberId, roles } = await getScopedClient()
     if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
     if (!input.concept.trim()) return { success: false, error: 'Concepto requerido' }
     if (input.amount <= 0) return { success: false, error: 'Importe inválido' }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { data: activity } = await sb.from('activities').select('name').eq('id', input.activityId).single()
     const activityName = activity?.name ?? 'Actividad'
     const { error } = await sb.from('cash_movements').insert({
@@ -585,10 +564,8 @@ export async function addActivityIncome(input: {
 
 export async function deleteActivityExpense(id: string) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!canWrite(roles)) return { success: false, error: 'Sin permisos' }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { data: exp } = await sb
       .from('activity_expenses')
       .select('activity_id')

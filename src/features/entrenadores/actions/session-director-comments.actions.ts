@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 
 const DIRECTOR_ROLES = ['admin', 'direccion', 'director_deportivo']
@@ -16,12 +15,10 @@ export async function addSessionDirectorComment(input: {
   visible_to_coach?: boolean
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, memberId, roles } = await getClubContext()
+    const { sb, clubId, memberId, roles } = await getScopedClient()
     if (!canWrite(roles)) return { success: false, error: 'No tienes permiso' }
     if (!input.comment?.trim()) return { success: false, error: 'El comentario no puede estar vacío' }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb.from('session_director_comments').insert({
       club_id: clubId,
       session_id: input.session_id,
@@ -43,15 +40,13 @@ export async function updateSessionDirectorComment(input: {
   visible_to_coach?: boolean
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!canWrite(roles)) return { success: false, error: 'No tienes permiso' }
 
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (input.comment !== undefined) patch.comment = input.comment.trim()
     if (input.visible_to_coach !== undefined) patch.visible_to_coach = input.visible_to_coach
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb
       .from('session_director_comments')
       .update(patch)
@@ -68,10 +63,8 @@ export async function deleteSessionDirectorComment(
   id: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!canWrite(roles)) return { success: false, error: 'No tienes permiso' }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb
       .from('session_director_comments')
       .delete()

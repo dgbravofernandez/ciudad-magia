@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { sendHtmlEmail } from '@/lib/email/send'
 import { resolveFee } from '@/features/configuracion/actions/season-fees.actions'
 import { bumpSeason } from '@/lib/utils/season'
@@ -35,12 +34,10 @@ export async function saveAssignmentEmailConfig(
   config: Partial<AssignmentEmailConfig>
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     const { error } = await sb
       .from('club_settings')
@@ -64,9 +61,7 @@ export async function saveAssignmentEmailConfig(
 
 export async function getAssignmentEmailConfig(): Promise<{ success: boolean; config?: AssignmentEmailConfig; error?: string }> {
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
 
     const { data, error } = await sb
       .from('club_settings')
@@ -87,12 +82,10 @@ export async function sendTeamAssignmentEmail(
   playerId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     // 1. Cargar datos del jugador con su equipo de la próxima temporada
     const { data: player, error: pErr } = await sb
@@ -226,12 +219,10 @@ export async function sendNewPlayerAssignmentEmail(
   playerId: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     // 1. Jugador
     const { data: player, error: pErr } = await sb
@@ -363,9 +354,7 @@ export async function getDraftCoachAssignments(
 ): Promise<{ success: boolean; assignments?: { team_id: string; member_id: string }[]; error?: string }> {
   if (teamIds.length === 0) return { success: true, assignments: [] }
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
 
     // Verificar que estos equipos pertenecen al club
     const { data, error } = await sb
@@ -395,9 +384,7 @@ export async function getDraftCoachAssignments(
 
 export async function getSeasonRosters(): Promise<{ success: boolean; data?: SeasonRostersResult; error?: string }> {
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
 
     // Temporada actual
     const { data: settings } = await sb
@@ -537,12 +524,10 @@ export async function sendBatchTeamAssignmentEmails(
   limit = 15
 ): Promise<{ success: boolean; sent: number; failed: number; remaining: number; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, sent: 0, failed: 0, remaining: 0, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     // Jugadores con equipo asignado, sin email enviado, con email de tutor
     const { data: pending } = await sb
@@ -599,9 +584,7 @@ export async function exportNextSeasonAssignments(): Promise<{
   data?: { rows: AssignmentRow[]; nextSeason: string }
 }> {
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
 
     // Temporada siguiente — derivada de club_settings
     const { data: settings } = await sb

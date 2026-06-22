@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 
 // ──────────────────────────────────────────────────────────────
@@ -76,7 +75,7 @@ async function fetchSheetCsv(sheetId: string, gid = '0'): Promise<string[][]> {
 
 export async function previewNewInscriptions(sheetUrlOrId: string): Promise<NewInscriptionsPreview> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { toCreate: [], alreadyExist: [], sheetRows: 0, error: 'Sin permisos' }
     }
@@ -102,8 +101,6 @@ export async function previewNewInscriptions(sheetUrlOrId: string): Promise<NewI
       return { toCreate: [], alreadyExist: [], sheetRows: dataRows.length, error: 'No se encontró columna de nombre en el Sheet' }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { data: existingPlayers } = await sb
       .from('players')
       .select('dni, tutor_email, first_name, last_name')
@@ -152,14 +149,11 @@ export async function importNewInscriptions(rows: NewPlayerRow[]): Promise<{
   error?: string
 }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, created: 0, skipped: 0, error: 'Sin permisos' }
     }
     if (!rows.length) return { success: true, created: 0, skipped: 0 }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     // SEC: Re-validar deduplicación server-side — nunca confiar en los rows del cliente
     const { data: existingPlayers } = await sb
@@ -211,13 +205,11 @@ export async function importNewInscriptions(rows: NewPlayerRow[]): Promise<{
  */
 export async function saveNewInscriptionsSheetId(urlOrId: string): Promise<{ success: boolean; error?: string; sheetId?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
     const sheetId = extractSheetId(urlOrId)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb.from('club_settings')
       .update({ new_inscriptions_sheet_id: sheetId }).eq('club_id', clubId)
     if (error) return { success: false, error: error.message }
@@ -233,9 +225,7 @@ export async function saveNewInscriptionsSheetId(urlOrId: string): Promise<{ suc
  */
 export async function getNewInscriptionsSheetId(): Promise<{ sheetId: string | null }> {
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
     const { data } = await sb.from('club_settings')
       .select('new_inscriptions_sheet_id').eq('club_id', clubId).single()
     return { sheetId: (data?.new_inscriptions_sheet_id as string) ?? null }

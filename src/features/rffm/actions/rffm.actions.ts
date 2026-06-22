@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 import { runSync, type SyncType } from '@/lib/rffm/sync'
 
@@ -12,7 +11,7 @@ export async function triggerRffmSync(
   codTemporada?: string
 ): Promise<{ success: boolean; error?: string; result?: Record<string, unknown> }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
@@ -38,12 +37,10 @@ export async function addTrackedCompetition(input: {
   umbral_amarillas?: number
 }): Promise<{ success: boolean; error?: string; id?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { data, error } = await sb
       .from('rffm_tracked_competitions')
       .insert({ club_id: clubId, ...input, umbral_amarillas: input.umbral_amarillas ?? 5 })
@@ -83,12 +80,10 @@ export async function updateTrackedCompetition(
   }>,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb
       .from('rffm_tracked_competitions')
       .update(fields)
@@ -149,12 +144,10 @@ export async function autoDetectOurTeamCode(
   needle?: string,
 ): Promise<{ success: boolean; error?: string; codigo?: string; nombre?: string; runnerUps?: Array<{ codigo: string; nombre: string; score: number }> }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     // Nombre del club desde BD (no hardcodeado)
     const { data: club } = await sb.from('clubs').select('name').eq('id', clubId).single()
@@ -229,12 +222,10 @@ export async function autoDetectOurTeamCode(
 
 export async function removeTrackedCompetition(id: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb
       .from('rffm_tracked_competitions')
       .delete()
@@ -274,7 +265,7 @@ export async function matchClubPdfRows(
   codigoClub?: string,
 ): Promise<{ success: boolean; error?: string; result?: ImportResult; usedCodigoClub?: string }> {
   try {
-    const { roles } = await getClubContext()
+    const { roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
@@ -308,7 +299,7 @@ export async function resolveRowWithUrl(
   codigoClub?: string,
 ): Promise<{ success: boolean; error?: string; row?: MatchedRow }> {
   try {
-    const { roles } = await getClubContext()
+    const { roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
@@ -347,14 +338,11 @@ export async function bulkInsertTrackedFromPdf(
   perRow?: Array<{ index: number; status: 'inserted' | 'updated' | 'skipped' | 'error'; reason?: string }>
 }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
     if (!matched?.length) return { success: false, error: 'No hay filas seleccionadas' }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     let inserted = 0
     let updated = 0
@@ -430,7 +418,7 @@ export async function parseClubPdfAction(formData: FormData): Promise<{
   result?: PdfParseResult
 }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
@@ -444,8 +432,6 @@ export async function parseClubPdfAction(formData: FormData): Promise<{
     }
 
     // Pasar nombre del club desde BD para que el parser detecte el prefijo de fila
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { data: club } = await sb.from('clubs').select('name').eq('id', clubId).single()
     const clubNameHint = (club?.name as string | undefined) ?? undefined
 
@@ -462,7 +448,7 @@ export async function refreshStandingsNow(): Promise<{
   result?: { processed: number; totalRows: number; errors: number }
 }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
@@ -481,7 +467,7 @@ export async function enrichSignalsNow(
   batchSize: number = 50,
 ): Promise<{ success: boolean; error?: string; result?: { attempted: number; enriched: number; failed: number; pending: number } }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
@@ -509,12 +495,10 @@ export async function resetEnrichAttempts(): Promise<{
   reset?: number
 }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     // Cuenta primero para mostrar cuántos se van a resetear
     const { count } = await sb
@@ -550,9 +534,7 @@ export async function updateSignalStatus(
   estado: 'nuevo' | 'visto' | 'descartado' | 'captado'
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
     const { error } = await sb
       .from('rffm_scouting_signals')
       .update({ estado, updated_at: new Date().toISOString() })
@@ -568,12 +550,10 @@ export async function updateSignalStatus(
 
 export async function captureSignalToScouting(signalId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, memberId, roles } = await getClubContext()
+    const { sb, clubId, memberId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo', 'coordinador'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     const { data: signal, error: sigErr } = await sb
       .from('rffm_scouting_signals')
@@ -628,9 +608,7 @@ export async function getLastSyncStatus(syncType?: string): Promise<{
   error?: string
 }> {
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
     let q = sb
       .from('rffm_sync_log')
       .select('*')
@@ -655,9 +633,7 @@ export async function exportSignalPdf(signalId: string): Promise<{
   base64?: string
 }> {
   try {
-    const { clubId, memberId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId, memberId } = await getScopedClient()
 
     const { data: signal, error } = await sb
       .from('rffm_scouting_signals')

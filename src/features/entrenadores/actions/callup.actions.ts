@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 
 function canEdit(roles: string[]) {
@@ -20,9 +19,7 @@ export interface CallupEntry {
  */
 export async function getCallup(sessionId: string) {
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
 
     const { data: session } = await sb
       .from('sessions')
@@ -87,11 +84,8 @@ export async function getCallup(sessionId: string) {
  */
 export async function saveCallup(sessionId: string, entries: CallupEntry[]) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!canEdit(roles)) return { success: false, error: 'Sin permisos' }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     // Comprobar que la sesión pertenece al club
     const { data: session } = await sb
@@ -148,14 +142,12 @@ export async function saveCallup(sessionId: string, entries: CallupEntry[]) {
  */
 export async function updateTeamCallupSize(teamId: string, size: number) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!canEdit(roles)) return { success: false, error: 'Sin permisos' }
     if (!Number.isInteger(size) || size < 1 || size > 30) {
       return { success: false, error: 'Tamaño inválido (1-30)' }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb
       .from('teams')
       .update({ default_callup_size: size })
@@ -175,9 +167,7 @@ export async function updateTeamCallupSize(teamId: string, size: number) {
  */
 export async function getPlayerCallupStats(playerId: string, start: string, end: string) {
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
 
     // Partidos totales del equipo del jugador en el rango
     const { data: player } = await sb

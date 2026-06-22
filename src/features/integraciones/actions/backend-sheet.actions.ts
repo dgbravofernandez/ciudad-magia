@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 import { exportClubToBackendSheet, type BackendExportResult } from '@/lib/google/backend-export'
 import { checkSheetAccess, createSpreadsheet } from '@/lib/google/sheets-writer'
@@ -29,12 +28,10 @@ export async function getBackendSheetConfig(): Promise<{
   config?: BackendSheetConfig
 }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Solo admin / dirección' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { data } = await sb
       .from('club_settings')
       .select('backend_sheet_id, backend_sheet_last_sync, google_refresh_token, google_service_email')
@@ -74,7 +71,7 @@ export async function getBackendSheetConfig(): Promise<{
  */
 export async function saveBackendSheetId(input: string): Promise<{ success: boolean; error?: string; sheetId?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Solo admin / dirección' }
     }
@@ -88,8 +85,6 @@ export async function saveBackendSheetId(input: string): Promise<{ success: bool
       return { success: false, error: 'ID inválido. Pega el ID o la URL completa de la hoja.' }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb
       .from('club_settings')
       .update({ backend_sheet_id: sheetId })
@@ -109,12 +104,10 @@ export async function exportToBackendSheet(): Promise<{
   result?: BackendExportResult
 }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Solo admin / dirección' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { data: settings } = await sb
       .from('club_settings')
       .select('backend_sheet_id, google_refresh_token')
@@ -147,7 +140,7 @@ export async function exportToBackendSheet(): Promise<{
  */
 export async function getGoogleAuthUrl(): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Solo admin / dirección' }
     }
@@ -181,12 +174,10 @@ export async function getGoogleAuthUrl(): Promise<{ success: boolean; url?: stri
 /** Desconecta la cuenta Google eliminando el refresh_token guardado */
 export async function disconnectGoogle(): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Solo admin / dirección' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     // SEC-5: revocar el token en Google antes de limpiarlo de la BD (best-effort).
     const { data: current } = await sb
@@ -218,12 +209,10 @@ export async function createBackendSheet(): Promise<{
   url?: string
 }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Solo admin / dirección' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { data: settings } = await sb
       .from('club_settings')
       .select('google_refresh_token')
@@ -249,12 +238,10 @@ export async function checkBackendSheet(): Promise<{
   data?: { title: string; url: string; tabs: string[] }
 }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Solo admin / dirección' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { data: settings } = await sb
       .from('club_settings')
       .select('backend_sheet_id, google_refresh_token')
@@ -280,12 +267,10 @@ export async function saveDocsSheetConfig(input: {
   coachesFormLink: string | null
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Solo admin / dirección' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const { error } = await sb
       .from('club_settings')
       .update({
@@ -312,9 +297,7 @@ export async function getDocsSheetConfig(): Promise<{
   coachesFormLink: string | null
 }> {
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
     const { data } = await sb
       .from('club_settings')
       .select('docs_sheet_id, tutors_sheet_id, coaches_form_link')

@@ -1,6 +1,6 @@
 'use server'
 
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { parseRffmCompetitionUrl, type RffmCompetition, type RffmGroup } from '@/lib/rffm/club-importer'
 import { fetchRffmAPI } from '@/lib/rffm/client'
 import { getStandings } from '@/lib/rffm/standings'
@@ -34,7 +34,7 @@ export async function resolveCompetitionUrlAction(url: string): Promise<{
   teams?: ResolvedTeam[]
 }> {
   try {
-    const { roles } = await getClubContext()
+    const { roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }

@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 import {
   detectClubBasics,
@@ -29,7 +28,7 @@ export async function detectClubBasicsAction(
   codigoClub?: string,
 ): Promise<{ success: boolean; error?: string; result?: DetectBasicsResult; usedCodigoClub?: string }> {
   try {
-    const { roles } = await getClubContext()
+    const { roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
@@ -60,7 +59,7 @@ export async function detectClubChunkAction(
   equipoCodigos: string[],
 ): Promise<{ success: boolean; error?: string; result?: DetectChunkResult }> {
   try {
-    const { roles } = await getClubContext()
+    const { roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
@@ -101,13 +100,10 @@ export async function resetClubRffmConfig(
   }
 }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Solo admin / dirección puede resetear' }
     }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     // Contamos antes para devolver al usuario
     const counts = await Promise.all([
@@ -198,14 +194,11 @@ export async function bulkInsertWizardResults(
   skipped?: number
 }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
     if (!matched?.length) return { success: false, error: 'No hay competiciones para crear' }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     let inserted = 0
     let updated = 0

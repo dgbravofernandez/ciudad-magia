@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import { revalidatePath } from 'next/cache'
 import { sendHtmlEmail } from '@/lib/email/send'
@@ -159,12 +160,10 @@ export async function generateMissingNextSeasonFees(): Promise<{
   success: boolean; error?: string; playersFixed?: number; feesCreated?: number; skippedNoFees?: number
 }> {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
     const nextSeason = getNextSeason()                 // '2026-27'
     const feesSeason = nextSeason.replace('-', '/')    // '2026/27'
 

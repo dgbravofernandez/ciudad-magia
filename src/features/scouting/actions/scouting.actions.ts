@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 
 type ScoutingStatus = 'new' | 'watching' | 'contacted' | 'signed' | 'dropped'
@@ -16,9 +15,7 @@ export async function createScoutingReport(input: {
   interest_level?: number
 }): Promise<{ success: boolean; error?: string; id?: string }> {
   try {
-    const { clubId, memberId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId, memberId } = await getScopedClient()
 
     if (!input.rival_team?.trim()) {
       return { success: false, error: 'El equipo rival es obligatorio' }
@@ -61,9 +58,7 @@ export async function updateScoutingReport(input: {
   status?: ScoutingStatus
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
 
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (input.rival_team !== undefined) patch.rival_team = input.rival_team
@@ -91,9 +86,7 @@ export async function updateScoutingReport(input: {
 
 export async function deleteScoutingReport(id: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const { clubId } = await getClubContext()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
+    const { sb, clubId } = await getScopedClient()
     const { error } = await sb.from('scouting_reports').delete().eq('id', id).eq('club_id', clubId)
     if (error) return { success: false, error: error.message }
     revalidatePath('/scouting')

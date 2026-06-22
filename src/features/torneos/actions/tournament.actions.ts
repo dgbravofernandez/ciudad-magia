@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 import { assertNotLocked } from '@/lib/accounting/lock'
 import { sendPaymentReceiptEmail } from '@/lib/email/send-receipt'
@@ -24,14 +23,10 @@ export async function createTournament(input: CreateTournamentInput): Promise<{
   error?: string
   id?: string
 }> {
-  const supabase = createAdminClient()
-  const { clubId, memberId } = await getClubContext()
+  const { sb, clubId, memberId } = await getScopedClient()
 
   const name = input.name?.trim()
   if (!name) return { success: false, error: 'El nombre es obligatorio' }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
 
   const { data, error } = await sb
     .from('tournaments')
@@ -57,10 +52,7 @@ export async function createTournament(input: CreateTournamentInput): Promise<{
 }
 
 export async function deleteTournament(id: string): Promise<{ success: boolean; error?: string }> {
-  const supabase = createAdminClient()
-  const { clubId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb, clubId } = await getScopedClient()
 
   const { error } = await sb
     .from('tournaments')
@@ -88,10 +80,7 @@ export interface UpsertBudgetInput {
 }
 
 async function verifyTournamentOwnership(tournamentId: string): Promise<{ ok: boolean; error?: string }> {
-  const supabase = createAdminClient()
-  const { clubId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb, clubId } = await getScopedClient()
   const { data, error } = await sb
     .from('tournaments')
     .select('id')
@@ -106,9 +95,7 @@ export async function upsertTournamentBudget(input: UpsertBudgetInput): Promise<
   const check = await verifyTournamentOwnership(input.tournamentId)
   if (!check.ok) return { success: false, error: check.error }
 
-  const supabase = createAdminClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb } = await getScopedClient()
 
   const { data: existing } = await sb
     .from('tournament_budget')
@@ -150,9 +137,7 @@ export async function addBudgetItem(input: {
   const name = input.name?.trim()
   if (!name) return { success: false, error: 'Nombre obligatorio' }
 
-  const supabase = createAdminClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb } = await getScopedClient()
 
   const { error } = await sb.from('tournament_budget_items').insert({
     tournament_id: input.tournamentId,
@@ -169,10 +154,7 @@ export async function removeBudgetItem(itemId: string, tournamentId: string): Pr
   const check = await verifyTournamentOwnership(tournamentId)
   if (!check.ok) return { success: false, error: check.error }
 
-  const supabase = createAdminClient()
-  const { clubId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb, clubId } = await getScopedClient()
 
   // If the item was paid, also delete its related expense + cash_movement
   const { data: item } = await sb
@@ -213,10 +195,7 @@ export async function markBudgetItemPaid(
   const check = await verifyTournamentOwnership(tournamentId)
   if (!check.ok) return { success: false, error: check.error }
 
-  const supabase = createAdminClient()
-  const { clubId, memberId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb, clubId, memberId } = await getScopedClient()
 
   const { data: item, error: fetchErr } = await sb
     .from('tournament_budget_items')
@@ -295,10 +274,7 @@ export async function addAttendee(input: {
   const check = await verifyTournamentOwnership(input.tournamentId)
   if (!check.ok) return { success: false, error: check.error }
 
-  const supabase = createAdminClient()
-  const { memberId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb, memberId } = await getScopedClient()
 
   const { error } = await sb.from('tournament_attendees').insert({
     tournament_id: input.tournamentId,
@@ -336,10 +312,7 @@ export async function addAttendeesBulk(input: {
   if (!input.playerIds?.length) return { success: false, error: 'No hay jugadores seleccionados' }
   if (input.amountDue < 0) return { success: false, error: 'Importe inválido' }
 
-  const supabase = createAdminClient()
-  const { memberId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb, memberId } = await getScopedClient()
 
   // Filtrar los que ya están apuntados (evita errores 23505 fila por fila)
   const { data: existing } = await sb
@@ -373,10 +346,7 @@ export async function removeAttendee(attendeeId: string, tournamentId: string): 
   const check = await verifyTournamentOwnership(tournamentId)
   if (!check.ok) return { success: false, error: check.error }
 
-  const supabase = createAdminClient()
-  const { clubId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb, clubId } = await getScopedClient()
 
   // Lock check si ya había pagado
   const { data: att } = await sb
@@ -407,9 +377,7 @@ export async function updateAttendeeAmount(
   const check = await verifyTournamentOwnership(tournamentId)
   if (!check.ok) return { success: false, error: check.error }
 
-  const supabase = createAdminClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb } = await getScopedClient()
 
   const { error } = await sb
     .from('tournament_attendees')
@@ -430,10 +398,7 @@ export async function markAttendeePaid(
   const check = await verifyTournamentOwnership(tournamentId)
   if (!check.ok) return { success: false, error: check.error }
 
-  const supabase = createAdminClient()
-  const { clubId, memberId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb, clubId, memberId } = await getScopedClient()
 
   const { data: attendee, error: fetchErr } = await sb
     .from('tournament_attendees')
@@ -575,10 +540,7 @@ export async function refundAttendee(
   const check = await verifyTournamentOwnership(tournamentId)
   if (!check.ok) return { success: false, error: check.error }
 
-  const supabase = createAdminClient()
-  const { clubId, memberId } = await getClubContext()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const { sb, clubId, memberId } = await getScopedClient()
 
   const { data: attendee } = await sb
     .from('tournament_attendees')
