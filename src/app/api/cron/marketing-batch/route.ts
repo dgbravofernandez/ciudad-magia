@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const result = await runCampaignBatch({ force: true, max: 50 })
+  const result = await runCampaignBatch({ force: true })
   console.log('[cron/marketing-batch]', JSON.stringify(result))
   return NextResponse.json(result)
 }

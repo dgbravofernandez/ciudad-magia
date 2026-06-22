@@ -423,6 +423,58 @@ export async function bulkSetPriority(clubIds: string[], priority: number) {
   return { success: true, count: clubIds.length }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Limpiar datos de prueba — borra envíos anteriores a hoy y resetea clubes
+// ─────────────────────────────────────────────────────────────────────────────
+export async function purgeTestSends(): Promise<{ success: boolean; deleted?: number; resetClubs?: number; error?: string }> {
+  const auth = await requireSuperadmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const todayStart = new Date(new Date().setHours(0, 0, 0, 0)).toISOString()
+
+  // Qué clubes tenían envíos antes de hoy
+  const { data: oldSends } = await sb
+    .from('marketing_email_sends')
+    .select('club_id')
+    .lt('sent_at', todayStart)
+  if (!oldSends || oldSends.length === 0) return { success: true, deleted: 0, resetClubs: 0 }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const oldClubIds = [...new Set((oldSends as any[]).map((s) => s.club_id))] as string[]
+
+  // De esos, ¿cuáles tienen también envíos HOY (son reales)?
+  const { data: todaySends } = await sb
+    .from('marketing_email_sends')
+    .select('club_id')
+    .gte('sent_at', todayStart)
+    .in('club_id', oldClubIds)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const realSet = new Set((todaySends ?? []).map((s: any) => s.club_id))
+
+  // Solo resetear los que únicamente tenían pruebas (sin envíos hoy)
+  const clubsToReset = oldClubIds.filter((id) => !realSet.has(id))
+
+  // Borrar envíos de prueba
+  const { count: deleted } = await sb
+    .from('marketing_email_sends')
+    .delete({ count: 'exact' })
+    .lt('sent_at', todayStart)
+
+  // Resetear clubs de prueba → pending
+  if (clubsToReset.length > 0) {
+    await sb
+      .from('marketing_clubs')
+      .update({ status: 'pending', last_sent_at: null })
+      .in('id', clubsToReset)
+      .in('status', ['sent_1', 'sent_2', 'sent_3'])
+  }
+
+  revalidatePath('/superadmin/campanas')
+  return { success: true, deleted: deleted ?? 0, resetClubs: clubsToReset.length }
+}
+
 export async function sendTestEmail(targetEmail: string) {
   const auth = await requireSuperadmin()
   if (!auth.ok) return { success: false, error: auth.error }

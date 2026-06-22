@@ -10,6 +10,7 @@ import {
 import {
   runCampaignBatch, pauseCampaign, updateDailyCap, updateTemplate, sendTestEmail,
   markReplied, toggleExcluded, bulkToggleExcluded, setPriority, bulkSetPriority, sendToSelected,
+  purgeTestSends,
 } from '../actions/campaign.actions'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -207,6 +208,19 @@ export function CampaignsView(p: Props) {
     })
   }
 
+  function handlePurgeTestSends() {
+    if (!confirm('¿Borrar todos los envíos anteriores a hoy y resetear esos clubes a "pendiente"? Esto no se puede deshacer.')) return
+    startTransition(async () => {
+      const res = await purgeTestSends()
+      if (res.success) {
+        toast.success(`Limpieza completada: ${res.deleted} envíos borrados, ${res.resetClubs} clubes reseteados`)
+        router.refresh()
+      } else {
+        toast.error(res.error ?? 'Error al limpiar')
+      }
+    })
+  }
+
   function handleMarkReplied(clubId: string) {
     startTransition(async () => {
       const res = await markReplied(clubId)
@@ -308,6 +322,11 @@ export function CampaignsView(p: Props) {
                 <button onClick={handleSaveCap} disabled={isPending}
                   className="px-2 py-1 rounded bg-slate-700 text-slate-200 hover:bg-slate-600 text-xs">OK</button>
               </div>
+              <button onClick={handlePurgeTestSends} disabled={isPending}
+                className="px-3 py-1.5 rounded bg-red-900/50 text-red-300 hover:bg-red-900 text-xs disabled:opacity-50"
+                title="Borra envíos anteriores a hoy y resetea esos clubes a pendiente">
+                🗑 Limpiar pruebas
+              </button>
             </div>
           </div>
         )}
