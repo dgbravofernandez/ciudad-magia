@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { getClubContext } from '@/lib/supabase/get-club-id'
 import { DashboardView } from '@/features/dashboard/components/DashboardView'
 
@@ -89,24 +90,30 @@ export default async function DashboardPage() {
       .select('amount')
       .eq('club_id', clubId)
       .gte('expense_date', monthStart),
-    sb
+    // fetchAllRows: 6 meses de pagos pueden superar 1000 filas → el gráfico de
+    // ingresos salía infravalorado al cortarse en 1000.
+    fetchAllRows(() => sb
       .from('quota_payments')
       .select('amount_paid, payment_date')
       .eq('club_id', clubId)
       .eq('status', 'paid')
-      .gte('payment_date', sixMonthsAgoIso),
-    sb
+      .gte('payment_date', sixMonthsAgoIso)).then((data) => ({ data })),
+    // fetchAllRows: 6 meses de sesiones (varios equipos) pueden superar 1000 filas
+    // → el gráfico de sesiones/mes salía incompleto.
+    fetchAllRows(() => sb
       .from('sessions')
       .select('session_date')
       .eq('club_id', clubId)
-      .gte('session_date', sixMonthsAgoIso),
-    sb
+      .gte('session_date', sixMonthsAgoIso)).then((data) => ({ data })),
+    // fetchAllRows: asistencias del mes (jugadores × sesiones) pueden superar 1000
+    // → el % de asistencia salía mal al truncarse.
+    fetchAllRows(() => sb
       .from('session_attendance')
       .select('status, sessions!inner(session_type, session_date, club_id)')
       .eq('sessions.club_id', clubId)
       .eq('sessions.session_type', 'training')
       .gte('sessions.session_date', monthStart)
-      .lte('sessions.session_date', today),
+      .lte('sessions.session_date', today)).then((data) => ({ data })),
     // Todos los jugadores con fecha de nacimiento para calcular próximos cumpleaños
     sb
       .from('players')

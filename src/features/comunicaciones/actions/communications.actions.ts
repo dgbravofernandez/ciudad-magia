@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getScopedClient } from '@/lib/supabase/scoped-client'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { sendHtmlEmail } from '@/lib/email/send'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/logger'
@@ -59,11 +60,13 @@ export async function sendBulkEmail(input: {
     recipients = (players ?? []) as RecipientRow[]
   } else if (input.recipientType === 'pending') {
     // Players with at least one pending quota payment
-    const { data: pendingRows } = await sb
+    // fetchAllRows: pendientes pueden superar 1000 filas → sin paginar, deudores
+    // más allá de la fila 1000 NO recibían el aviso de pago.
+    const pendingRows = await fetchAllRows(() => sb
       .from('quota_payments')
       .select('player_id')
       .eq('club_id', clubId)
-      .eq('status', 'pending')
+      .eq('status', 'pending'))
     const ids = Array.from(new Set(((pendingRows ?? []) as { player_id: string }[]).map(r => r.player_id)))
     if (ids.length === 0) return { success: true, sent: 0, failed: 0, noEmail: 0 }
     const { data: players } = await sb

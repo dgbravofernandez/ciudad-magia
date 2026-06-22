@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { writeTab } from './sheets-writer'
 
 // ──────────────────────────────────────────────────────────────
@@ -138,12 +139,13 @@ export async function exportClubToBackendSheet(
   }
 
   // ── 4) Pagos de cuotas ────────────────────────────────────────
-  const { data: payments } = await sb
+  // fetchAllRows: PostgREST corta a 1000 filas y .limit(5000) NO lo evita →
+  // el export de pagos salía truncado (datos de dinero incompletos).
+  const payments = await fetchAllRows(() => sb
     .from('quota_payments')
     .select('id, player_id, season, month, concept, amount_due, amount_paid, payment_date, payment_method, status, notes, created_at')
     .eq('club_id', clubId)
-    .order('payment_date', { ascending: false, nullsFirst: false })
-    .limit(5000)
+    .order('payment_date', { ascending: false, nullsFirst: false }))
 
   await exportTab(
     'Pagos',
@@ -159,12 +161,11 @@ export async function exportClubToBackendSheet(
   )
 
   // ── 5) Gastos ─────────────────────────────────────────────────
-  const { data: expenses } = await sb
+  const expenses = await fetchAllRows(() => sb
     .from('expenses')
     .select('id, category, description, amount, expense_date, payment_method, receipt_url, created_at')
     .eq('club_id', clubId)
-    .order('expense_date', { ascending: false, nullsFirst: false })
-    .limit(5000)
+    .order('expense_date', { ascending: false, nullsFirst: false }))
 
   await exportTab(
     'Gastos',
@@ -177,12 +178,11 @@ export async function exportClubToBackendSheet(
   )
 
   // ── 6) Transferencias bancarias ───────────────────────────────
-  const { data: transfers } = await sb
+  const transfers = await fetchAllRows(() => sb
     .from('bank_transfers')
     .select('id, transfer_date, amount, concept, payer, status, matched_player_id, match_confidence, notes, created_at')
     .eq('club_id', clubId)
-    .order('transfer_date', { ascending: false })
-    .limit(5000)
+    .order('transfer_date', { ascending: false }))
 
   await exportTab(
     'Transferencias',

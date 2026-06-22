@@ -1,6 +1,7 @@
 'use server'
 
 import { getScopedClient } from '@/lib/supabase/scoped-client'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/logger'
 import { bumpSeason } from '@/lib/utils/season'
@@ -320,19 +321,21 @@ export async function exportSeasonData() {
     .order('last_name')
 
   // Fetch payments for current season (con player_id para agregar cuotas por jugador)
-  const { data: payments } = await supabase
+  // fetchAllRows: una temporada supera 1000 cuotas → el export salía truncado (dinero).
+  const payments = await fetchAllRows(() => supabase
     .from('quota_payments')
     .select('player_id, players:player_id(first_name, last_name), concept, amount_due, amount_paid, status, payment_date, payment_method')
     .eq('club_id', clubId)
     .eq('season', currentSeason)
-    .order('payment_date', { ascending: false })
+    .order('payment_date', { ascending: false }))
 
   // Fetch sessions for current season (approximate by date range)
-  const { data: sessions } = await supabase
+  // fetchAllRows: varias temporadas de sesiones superan 1000 filas.
+  const sessions = await fetchAllRows(() => supabase
     .from('sessions')
     .select('session_type, session_date, teams:team_id(name), notes')
     .eq('club_id', clubId)
-    .order('session_date', { ascending: false })
+    .order('session_date', { ascending: false }))
 
   return {
     success: true,

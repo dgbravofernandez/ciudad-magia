@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { getClubId } from '@/lib/supabase/get-club-id'
 import { generatePendingPaymentsPDF, type PendingPaymentRow } from '@/lib/pdf/generate-pending-payments'
 
@@ -52,16 +53,20 @@ export async function GET(req: NextRequest) {
   const seasonAlt = season.includes('/') ? season.replace('/', '-') : season.replace('-', '/')
 
   // ── 1. Pagos pendientes (sin join — los joins fallan silenciosamente) ─────
-  let pq = sb
-    .from('quota_payments')
-    .select('id, player_id, amount_due, amount_paid, payment_date, concept, admin_comment, is_special_case, season')
-    .eq('club_id', clubId)
-    .eq('status', 'pending')
-    .in('season', [season, seasonAlt])
-  if (concepts.length > 0) {
-    pq = pq.in('concept', concepts)
-  }
-  const { data: pendings } = await pq
+  // fetchAllRows: una temporada puede tener >1000 cuotas pendientes → sin paginar,
+  // el PDF de deuda salía truncado.
+  const pendings = await fetchAllRows(() => {
+    let pq = sb
+      .from('quota_payments')
+      .select('id, player_id, amount_due, amount_paid, payment_date, concept, admin_comment, is_special_case, season')
+      .eq('club_id', clubId)
+      .eq('status', 'pending')
+      .in('season', [season, seasonAlt])
+    if (concepts.length > 0) {
+      pq = pq.in('concept', concepts)
+    }
+    return pq
+  })
 
   if (!pendings || pendings.length === 0) {
     return await buildEmptyPdfResponse(sb, clubId, season, [], [], [], undefined)
@@ -87,13 +92,13 @@ export async function GET(req: NextRequest) {
   )
 
   // ── 4. Última fecha de pago por jugador (status='paid') ────────────
-  const { data: lastPaidPayments } = await sb
+  const lastPaidPayments = await fetchAllRows(() => sb
     .from('quota_payments')
     .select('player_id, payment_date')
     .eq('club_id', clubId)
     .eq('status', 'paid')
     .in('player_id', playerIds)
-    .order('payment_date', { ascending: false })
+    .order('payment_date', { ascending: false }))
   const lastPaidMap = new Map<string, string>()
   for (const lp of (lastPaidPayments ?? [])) {
     if (!lastPaidMap.has(lp.player_id) && lp.payment_date) {
