@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 
 function requireStaff(roles: string[]) {
@@ -10,10 +9,8 @@ function requireStaff(roles: string[]) {
   }
 }
 
-async function verifyClub(sanctionId: string, clubId: string) {
-  const supabase = createAdminClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (supabase as any)
+async function verifyClub(sb: any, sanctionId: string, clubId: string) {
+  const { data } = await sb
     .from('player_sanctions')
     .select('club_id')
     .eq('id', sanctionId)
@@ -26,13 +23,11 @@ export async function updateSanction(
   patch: { matches_banned?: number; matches_served?: number; active?: boolean; competition?: string; reason?: string }
 ) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     requireStaff(roles)
-    if (!(await verifyClub(sanctionId, clubId))) return { success: false, error: 'Sanción no encontrada' }
+    if (!(await verifyClub(sb, sanctionId, clubId))) return { success: false, error: 'Sanción no encontrada' }
 
-    const supabase = createAdminClient()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).from('player_sanctions').update(patch).eq('id', sanctionId).eq('club_id', clubId)
+    const { error } = await sb.from('player_sanctions').update(patch).eq('id', sanctionId).eq('club_id', clubId)
     if (error) return { success: false, error: error.message }
 
     revalidatePath('/jugadores/sanciones')
@@ -45,15 +40,13 @@ export async function updateSanction(
 
 export async function deleteSanction(sanctionId: string) {
   try {
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!roles.some((r: string) => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
       return { success: false, error: 'Solo dirección puede eliminar sanciones' }
     }
-    if (!(await verifyClub(sanctionId, clubId))) return { success: false, error: 'Sanción no encontrada' }
+    if (!(await verifyClub(sb, sanctionId, clubId))) return { success: false, error: 'Sanción no encontrada' }
 
-    const supabase = createAdminClient()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).from('player_sanctions').delete().eq('id', sanctionId).eq('club_id', clubId)
+    const { error } = await sb.from('player_sanctions').delete().eq('id', sanctionId).eq('club_id', clubId)
     if (error) return { success: false, error: error.message }
 
     revalidatePath('/jugadores/sanciones')

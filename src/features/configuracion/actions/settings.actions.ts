@@ -1,7 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 
 export async function saveQuotaSettings(data: {
@@ -13,14 +12,11 @@ export async function saveQuotaSettings(data: {
 }) {
   try {
     // SEC: el club SIEMPRE del contexto, nunca del input del cliente.
-    const { clubId, roles } = await getClubContext()
+    const { sb, clubId, roles } = await getScopedClient()
     if (!clubId) return { success: false, error: 'Sin club' }
     if (!roles.some((r) => ['admin', 'direccion'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createAdminClient() as any
 
     const patch: Record<string, unknown> = {
       quota_amounts: data.quotaAmounts,

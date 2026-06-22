@@ -1,8 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { getClubContext } from '@/lib/supabase/get-club-id'
+import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { sendHtmlEmail } from '@/lib/email/send'
 import { revalidatePath } from 'next/cache'
 import { logger } from '@/lib/logger'
@@ -38,15 +37,11 @@ export async function sendBulkEmail(input: {
   categoryId?: string | null
   playerId?: string | null
 }): Promise<{ success: boolean; error?: string; sent: number; failed: number; noEmail: number }> {
-  const supabase = createAdminClient()
-  const { clubId, memberId } = await getClubContext()
+  const { sb, clubId, memberId } = await getScopedClient()
 
   if (!input.subject.trim() || !input.bodyHtml.trim()) {
     return { success: false, error: 'Asunto y cuerpo son obligatorios', sent: 0, failed: 0, noEmail: 0 }
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
 
   // Nombre del club para tokens {club_nombre}
   const { data: clubRow } = await sb.from('clubs').select('name').eq('id', clubId).single()
@@ -155,7 +150,7 @@ export async function sendBulkEmail(input: {
 }
 
 export async function saveTemplate(formData: FormData) {
-  const { clubId, roles } = await getClubContext()
+  const { clubId, roles } = await getScopedClient()
   if (!clubId) return { success: false, error: 'Sin club' }
   if (!roles.some((r) => ['admin', 'direccion', 'redes'].includes(r))) {
     return { success: false, error: 'Sin permisos' }
@@ -194,7 +189,7 @@ export async function saveTemplate(formData: FormData) {
 }
 
 export async function deleteTemplate(templateId: string) {
-  const { clubId, roles } = await getClubContext()
+  const { clubId, roles } = await getScopedClient()
   if (!clubId) return { success: false, error: 'Sin club' }
   if (!roles.some((r) => ['admin', 'direccion', 'redes'].includes(r))) {
     return { success: false, error: 'Sin permisos' }
