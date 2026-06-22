@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CampaignsView } from '@/features/marketing/components/CampaignsView'
+import type { EngagementLead, ClickDetail, ClickDest, SubjectStat } from '@/features/marketing/components/EngagementPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +11,7 @@ interface SearchParams {
   excluded?: string
   noEmail?: string
   page?: string
+  window?: string
 }
 
 export default async function CampanasPage({
@@ -24,6 +26,11 @@ export default async function CampanasPage({
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
+
+  // Ventana temporal para el panel de engagement
+  const activeWindow = sp.window ?? '7d'
+  const windowDays = activeWindow === '30d' ? 30 : activeWindow === 'all' ? 3650 : 7
+  const windowStart = new Date(Date.now() - windowDays * 86400_000).toISOString()
 
   // Query de clubes con filtros aplicados
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -97,6 +104,82 @@ export default async function CampanasPage({
     sb.from('clubs').select('id', { count: 'exact', head: true }).eq('subscription_status', 'active').eq('active', true),
   ])
 
+  // ── Datos para panel de engagement ──────────────────────────────────────────
+  const [
+    { data: engagedSendsRaw },
+    { data: clickDetailsRaw },
+    { data: windowSendsRaw },
+  ] = await Promise.all([
+    // Sends con apertura en la ventana temporal, con info del club
+    sb.from('marketing_email_sends')
+      .select('id, sent_at, opened_at, clicked_at, subject, club_id, marketing_clubs(id, name, email, phone, federation, location, status)')
+      .not('opened_at', 'is', null)
+      .gte('sent_at', windowStart)
+      .order('clicked_at', { ascending: false, nullsFirst: false })
+      .order('opened_at', { ascending: false })
+      .limit(50),
+    // Todos los clics registrados (destino + send_id para cruzar con leads)
+    sb.from('marketing_email_clicks')
+      .select('send_id, destination')
+      .limit(500),
+    // Todos los sends de la ventana para calcular performance por asunto
+    sb.from('marketing_email_sends')
+      .select('subject, opened_at, clicked_at, bounced')
+      .gte('sent_at', windowStart)
+      .limit(2000),
+  ])
+
+  // Leads calientes — enriquecer con info de club
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const engagedLeads: EngagementLead[] = (engagedSendsRaw ?? []).map((s: any) => ({
+    sendId: s.id,
+    clubId: s.club_id,
+    clubName: s.marketing_clubs?.name ?? '?',
+    email: s.marketing_clubs?.email ?? '',
+    phone: s.marketing_clubs?.phone ?? null,
+    federation: s.marketing_clubs?.federation ?? null,
+    location: s.marketing_clubs?.location ?? null,
+    sentAt: s.sent_at,
+    openedAt: s.opened_at,
+    clickedAt: s.clicked_at,
+    subject: s.subject,
+    status: s.marketing_clubs?.status ?? '',
+  }))
+
+  // Detalle de clics por send (para cruzar con leads)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const clickDetails: ClickDetail[] = (clickDetailsRaw ?? []).map((c: any) => ({
+    sendId: c.send_id,
+    destination: c.destination ?? '',
+  }))
+
+  // Agregado de destinos de clic (sin params de URL)
+  const destCounts: Record<string, number> = {}
+  for (const c of clickDetails) {
+    const dest = c.destination.split('?')[0] || '/'
+    destCounts[dest] = (destCounts[dest] ?? 0) + 1
+  }
+  const clickDests: ClickDest[] = Object.entries(destCounts)
+    .map(([destination, count]) => ({ destination, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 12)
+
+  // Performance por asunto
+  const subjectMap: Record<string, { sent: number; opens: number; clicks: number }> = {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const s of (windowSendsRaw ?? []) as any[]) {
+    if (!s.subject) continue
+    if (!subjectMap[s.subject]) subjectMap[s.subject] = { sent: 0, opens: 0, clicks: 0 }
+    if (!s.bounced) subjectMap[s.subject].sent++
+    if (s.opened_at) subjectMap[s.subject].opens++
+    if (s.clicked_at) subjectMap[s.subject].clicks++
+  }
+  const subjectPerf: SubjectStat[] = Object.entries(subjectMap)
+    .map(([subject, v]) => ({ subject, ...v }))
+    .sort((a, b) => b.opens - a.opens)
+
+  // ─────────────────────────────────────────────────────────────────────────────
+
   const engagement = {
     emailsSent: sendsTotal.count ?? 0,
     opens: opensTotal.count ?? 0,
@@ -137,6 +220,13 @@ export default async function CampanasPage({
         noEmail: sp.noEmail ?? '',
       }}
       federations={federations}
+      engagementData={{
+        leads: engagedLeads,
+        clickDetails,
+        clickDests,
+        subjectPerf,
+        window: activeWindow,
+      }}
     />
   )
 }

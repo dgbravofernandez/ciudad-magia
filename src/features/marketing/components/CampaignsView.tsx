@@ -12,6 +12,8 @@ import {
   markReplied, toggleExcluded, bulkToggleExcluded, setPriority, bulkSetPriority, sendToSelected,
   purgeTestSends,
 } from '../actions/campaign.actions'
+import { EngagementPanel } from './EngagementPanel'
+import type { EngagementLead, ClickDetail, ClickDest, SubjectStat } from './EngagementPanel'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = any
@@ -33,6 +35,13 @@ interface Props {
   pageSize: number
   filters: { q: string; status: string; federation: string; excluded: string; noEmail: string }
   federations: string[]
+  engagementData?: {
+    leads: EngagementLead[]
+    clickDetails: ClickDetail[]
+    clickDests: ClickDest[]
+    subjectPerf: SubjectStat[]
+    window: string
+  }
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -243,6 +252,17 @@ export function CampaignsView(p: Props) {
 
       {/* EMBUDO + PROYECCIÓN */}
       {p.engagement && <EngagementFunnel e={p.engagement} totalLeads={p.stats.total} pending={p.stats.pending} />}
+
+      {/* CRM DE LEADS — panel de engagement comercial */}
+      {p.engagementData && (
+        <EngagementPanel
+          leads={p.engagementData.leads}
+          clickDetails={p.engagementData.clickDetails}
+          clickDests={p.engagementData.clickDests}
+          subjectPerf={p.engagementData.subjectPerf}
+          window={p.engagementData.window}
+        />
+      )}
 
       {/* Status & controles */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
