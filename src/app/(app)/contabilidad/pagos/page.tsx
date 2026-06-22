@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { getClubId } from '@/lib/supabase/get-club-id'
 import { headers } from 'next/headers'
 import { PaymentRegistration } from '@/features/contabilidad/components/PaymentRegistration'
@@ -79,29 +80,32 @@ export default async function PagosPage({
 
   // 9 queries independientes — paralelizar
   const feesSeason = season.replace('-', '/')  // '2025-26' → '2025/26'
+  // players y quota_payments usan fetchAllRows: PostgREST corta a 1000 filas y sin
+  // paginar se perdían jugadores (últimos del alfabeto) y filas de pago → KPIs de
+  // dinero (recaudado/deuda) incompletos. Mismo bug que en jugadores e informes.
   const [
-    { data: paidThisMonth },
-    { data: pendingPayments },
-    { data: players },
+    paidThisMonth,
+    pendingPayments,
+    players,
     { data: teams },
-    { data: seasonPayments },
+    seasonPayments,
     reminderHistory,
     { data: seasonFeesSlash },
     { data: seasonFeesDash },
     { data: settings },
   ] = await Promise.all([
-    sb.from('quota_payments').select('amount_paid')
+    fetchAllRows(() => sb.from('quota_payments').select('amount_paid')
       .eq('club_id', clubId).eq('season', season)
       .neq('status', 'refunded').gt('amount_paid', 0)
-      .gte('payment_date', monthStart).lte('payment_date', monthEnd),
-    sb.from('quota_payments').select('player_id, amount_due, amount_paid')
-      .eq('club_id', clubId).eq('season', season).neq('status', 'refunded'),
-    sb.from('players')
+      .gte('payment_date', monthStart).lte('payment_date', monthEnd)),
+    fetchAllRows(() => sb.from('quota_payments').select('player_id, amount_due, amount_paid')
+      .eq('club_id', clubId).eq('season', season).neq('status', 'refunded')),
+    fetchAllRows(() => sb.from('players')
       .select('id, first_name, last_name, dni, tutor_email, tutor_name, tutor_phone, team_id, next_team_id, birth_date, is_special_case, special_case_reason')
-      .eq('club_id', clubId).neq('status', 'low').order('last_name'),
+      .eq('club_id', clubId).neq('status', 'low').order('last_name')),
     sb.from('teams').select('id, name').eq('club_id', clubId),
-    sb.from('quota_payments').select('*')
-      .eq('club_id', clubId).eq('season', season).order('created_at', { ascending: false }),
+    fetchAllRows(() => sb.from('quota_payments').select('*')
+      .eq('club_id', clubId).eq('season', season).order('created_at', { ascending: false })),
     getReminderHistory().catch(() => ({})),
     sb.from('season_fees').select('team_id, concept, amount')
       .eq('club_id', clubId).eq('season', feesSeason),
@@ -132,7 +136,8 @@ export default async function PagosPage({
 
   // Según temporada, usar team_id (actual) o next_team_id (próxima)
   const enrichedPlayers = (players ?? []).map(
-    (p: { team_id: string | null; next_team_id: string | null }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (p: any) => {
       const activeTeamId = isNextSeason ? p.next_team_id : p.team_id
       return {
         ...p,
