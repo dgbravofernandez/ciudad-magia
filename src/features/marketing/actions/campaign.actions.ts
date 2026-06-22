@@ -510,3 +510,118 @@ export async function sendTestEmail(targetEmail: string) {
   if (errors.length === templates.length) return { success: false, error: errors.join(' | ') }
   return { success: true }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// runClickFollowupBatch — email de recuperación para leads que clicaron
+// /demo o /reservar pero no completaron la reserva.
+// Se ejecuta diariamente desde el cron. Espera 24h tras el clic.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function runClickFollowupBatch(opts?: { force?: boolean }): Promise<BatchResult> {
+  if (!opts?.force) {
+    const auth = await requireSuperadmin()
+    if (!auth.ok) return { success: false, error: auth.error }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const { data: settings } = await sb.from('marketing_settings').select('*').eq('id', 1).single()
+  if (!settings) return { success: false, error: 'Sin settings' }
+  if (settings.is_paused) return { success: false, error: 'Campaña pausada' }
+
+  const { data: tpl } = await sb.from('marketing_templates')
+    .select('*').eq('key', 'email_followup_click').eq('active', true).maybeSingle()
+  if (!tpl) return { success: true, sent: 0, failed: 0, skipped: 0, message: 'Plantilla email_followup_click no configurada' }
+
+  // 1. Send IDs donde el destino fue /demo o /reservar
+  const { data: demoClicks } = await sb.from('marketing_email_clicks')
+    .select('send_id')
+    .or('destination.ilike.%/demo%,destination.ilike.%/reservar%')
+    .limit(500)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sendIds: string[] = (demoClicks ?? []).map((c: any) => c.send_id)
+  if (sendIds.length === 0) return { success: true, sent: 0, failed: 0, skipped: 0, message: 'Sin clics en /demo o /reservar' }
+
+  // 2. Club IDs de esos sends; solo los que clicaron hace >24h
+  const cutoff24h = new Date(Date.now() - 24 * 3600_000).toISOString()
+  const { data: clickedSends } = await sb.from('marketing_email_sends')
+    .select('club_id, clicked_at')
+    .in('id', sendIds)
+    .not('clicked_at', 'is', null)
+    .lt('clicked_at', cutoff24h)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const clickedClubIds: string[] = [...new Set((clickedSends ?? []).map((s: any) => s.club_id))] as string[]
+  if (clickedClubIds.length === 0) return { success: true, sent: 0, failed: 0, skipped: 0, message: 'Sin clics de hace >24h' }
+
+  // 3. Clubs sin followup enviado aún, no excluidos, no dados de baja
+  const { data: eligibleClubs } = await sb.from('marketing_clubs')
+    .select('id, name, email, location, federation')
+    .in('id', clickedClubIds)
+    .is('followup_click_sent_at', null)
+    .eq('excluded', false)
+    .not('status', 'in', '("bounced","unsubscribed")')
+  if (!eligibleClubs || eligibleClubs.length === 0) {
+    return { success: true, sent: 0, failed: 0, skipped: 0, message: 'Todos ya recibieron el followup o están excluidos' }
+  }
+
+  // 4. Quitar los que ya tienen una demo (no bounced ni canceled)
+  const { data: existingDemos } = await sb.from('marketing_demos')
+    .select('club_id')
+    .in('club_id', clickedClubIds)
+    .not('status', 'in', '("canceled")')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const demoCluIds = new Set((existingDemos ?? []).map((d: any) => d.club_id))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const toSend = eligibleClubs.filter((c: any) => !demoCluIds.has(c.id))
+  if (toSend.length === 0) {
+    return { success: true, sent: 0, failed: 0, skipped: 0, message: 'Todos los que clicaron ya tienen demo agendada' }
+  }
+
+  let sent = 0, failed = 0, skipped = 0
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const club of toSend as any[]) {
+    try {
+      const { data: sendRow } = await sb.from('marketing_email_sends')
+        .insert({ club_id: club.id, template_key: 'email_followup_click', template_variant: 'A', subject: 'pending', bounced: false })
+        .select('id').single()
+      if (!sendRow) { skipped++; continue }
+
+      const vars = {
+        club_name: club.name,
+        club_url: encodeURIComponent(club.name),
+        location: club.location || 'tu zona',
+        federation: club.federation || '',
+        send_id: sendRow.id,
+        unsubscribe_url: await unsubscribeUrl(club.id, sendRow.id),
+      }
+      const subject = renderTemplate(tpl.subject, vars)
+      const html = wrapLinksForTracking(renderTemplate(tpl.body_html, vars), sendRow.id)
+      const text = tpl.body_text ? renderTemplate(tpl.body_text, vars) : htmlToPlainText(html)
+
+      const result = await sendMarketingEmail({
+        to: club.email,
+        subject,
+        html,
+        text,
+        fromName: settings.from_name,
+        replyTo: settings.reply_to || settings.from_email,
+        unsubscribeUrl: vars.unsubscribe_url,
+      })
+
+      if (result.sent) {
+        await sb.from('marketing_email_sends').update({ subject }).eq('id', sendRow.id)
+        await sb.from('marketing_clubs').update({ followup_click_sent_at: new Date().toISOString() }).eq('id', club.id)
+        sent++
+      } else {
+        await sb.from('marketing_email_sends').update({ subject, bounced: true, error: result.error ?? 'unknown' }).eq('id', sendRow.id)
+        failed++
+      }
+    } catch {
+      failed++
+    }
+    await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000))
+  }
+
+  revalidatePath('/superadmin/campanas')
+  return { success: true, sent, failed, skipped, message: `Followup clic: ${sent} enviados, ${failed} fallos` }
+}

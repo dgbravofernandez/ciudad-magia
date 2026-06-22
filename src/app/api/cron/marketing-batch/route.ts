@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { runCampaignBatch } from '@/features/marketing/actions/campaign.actions'
+import { runCampaignBatch, runClickFollowupBatch } from '@/features/marketing/actions/campaign.actions'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300  // hasta 5 min para envío con espaciado
@@ -16,7 +16,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const result = await runCampaignBatch({ force: true })
-  console.log('[cron/marketing-batch]', JSON.stringify(result))
-  return NextResponse.json(result)
+  // email_1 (pendientes) y click_followup (leads que clicaron sin reservar) son
+  // conjuntos disjuntos — se pueden correr en paralelo sin riesgo de solapamiento.
+  const [result, clickFollowupResult] = await Promise.all([
+    runCampaignBatch({ force: true }),
+    runClickFollowupBatch({ force: true }),
+  ])
+  const combined = { email_1: result, click_followup: clickFollowupResult }
+  console.log('[cron/marketing-batch]', JSON.stringify(combined))
+  return NextResponse.json(combined)
 }

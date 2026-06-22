@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Phone, Mail, ExternalLink, Flame, TrendingUp, MousePointerClick } from 'lucide-react'
+import { toast } from 'sonner'
+import { Phone, Mail, ExternalLink, Flame, TrendingUp, MousePointerClick, Send } from 'lucide-react'
+import { runClickFollowupBatch } from '../actions/campaign.actions'
 
 export interface EngagementLead {
   sendId: string
@@ -81,6 +83,20 @@ export function EngagementPanel({ leads, clickDetails, clickDests, subjectPerf, 
   const router = useRouter()
   const sp = useSearchParams()
   const [tab, setTab] = useState<'leads' | 'emails' | 'clics'>('leads')
+  const [isPending, startTransition] = useTransition()
+
+  function handleSendClickFollowup() {
+    if (!confirm('¿Enviar email de recuperación a los leads que clicaron /demo o /reservar hace >24h sin reservar?')) return
+    startTransition(async () => {
+      const res = await runClickFollowupBatch()
+      if (res.success) {
+        toast.success(`Followup enviado: ${(res as any).sent ?? 0} emails`)
+        router.refresh()
+      } else {
+        toast.error((res as any).error ?? 'Error')
+      }
+    })
+  }
 
   function setWindow(w: string) {
     const params = new URLSearchParams(sp.toString())
@@ -109,6 +125,15 @@ export function EngagementPanel({ leads, clickDetails, clickDests, subjectPerf, 
             </span>
           )}
         </div>
+
+        {/* Botón de followup manual para leads calientes sin reserva */}
+        {sortedLeads.some(l => (l.heat?.score ?? 0) >= 2) && (
+          <button onClick={handleSendClickFollowup} disabled={isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-900/60 hover:bg-orange-900 text-orange-200 text-xs font-medium disabled:opacity-50 shrink-0">
+            <Send className="w-3 h-3" />
+            Enviar followup a calientes
+          </button>
+        )}
 
         {/* Window selector */}
         <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1">
