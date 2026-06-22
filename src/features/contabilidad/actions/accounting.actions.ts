@@ -1018,7 +1018,9 @@ export async function sendPendingReminders(playerIds: string[]) {
     errors: errorList.slice(0, 5),  // limit
   }
  } catch (e) {
-   // Nunca lanzar al cliente: si algo falla tras enviar, devolver error estructurado
+   // Nunca lanzar al cliente: si algo falla tras enviar, devolver error estructurado.
+   // OBS: reportamos a Sentry (vía logger.error) para enterarnos antes que el cliente.
+   logger.error({ action: 'sendPendingReminders', error: (e as Error).message })
    return { success: false, error: (e as Error).message }
  }
 }

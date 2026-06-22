@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react'
 
 export default function GlobalError({
@@ -11,7 +12,8 @@ export default function GlobalError({
   reset: () => void
 }) {
   useEffect(() => {
-    // Sentry capturará esto automáticamente cuando esté instalado
+    // App Router NO captura solo: hay que reportar el error del boundary a mano.
+    Sentry.captureException(error)
     console.error('[GlobalError]', error)
   }, [error])
 
