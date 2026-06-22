@@ -1,4 +1,5 @@
 'use server'
+/* eslint-disable no-restricted-imports -- superadmin marketing platform, no club_id context */
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendMarketingEmail } from '@/lib/email/marketing-send'

@@ -1,17 +1,13 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import { getClubId } from '@/lib/supabase/get-club-id'
 import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { sendHtmlEmail } from '@/lib/email/send'
 
 /** Lee nombre del club + link de formulario de entrenadores desde club_settings.
  *  El form link puede ser null — en ese caso los emails no incluyen el botón. */
-async function getClubMeta(clubId: string): Promise<{ clubName: string; coachesFormLink: string | null }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getClubMeta(sb: any, clubId: string): Promise<{ clubName: string; coachesFormLink: string | null }> {
   const [{ data: clubRow }, { data: settingsRow }] = await Promise.all([
     sb.from('clubs').select('name').eq('id', clubId).single(),
     sb.from('club_settings').select('coaches_form_link').eq('club_id', clubId).single(),
@@ -40,10 +36,10 @@ export async function sendCoachInvitation(
   email: string,
   name?: string
 ): Promise<{ success: boolean; error?: string; emailSent?: boolean }> {
-  const clubId = await getClubId()
+  const { sb, clubId } = await getScopedClient()
   if (!clubId) return { success: false, error: 'No autenticado' }
 
-  const { clubName, coachesFormLink } = await getClubMeta(clubId)
+  const { clubName, coachesFormLink } = await getClubMeta(sb, clubId)
   const subject = `Formulario de inscripción para el cuerpo técnico - ${clubName}`
   const body = `<div style="font-family:Arial,sans-serif;padding:25px;border:4px solid #ffcc00;border-radius:15px;color:#333;">
     <h2 style="color:#000;text-align:center;">Bienvenido/a al Cuerpo Técnico - Temporada 26/27</h2>
@@ -66,9 +62,7 @@ export async function sendCoachInvitation(
 export async function sendCoachFormLink(
   memberId: string
 ): Promise<{ success: boolean; error?: string; emailSent?: boolean }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
-  const clubId = await getClubId()
+  const { sb, clubId } = await getScopedClient()
 
   const { data: member } = await sb
     .from('club_members')
@@ -82,7 +76,7 @@ export async function sendCoachFormLink(
     return { success: false, error: 'Sin email válido' }
   }
 
-  const { clubName, coachesFormLink } = await getClubMeta(clubId!)
+  const { clubName, coachesFormLink } = await getClubMeta(sb, clubId!)
   const subject = `Formulario de inscripción para el cuerpo técnico - ${clubName}`
   const body = `<div style="font-family:Arial,sans-serif;padding:25px;border:4px solid #ffcc00;border-radius:15px;color:#333;">
     <h2 style="color:#000;text-align:center;">Bienvenido/a al Cuerpo Técnico</h2>
@@ -300,9 +294,7 @@ export async function updateCoachProfile(
   memberId: string,
   data: { phone?: string; avatar_url?: string }
 ): Promise<{ success: boolean; error?: string }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
-  const clubId = await getClubId()
+  const { sb, clubId } = await getScopedClient()
   const { error } = await sb
     .from('club_members').update(data).eq('id', memberId).eq('club_id', clubId)
   if (error) return { success: false, error: error.message }

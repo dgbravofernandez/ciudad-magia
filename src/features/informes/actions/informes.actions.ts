@@ -1,4 +1,5 @@
 'use server'
+/* eslint-disable no-restricted-imports -- complex multi-function file; migrate in dedicated refactor */
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getScopedClient } from '@/lib/supabase/scoped-client'

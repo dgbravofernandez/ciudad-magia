@@ -1,4 +1,5 @@
 'use server'
+/* eslint-disable no-restricted-imports -- generateWeekSessions is a cron that operates across all clubs, no single club context */
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getScopedClient } from '@/lib/supabase/scoped-client'

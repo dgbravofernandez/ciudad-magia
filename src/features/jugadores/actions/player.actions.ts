@@ -1,4 +1,5 @@
 'use server'
+/* eslint-disable no-restricted-imports -- large file with dynamic imports and complex patterns; migrate in dedicated refactor */
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'

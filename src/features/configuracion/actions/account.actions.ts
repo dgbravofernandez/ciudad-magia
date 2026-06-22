@@ -1,4 +1,5 @@
 'use server'
+/* eslint-disable no-restricted-imports -- auth special case: verifyClient for signInWithPassword, no club context */
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'

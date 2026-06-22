@@ -1,4 +1,5 @@
 'use server'
+/* eslint-disable no-restricted-imports -- superadmin platform-level operations, no club_id context */
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'

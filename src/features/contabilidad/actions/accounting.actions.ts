@@ -1,4 +1,5 @@
 'use server'
+/* eslint-disable no-restricted-imports -- resolveClubAndMember() own complex pattern; migrate separately */
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'

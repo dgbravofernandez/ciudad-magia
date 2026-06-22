@@ -1,6 +1,5 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
 import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { revalidatePath } from 'next/cache'
 import { sendHtmlEmail } from '@/lib/email/send'
@@ -14,9 +13,8 @@ function requireAdmin(roles: string[]) {
 
 /** Helper compartido: obtiene el nombre del club desde la BD.
  *  Todos los emails del módulo de miembros lo usan para evitar hardcodes. */
-async function getClubName(clubId: string): Promise<string> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getClubName(sb: any, clubId: string): Promise<string> {
   const { data } = await sb.from('clubs').select('name').eq('id', clubId).single()
   return (data as { name?: string } | null)?.name ?? 'El Club'
 }
@@ -53,9 +51,7 @@ export async function createMember(
 
     const tempPassword = randomPassword(14)
 
-    // Nombre del club para emails
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const clubName = await getClubName(clubId)
+    const clubName = await getClubName(sb, clubId)
 
     // 1) Create auth user
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -322,9 +318,7 @@ export async function createAccountForMember(
 
     const tempPassword = randomPassword(14)
 
-    // Nombre del club para emails
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const clubName2 = await getClubName(clubId)
+    const clubName2 = await getClubName(sb, clubId)
 
     // 1) Crear usuario auth
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
