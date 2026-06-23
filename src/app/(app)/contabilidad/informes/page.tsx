@@ -8,8 +8,6 @@ import { InformePagos } from '@/features/contabilidad/components/InformePagos'
 import type { PlayerRow, TeamRow } from '@/features/contabilidad/components/InformePagos'
 import { getActiveSeasons, getCurrentSeason } from '@/lib/utils/currency'
 import { getReminderHistory, getMilestoneReminderHistory } from '@/features/contabilidad/actions/accounting.actions'
-import { AvisosPanel } from '@/features/contabilidad/components/AvisosPanel'
-import type { AvisoPlayerRow } from '@/features/contabilidad/components/AvisosPanel'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Informes de Pagos' }
@@ -37,7 +35,7 @@ export default async function InformesPage({
   const [{ data: teamsRaw }, playersRaw, paymentsRaw, reminderHistory, { data: clubRow }, { data: settingsRaw }, milestoneHistory] = await Promise.all([
     sb.from('teams').select('id, name, season').eq('club_id', clubId),
     fetchAllRows(() => sb.from('players')
-      .select('id, first_name, last_name, team_id, next_team_id')
+      .select('id, first_name, last_name, team_id, next_team_id, is_special_case, special_case_reason')
       .eq('club_id', clubId)
       .neq('status', 'low')),
     fetchAllRows(() => sb.from('quota_payments')
@@ -95,6 +93,8 @@ export default async function InformesPage({
       totalDue: agg?.due ?? 0,
       totalPaid: agg?.paid ?? 0,
       hasCuota: !!agg,
+      isSpecialCase: p.is_special_case ?? false,
+      specialCaseReason: p.special_case_reason ?? null,
     })
   }
 
@@ -120,13 +120,6 @@ export default async function InformesPage({
   const tutorMap: Record<string, string | null> = {}
   for (const t of (tutorEmails ?? [])) tutorMap[t.id] = t.tutor_email ?? null
 
-  const avisoPlayers: AvisoPlayerRow[] = players.map(p => ({
-    id: p.id,
-    name: p.name,
-    teamName: p.teamName,
-    tutorEmail: tutorMap[p.id] ?? null,
-  }))
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const installments: { label: string; amount: number; deadline?: string }[] =
     (settingsRaw as any)?.quota_amounts?.installments ?? []
@@ -150,12 +143,7 @@ export default async function InformesPage({
           clubLogoUrl={clubRow?.logo_url ?? null}
           clubPrimaryColor={clubRow?.primary_color ?? '#003087'}
         />
-        <AvisosPanel
-          players={avisoPlayers}
-          installments={installments}
-          reminderHistory={milestoneHistory}
-          season={season}
-        />
+
       </main>
     </div>
   )

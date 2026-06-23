@@ -16,6 +16,8 @@ export interface PlayerRow {
   totalDue: number
   totalPaid: number
   hasCuota?: boolean
+  isSpecialCase?: boolean
+  specialCaseReason?: string | null
 }
 
 export interface ReminderRecord {
@@ -144,6 +146,17 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
     })
   }
 
+  // ── Selección por checkbox (estado; derivadas calculadas después de filteredPlayers) ──
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
   function sendMilestone(playerIds: string[]) {
     if (!msAmountValid) { toast.error('Introduce el importe del hito antes de enviar'); return }
     setSendingMsIds(prev => new Set([...prev, ...playerIds]))
@@ -214,6 +227,24 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
 
     return list
   }, [players, search, teamFilter, statusFilter, sortBy, sortAsc])
+
+  // ── Derivadas de selección (después de filteredPlayers) ──
+  const selectedVisible = filteredPlayers.filter(p => selectedIds.has(p.id))
+  const eligibleVisible = filteredPlayers.filter(p => !p.isSpecialCase)
+  const allVisibleSelected = eligibleVisible.length > 0 && eligibleVisible.every(p => selectedIds.has(p.id))
+
+  function toggleSelectAll() {
+    const allSelected = eligibleVisible.every(p => selectedIds.has(p.id))
+    if (allSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        eligibleVisible.forEach(p => next.delete(p.id))
+        return next
+      })
+    } else {
+      setSelectedIds(prev => new Set([...prev, ...eligibleVisible.map(p => p.id)]))
+    }
+  }
 
   // Cerrar el menú de equipos al hacer click fuera
   useEffect(() => {
@@ -575,17 +606,39 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
                   <span className="text-xs text-destructive">Importe no válido</span>
                 )}
                 {msAmountValid && (() => {
-                  const sinAvisar = filteredPlayers.filter(p => tutorEmails[p.id] && !lastMsSent(p.id))
+                  if (selectedVisible.length > 0) {
+                    // Modo selección: enviar solo a los marcados
+                    const selWithEmail = selectedVisible.filter(p => tutorEmails[p.id])
+                    return (
+                      <button
+                        onClick={() => {
+                          if (!confirm(`¿Enviar "${selectedMs.label}" (${msAmount}€) a ${selWithEmail.length} jugadores seleccionados?`)) return
+                          sendMilestone(selWithEmail.map(p => p.id))
+                        }}
+                        disabled={isPending || selWithEmail.length === 0}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium disabled:opacity-50">
+                        <Bell className="w-3 h-3" /> Enviar a {selWithEmail.length} seleccionados
+                      </button>
+                    )
+                  }
+                  // Modo masivo: todos los sin avisar y sin caso especial
+                  const sinAvisar = filteredPlayers.filter(p => tutorEmails[p.id] && !lastMsSent(p.id) && !p.isSpecialCase)
+                  const especiales = filteredPlayers.filter(p => p.isSpecialCase && !lastMsSent(p.id))
                   return sinAvisar.length > 0 ? (
-                    <button
-                      onClick={() => {
-                        if (!confirm(`¿Enviar "${selectedMs.label}" (${msAmount}€) a ${sinAvisar.length} jugadores sin avisar?`)) return
-                        sendMilestone(sinAvisar.map(p => p.id))
-                      }}
-                      disabled={isPending}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium disabled:opacity-50">
-                      <Bell className="w-3 h-3" /> Avisar a {sinAvisar.length}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          if (!confirm(`¿Enviar "${selectedMs.label}" (${msAmount}€) a ${sinAvisar.length} jugadores?${especiales.length > 0 ? `\n\n⚠️ Se omiten ${especiales.length} casos especiales.` : ''}`)) return
+                          sendMilestone(sinAvisar.map(p => p.id))
+                        }}
+                        disabled={isPending}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium disabled:opacity-50">
+                        <Bell className="w-3 h-3" /> Avisar a {sinAvisar.length}
+                      </button>
+                      {especiales.length > 0 && (
+                        <span className="text-xs text-amber-600">· {especiales.length} caso{especiales.length !== 1 ? 's' : ''} especial omitido{especiales.length !== 1 ? 's' : ''}</span>
+                      )}
+                    </div>
                   ) : null
                 })()}
               </div>
@@ -638,6 +691,17 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/40">
+                    <th className="px-3 py-3 w-8">
+                      {installments.length > 0 && (
+                        <input
+                          type="checkbox"
+                          checked={allVisibleSelected}
+                          onChange={toggleSelectAll}
+                          title="Seleccionar todos los visibles (excepto casos especiales)"
+                          className="w-3.5 h-3.5 cursor-pointer accent-primary"
+                        />
+                      )}
+                    </th>
                     <th
                       className="text-left px-4 py-3 font-medium text-muted-foreground cursor-pointer hover:text-foreground select-none"
                       onClick={() => toggleSort('nombre')}
@@ -674,7 +738,7 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
                 </thead>
                 <tbody>
                   {filteredPlayers.length === 0 && (
-                    <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Sin resultados</td></tr>
+                    <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">Sin resultados</td></tr>
                   )}
                   {filteredPlayers.map(p => {
                     const pending = p.totalDue - p.totalPaid
@@ -682,8 +746,26 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
                     const hasDebt = pending > 0
                     const isSending = sendingIds.has(p.id)
                     return (
-                      <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/20">
-                        <td className="px-4 py-3 font-medium">{p.name}</td>
+                      <tr key={p.id} className={`border-b border-border last:border-0 hover:bg-muted/20 ${p.isSpecialCase ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}`}>
+                        <td className="px-3 py-3 w-8">
+                          {installments.length > 0 && !p.isSpecialCase && (
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(p.id)}
+                              onChange={() => toggleSelect(p.id)}
+                              className="w-3.5 h-3.5 cursor-pointer accent-primary"
+                            />
+                          )}
+                          {p.isSpecialCase && (
+                            <span title={p.specialCaseReason ?? 'Caso especial'} className="text-amber-500 cursor-help text-xs">⚠</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 font-medium">
+                          {p.name}
+                          {p.isSpecialCase && p.specialCaseReason && (
+                            <span className="ml-1.5 text-[10px] text-amber-600 font-normal">({p.specialCaseReason})</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-muted-foreground text-xs">{p.teamName}</td>
                         <td className="px-4 py-3 text-right">{p.hasCuota ? fmt(p.totalDue) : '—'}</td>
                         <td className="px-4 py-3 text-right text-green-600">{p.hasCuota ? fmt(p.totalPaid) : '—'}</td>
