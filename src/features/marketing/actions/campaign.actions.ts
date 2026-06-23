@@ -699,3 +699,25 @@ export async function sendFollowupToClubManual(
     return { success: false, error: result.error ?? 'Error de entrega' }
   }
 }
+
+// ── reactivateMarketingClub ───────────────────────────────────────────────────
+// Reactiva manualmente un club 'unsubscribed' para poder enviarle followup manual.
+// Solo superadmin. Cambia status → 'sent_1' (ya recibió email previo).
+export async function reactivateMarketingClub(
+  clubId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireSuperadmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const { error } = await sb
+    .from('marketing_clubs')
+    .update({ status: 'sent_1', followup_click_sent_at: null })
+    .eq('id', clubId)
+    .eq('status', 'unsubscribed')
+
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/superadmin/campanas')
+  return { success: true }
+}

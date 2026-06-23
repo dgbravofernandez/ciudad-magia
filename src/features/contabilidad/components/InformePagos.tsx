@@ -4,7 +4,7 @@ import { useState, useMemo, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, ArrowUpDown, Bell, BellOff, Download, FileText, ChevronDown, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { sendPendingReminders } from '@/features/contabilidad/actions/accounting.actions'
+import { sendPendingReminders, sendMilestoneReminder } from '@/features/contabilidad/actions/accounting.actions'
 import { generateMissingNextSeasonFees } from '@/features/jugadores/actions/player.actions'
 import { paymentStatus } from '@/lib/contabilidad/payments-report'
 
@@ -32,6 +32,8 @@ export interface TeamRow {
   totalPaid: number
 }
 
+interface Installment { label: string; amount: number }
+
 interface Props {
   players: PlayerRow[]
   teams: TeamRow[]
@@ -41,6 +43,10 @@ interface Props {
   reminderHistory?: Record<string, ReminderRecord>
   clubName?: string
   isNextSeason?: boolean
+  // Avisos de hito (reserva, plazos) — opcionales; si presentes activan la columna de hito
+  installments?: Installment[]
+  milestoneHistory?: Record<string, Record<string, string[]>>  // playerId → milestone → sentAt[]
+  tutorEmails?: Record<string, string | null>
 }
 
 function fmt(n: number) {
@@ -84,7 +90,7 @@ function daysSince(iso: string): string {
   return d.toLocaleDateString('es-ES')  // dd/mm/aaaa
 }
 
-export function InformePagos({ players, teams, season, globalTotalPaid, globalTotalDue, reminderHistory = {}, clubName = '', isNextSeason = false }: Props) {
+export function InformePagos({ players, teams, season, globalTotalPaid, globalTotalDue, reminderHistory = {}, clubName = '', isNextSeason = false, installments = [], milestoneHistory = {}, tutorEmails = {} }: Props) {
   const router = useRouter()
   const [generatingFees, setGeneratingFees] = useState(false)
   const [tab, setTab] = useState<'equipos' | 'jugadores'>('equipos')
@@ -100,6 +106,56 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
   const [isPending, startTransition] = useTransition()
   const [sendingIds, setSendingIds] = useState<Set<string>>(new Set())
   const [localHistory, setLocalHistory] = useState<Record<string, ReminderRecord>>(reminderHistory)
+
+  // ── Avisos de hito ──
+  const RESERVA = { label: 'Reserva de plaza', amount: 0 } as Installment
+  const allMilestones: Installment[] = [RESERVA, ...installments]
+  const [selectedMsIdx, setSelectedMsIdx] = useState(0)
+  const [msAmount, setMsAmount] = useState('')
+  const [sendingMsIds, setSendingMsIds] = useState<Set<string>>(new Set())
+  const [localMsHistory, setLocalMsHistory] = useState<Record<string, Record<string, string[]>>>(milestoneHistory)
+
+  const selectedMs = allMilestones[selectedMsIdx]
+  const parsedMsAmount = parseFloat(msAmount)
+  const msAmountValid = !isNaN(parsedMsAmount) && parsedMsAmount > 0
+
+  function selectMs(idx: number) {
+    setSelectedMsIdx(idx)
+    const ms = allMilestones[idx]
+    setMsAmount(ms.amount > 0 ? String(ms.amount) : '')
+  }
+
+  function lastMsSent(playerId: string): string | null {
+    return localMsHistory[playerId]?.[selectedMs.label]?.[0] ?? null
+  }
+
+  function markMsSent(playerIds: string[]) {
+    const now = new Date().toISOString()
+    setLocalMsHistory(prev => {
+      const next = { ...prev }
+      for (const id of playerIds) {
+        if (!next[id]) next[id] = {}
+        next[id][selectedMs.label] = [now, ...(next[id][selectedMs.label] ?? [])]
+      }
+      return next
+    })
+  }
+
+  function sendMilestone(playerIds: string[]) {
+    if (!msAmountValid) { toast.error('Introduce el importe del hito antes de enviar'); return }
+    setSendingMsIds(prev => new Set([...prev, ...playerIds]))
+    startTransition(async () => {
+      const res = await sendMilestoneReminder({ playerIds, milestone: selectedMs.label, amount: parsedMsAmount, season })
+      if (res.success || (res.sent ?? 0) > 0) {
+        markMsSent(playerIds)
+        toast.success(`✉ ${res.sent} aviso${res.sent !== 1 ? 's' : ''} de "${selectedMs.label}" enviado${res.sent !== 1 ? 's' : ''}`)
+        router.refresh()
+      } else {
+        toast.error(res.error ?? 'Error al enviar')
+      }
+      setSendingMsIds(prev => { const s = new Set(prev); playerIds.forEach(id => s.delete(id)); return s })
+    })
+  }
 
   function sendReminder(playerIds: string[]) {
     setSendingIds(prev => new Set([...prev, ...playerIds]))
@@ -492,6 +548,47 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
             )}
           </div>
 
+          {/* ── Selector de hito para avisos ── */}
+          {installments.length > 0 && (
+            <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 space-y-2">
+              <p className="text-xs font-medium text-yellow-400 uppercase tracking-wide">Aviso de hito — selecciona concepto e importe</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {allMilestones.map((ms, idx) => (
+                  <button key={ms.label} onClick={() => selectMs(idx)}
+                    className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
+                      selectedMsIdx === idx
+                        ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
+                        : 'text-muted-foreground border-border hover:border-yellow-500/40'
+                    }`}>
+                    {ms.label}{ms.amount > 0 && <span className="ml-1 opacity-60">{ms.amount}€</span>}
+                  </button>
+                ))}
+                <input
+                  type="number" min="1" step="0.01" placeholder="Importe €"
+                  value={msAmount} onChange={e => setMsAmount(e.target.value)}
+                  className="w-24 px-2 py-1 rounded bg-muted border border-border text-xs focus:outline-none focus:ring-1 focus:ring-yellow-500/40"
+                />
+                {!msAmountValid && msAmount !== '' && (
+                  <span className="text-xs text-red-400">Importe no válido</span>
+                )}
+                {msAmountValid && (() => {
+                  const sinAvisar = filteredPlayers.filter(p => tutorEmails[p.id] && !lastMsSent(p.id))
+                  return sinAvisar.length > 0 ? (
+                    <button
+                      onClick={() => {
+                        if (!confirm(`¿Enviar "${selectedMs.label}" (${msAmount}€) a ${sinAvisar.length} jugadores sin avisar?`)) return
+                        sendMilestone(sinAvisar.map(p => p.id))
+                      }}
+                      disabled={isPending}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded bg-yellow-600 hover:bg-yellow-500 text-black text-xs font-medium disabled:opacity-50">
+                      <Bell className="w-3 h-3" /> Avisar a {sinAvisar.length}
+                    </button>
+                  ) : null
+                })()}
+              </div>
+            </div>
+          )}
+
           {/* Pills de estado */}
           <div className="flex flex-wrap gap-2">
             {(['todos', 'aldia', 'parcial', 'pendiente', 'sincuota'] as StatusFilter[]).map(s => (
@@ -594,28 +691,46 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
                           <StatusBadge player={p} />
                         </td>
                         <td className="px-4 py-3 text-center">
-                          {hasDebt ? (
-                            <div className="flex flex-col items-center gap-0.5">
-                              <button
-                                onClick={() => sendReminder([p.id])}
-                                disabled={isSending || isPending}
-                                title={rec ? `${rec.count} aviso${rec.count !== 1 ? 's' : ''} · último: ${new Date(rec.lastSent).toLocaleString('es-ES')}` : 'Enviar aviso de deuda'}
-                                className="text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors"
-                              >
-                                {isSending
-                                  ? <BellOff className="w-4 h-4 animate-pulse" />
-                                  : <Bell className="w-4 h-4" />
-                                }
-                              </button>
-                              {rec && (
-                                <span className="text-[10px] text-muted-foreground leading-none">
-                                  {rec.count}× {daysSince(rec.lastSent)}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground/30">—</span>
-                          )}
+                          <div className="flex flex-col items-center gap-1">
+                            {/* Aviso deuda genérico */}
+                            {hasDebt ? (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <button
+                                  onClick={() => sendReminder([p.id])}
+                                  disabled={isSending || isPending}
+                                  title={rec ? `${rec.count} aviso${rec.count !== 1 ? 's' : ''} · último: ${new Date(rec.lastSent).toLocaleString('es-ES')}` : 'Enviar aviso de deuda'}
+                                  className="text-muted-foreground hover:text-primary disabled:opacity-40 transition-colors"
+                                >
+                                  {isSending ? <BellOff className="w-4 h-4 animate-pulse" /> : <Bell className="w-4 h-4" />}
+                                </button>
+                                {rec && (
+                                  <span className="text-[10px] text-muted-foreground leading-none">
+                                    {rec.count}× {daysSince(rec.lastSent)}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground/30">—</span>
+                            )}
+                            {/* Aviso de hito (solo si hay selector activo y el jugador tiene email) */}
+                            {installments.length > 0 && tutorEmails[p.id] && (() => {
+                              const msSent = lastMsSent(p.id)
+                              const isSendingMs = sendingMsIds.has(p.id)
+                              return (
+                                <button
+                                  onClick={() => msAmountValid ? sendMilestone([p.id]) : toast.error('Introduce el importe del hito')}
+                                  disabled={isSendingMs || isPending}
+                                  title={msSent ? `"${selectedMs.label}" enviado ${daysSince(msSent)}` : `Enviar aviso "${selectedMs.label}"`}
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors disabled:opacity-40 ${
+                                    msSent
+                                      ? 'text-green-400 bg-green-900/20 border border-green-500/20'
+                                      : 'text-yellow-400 bg-yellow-900/20 border border-yellow-500/20 hover:bg-yellow-900/40'
+                                  }`}>
+                                  {isSendingMs ? '…' : msSent ? `✓ ${selectedMs.label.split(' ')[0]}` : `↑ ${selectedMs.label.split(' ')[0]}`}
+                                </button>
+                              )
+                            })()}
+                          </div>
                         </td>
                       </tr>
                     )
