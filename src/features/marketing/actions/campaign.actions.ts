@@ -2,6 +2,7 @@
 /* eslint-disable no-restricted-imports -- superadmin marketing platform, no club_id context */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { RECOVERY_TEMPLATES, type RecoveryTemplateKey } from '../lib/recovery-templates'
 import { sendMarketingEmail } from '@/lib/email/marketing-send'
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
@@ -624,4 +625,77 @@ export async function runClickFollowupBatch(opts?: { force?: boolean }): Promise
 
   revalidatePath('/superadmin/campanas')
   return { success: true, sent, failed, skipped, message: `Followup clic: ${sent} enviados, ${failed} fallos` }
+}
+
+// ── sendFollowupToClubManual ──────────────────────────────────────────────────
+// Envía una plantilla de recuperación a UN club específico, disparado manualmente
+// desde el panel CRM con la plantilla que elija el comercial. Sin checks de
+// tiempo ni de flag. Marca followup_click_sent_at para que el cron no doble-envíe.
+export async function sendFollowupToClubManual(
+  clubId: string,
+  templateKey: RecoveryTemplateKey = 'recover_click',
+): Promise<{ success: boolean; error?: string }> {
+  const auth = await requireSuperadmin()
+  if (!auth.ok) return { success: false, error: auth.error }
+
+  if (!RECOVERY_TEMPLATES.includes(templateKey)) {
+    return { success: false, error: 'Plantilla no permitida' }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+
+  const { data: settings } = await sb.from('marketing_settings').select('*').eq('id', 1).single()
+  if (!settings) return { success: false, error: 'Sin settings de campaña' }
+
+  const { data: tpl } = await sb.from('marketing_templates')
+    .select('*').eq('key', templateKey).eq('active', true).maybeSingle()
+  if (!tpl) return { success: false, error: `Plantilla ${templateKey} no activa` }
+
+  const { data: club } = await sb.from('marketing_clubs')
+    .select('id, name, email, location, federation, status')
+    .eq('id', clubId).single()
+  if (!club) return { success: false, error: 'Club no encontrado' }
+  if (!club.email) return { success: false, error: 'El club no tiene email' }
+  if (['bounced', 'unsubscribed'].includes(club.status)) {
+    return { success: false, error: `No se puede enviar: estado ${club.status}` }
+  }
+
+  const { data: sendRow } = await sb.from('marketing_email_sends')
+    .insert({ club_id: club.id, template_key: templateKey, template_variant: 'A', subject: 'pending', bounced: false })
+    .select('id').single()
+  if (!sendRow) return { success: false, error: 'Error creando registro de envío' }
+
+  const vars = {
+    club_name: club.name,
+    club_url: encodeURIComponent(club.name),
+    location: club.location || 'tu zona',
+    federation: club.federation || '',
+    send_id: sendRow.id,
+    unsubscribe_url: await unsubscribeUrl(club.id, sendRow.id),
+  }
+
+  const subject = renderTemplate(tpl.subject, vars)
+  const html = wrapLinksForTracking(renderTemplate(tpl.body_html, vars), sendRow.id)
+  const text = tpl.body_text ? renderTemplate(tpl.body_text, vars) : htmlToPlainText(html)
+
+  const result = await sendMarketingEmail({
+    to: club.email,
+    subject,
+    html,
+    text,
+    fromName: settings.from_name,
+    replyTo: settings.reply_to || settings.from_email,
+    unsubscribeUrl: vars.unsubscribe_url,
+  })
+
+  if (result.sent) {
+    await sb.from('marketing_email_sends').update({ subject }).eq('id', sendRow.id)
+    await sb.from('marketing_clubs').update({ followup_click_sent_at: new Date().toISOString() }).eq('id', club.id)
+    revalidatePath('/superadmin/campanas')
+    return { success: true }
+  } else {
+    await sb.from('marketing_email_sends').update({ subject, bounced: true, error: result.error ?? 'unknown' }).eq('id', sendRow.id)
+    return { success: false, error: result.error ?? 'Error de entrega' }
+  }
 }

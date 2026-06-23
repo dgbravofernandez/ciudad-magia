@@ -3,8 +3,31 @@
 import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { Phone, Mail, ExternalLink, Flame, TrendingUp, MousePointerClick, Send } from 'lucide-react'
-import { runClickFollowupBatch } from '../actions/campaign.actions'
+import { Phone, ExternalLink, Flame, TrendingUp, MousePointerClick, Send, Loader2, X } from 'lucide-react'
+import { runClickFollowupBatch, sendFollowupToClubManual } from '../actions/campaign.actions'
+import type { RecoveryTemplateKey as RecoveryKey } from '../lib/recovery-templates'
+
+// Metadata de las 3 plantillas de recuperación (debe coincidir con migración 056)
+const RECOVERY_META: Record<RecoveryKey, { label: string; desc: string; subject: string; tone: string }> = {
+  recover_click: {
+    label: 'Echó un vistazo',
+    desc: 'Suave, sin presión. Para quien abrió o clicó algo sin más.',
+    subject: '¿Te cuadró algo, [club]?',
+    tone: 'border-blue-500/50 bg-blue-900/20 text-blue-300',
+  },
+  recover_reservar: {
+    label: 'Intentó reservar',
+    desc: 'Entró a /reservar o /demo pero no cerró. Quita fricción: "dime tú cuándo".',
+    subject: '[club], ¿te lío con la demo?',
+    tone: 'border-orange-500/50 bg-orange-900/20 text-orange-300',
+  },
+  recover_hot: {
+    label: 'Muy interesado',
+    desc: 'Clicó varias cosas. Muy personal: "te llamo yo y te lo enseño en 10 min".',
+    subject: '[club] — te lo enseño en 10 min',
+    tone: 'border-pink-500/50 bg-pink-900/20 text-pink-300',
+  },
+}
 
 export interface EngagementLead {
   sendId: string
@@ -85,6 +108,39 @@ export function EngagementPanel({ leads, clickDetails, clickDests, subjectPerf, 
   const sp = useSearchParams()
   const [tab, setTab] = useState<'leads' | 'emails' | 'clics'>('leads')
   const [isPending, startTransition] = useTransition()
+  const [sendingClub, setSendingClub] = useState<string | null>(null)
+  const [modalLead, setModalLead] = useState<(EngagementLead & { heat: ReturnType<typeof heatInfo> }) | null>(null)
+  const [selectedTpl, setSelectedTpl] = useState<RecoveryKey>('recover_click')
+
+  // Recomienda plantilla según lo que hizo el lead
+  function suggestTemplate(lead: EngagementLead): RecoveryKey {
+    const myClicks = clickDetails.filter(c => c.sendId === lead.sendId)
+    if (myClicks.some(c => /\/demo|\/reservar/.test(c.destination))) return 'recover_reservar'
+    if (myClicks.length >= 3) return 'recover_hot'
+    return 'recover_click'
+  }
+
+  function openSendModal(lead: EngagementLead & { heat: ReturnType<typeof heatInfo> }) {
+    setSelectedTpl(suggestTemplate(lead))
+    setModalLead(lead)
+  }
+
+  function confirmSend() {
+    if (!modalLead) return
+    const lead = modalLead
+    setSendingClub(lead.clubId)
+    setModalLead(null)
+    startTransition(async () => {
+      const res = await sendFollowupToClubManual(lead.clubId, selectedTpl)
+      if (res.success) {
+        toast.success(`Email enviado a ${lead.clubName}`)
+        router.refresh()
+      } else {
+        toast.error(res.error ?? 'Error al enviar')
+      }
+      setSendingClub(null)
+    })
+  }
 
   function handleSendClickFollowup() {
     if (!confirm('¿Enviar email de recuperación a los leads que clicaron /demo o /reservar hace >24h sin reservar?')) return
@@ -217,12 +273,16 @@ export function EngagementPanel({ leads, clickDetails, clickDests, subjectPerf, 
                   {/* CTAs */}
                   <div className="flex items-center gap-1.5 shrink-0">
                     {lead.email && (
-                      <a href={`mailto:${lead.email}?subject=Re: ${encodeURIComponent(lead.subject)}`}
-                        className="flex items-center gap-1 px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs"
-                        title={lead.email}>
-                        <Mail className="w-3 h-3" />
-                        Email
-                      </a>
+                      <button
+                        onClick={() => openSendModal(lead)}
+                        disabled={sendingClub === lead.clubId || isPending}
+                        title={`Enviar email a ${lead.email}`}
+                        className="flex items-center gap-1 px-2 py-1 rounded bg-pink-900/60 hover:bg-pink-900 text-pink-300 text-xs disabled:opacity-50">
+                        {sendingClub === lead.clubId
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <Send className="w-3 h-3" />}
+                        Enviar
+                      </button>
                     )}
                     {lead.phone && (
                       <a href={`tel:${lead.phone}`}
@@ -337,6 +397,67 @@ export function EngagementPanel({ leads, clickDetails, clickDests, subjectPerf, 
         )}
 
       </div>
+
+      {/* ── MODAL: elegir plantilla de recuperación ── */}
+      {modalLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setModalLead(null)}>
+          <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-start justify-between px-5 py-4 border-b border-slate-800">
+              <div>
+                <h3 className="text-white font-semibold text-sm">Enviar email a {modalLead.clubName}</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{modalLead.email}</p>
+              </div>
+              <button onClick={() => setModalLead(null)} className="text-slate-500 hover:text-slate-300">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Selector de plantilla */}
+            <div className="p-5 space-y-2">
+              <p className="text-xs text-slate-500 mb-1">Elige el tono según lo que hizo el lead:</p>
+              {(Object.keys(RECOVERY_META) as RecoveryKey[]).map(key => {
+                const meta = RECOVERY_META[key]
+                const isSel = selectedTpl === key
+                const isSuggested = suggestTemplate(modalLead) === key
+                return (
+                  <button key={key} onClick={() => setSelectedTpl(key)}
+                    className={`w-full text-left rounded-lg border p-3 transition-colors ${
+                      isSel ? meta.tone : 'border-slate-700 bg-slate-800/40 hover:bg-slate-800 text-slate-300'
+                    }`}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm">{meta.label}</span>
+                      {isSuggested && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-900/60 text-emerald-300 font-bold">
+                          SUGERIDA
+                        </span>
+                      )}
+                      {isSel && <Send className="w-3 h-3 ml-auto" />}
+                    </div>
+                    <p className="text-xs opacity-80 mt-1">{meta.desc}</p>
+                    <p className="text-xs opacity-60 mt-1 italic">Asunto: “{meta.subject.replace('[club]', modalLead.clubName)}”</p>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-800">
+              <button onClick={() => setModalLead(null)}
+                className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 text-sm">
+                Cancelar
+              </button>
+              <button onClick={confirmSend}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-pink-600 hover:bg-pink-500 text-white text-sm font-medium">
+                <Send className="w-3.5 h-3.5" />
+                Enviar email
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
