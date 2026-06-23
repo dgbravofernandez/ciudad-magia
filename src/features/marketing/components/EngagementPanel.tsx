@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { Phone, ExternalLink, Flame, TrendingUp, MousePointerClick, Send, Loader2, X } from 'lucide-react'
-import { runClickFollowupBatch, sendFollowupToClubManual, reactivateMarketingClub } from '../actions/campaign.actions'
+import { runClickFollowupBatch, sendFollowupToClubManual } from '../actions/campaign.actions'
 import type { RecoveryTemplateKey as RecoveryKey } from '../lib/recovery-templates'
 
 // Metadata de las 3 plantillas de recuperación (debe coincidir con migración 056)
@@ -279,20 +279,7 @@ export function EngagementPanel({ leads, clickDetails, clickDests, subjectPerf, 
                   {/* CTAs */}
                   <div className="flex items-center gap-1.5 shrink-0">
                     {lead.status === 'unsubscribed' ? (
-                      <button
-                        onClick={() => {
-                          if (!confirm(`⚠️ ${lead.clubName} solicitó darse de baja. ¿Reactivar para envío manual? Solo hazlo si tienes consentimiento explícito.`)) return
-                          startTransition(async () => {
-                            const res = await reactivateMarketingClub(lead.clubId)
-                            if (res.success) { toast.success('Reactivado — ya puedes enviarle el followup'); router.refresh() }
-                            else toast.error(res.error ?? 'Error al reactivar')
-                          })
-                        }}
-                        disabled={isPending}
-                        title="Este club se dio de baja. Reactivar solo con consentimiento."
-                        className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-orange-900/40 hover:bg-orange-900/60 text-orange-300 disabled:opacity-50">
-                        ↩ Reactivar
-                      </button>
+                      <span className="text-xs text-slate-500 px-2 py-1">Baja respetada</span>
                     ) : lead.email && (
                       <button
                         onClick={() => openSendModal(lead)}
