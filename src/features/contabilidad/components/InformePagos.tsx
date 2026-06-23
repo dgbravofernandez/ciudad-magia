@@ -47,6 +47,9 @@ interface Props {
   installments?: Installment[]
   milestoneHistory?: Record<string, Record<string, string[]>>  // playerId → milestone → sentAt[]
   tutorEmails?: Record<string, string | null>
+  // Branding del club para el PDF
+  clubLogoUrl?: string | null
+  clubPrimaryColor?: string | null
 }
 
 function fmt(n: number) {
@@ -90,7 +93,7 @@ function daysSince(iso: string): string {
   return d.toLocaleDateString('es-ES')  // dd/mm/aaaa
 }
 
-export function InformePagos({ players, teams, season, globalTotalPaid, globalTotalDue, reminderHistory = {}, clubName = '', isNextSeason = false, installments = [], milestoneHistory = {}, tutorEmails = {} }: Props) {
+export function InformePagos({ players, teams, season, globalTotalPaid, globalTotalDue, reminderHistory = {}, clubName = '', isNextSeason = false, installments = [], milestoneHistory = {}, tutorEmails = {}, clubLogoUrl = null, clubPrimaryColor = null }: Props) {
   const router = useRouter()
   const [generatingFees, setGeneratingFees] = useState(false)
   const [tab, setTab] = useState<'equipos' | 'jugadores'>('equipos')
@@ -262,8 +265,8 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
       const { generatePlayerListPdf } = await import('@/lib/pdf/playerListPdf')
       const blob = await generatePlayerListPdf({
         clubName: clubName || 'Club',
-        clubLogoUrl: null,
-        clubPrimaryColor: '#EC4899',
+        clubLogoUrl: clubLogoUrl ?? null,
+        clubPrimaryColor: clubPrimaryColor ?? '#003087',
         season,
         players: filteredPlayers.map(p => ({
           id: p.id, fullName: p.name, dni: '', birthDate: null,
@@ -550,26 +553,26 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
 
           {/* ── Selector de hito para avisos ── */}
           {installments.length > 0 && (
-            <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 space-y-2">
-              <p className="text-xs font-medium text-yellow-400 uppercase tracking-wide">Aviso de hito — selecciona concepto e importe</p>
+            <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-2">
+              <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">Avisos de hito — selecciona concepto e importe</p>
               <div className="flex flex-wrap items-center gap-2">
                 {allMilestones.map((ms, idx) => (
                   <button key={ms.label} onClick={() => selectMs(idx)}
                     className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors ${
                       selectedMsIdx === idx
-                        ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
-                        : 'text-muted-foreground border-border hover:border-yellow-500/40'
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'text-foreground/60 border-border hover:border-primary/60 hover:text-foreground'
                     }`}>
-                    {ms.label}{ms.amount > 0 && <span className="ml-1 opacity-60">{ms.amount}€</span>}
+                    {ms.label}{ms.amount > 0 && <span className="ml-1 opacity-70">{ms.amount}€</span>}
                   </button>
                 ))}
                 <input
                   type="number" min="1" step="0.01" placeholder="Importe €"
                   value={msAmount} onChange={e => setMsAmount(e.target.value)}
-                  className="w-24 px-2 py-1 rounded bg-muted border border-border text-xs focus:outline-none focus:ring-1 focus:ring-yellow-500/40"
+                  className="w-24 px-2 py-1 rounded bg-background border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary/40"
                 />
                 {!msAmountValid && msAmount !== '' && (
-                  <span className="text-xs text-red-400">Importe no válido</span>
+                  <span className="text-xs text-destructive">Importe no válido</span>
                 )}
                 {msAmountValid && (() => {
                   const sinAvisar = filteredPlayers.filter(p => tutorEmails[p.id] && !lastMsSent(p.id))
@@ -580,7 +583,7 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
                         sendMilestone(sinAvisar.map(p => p.id))
                       }}
                       disabled={isPending}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded bg-yellow-600 hover:bg-yellow-500 text-black text-xs font-medium disabled:opacity-50">
+                      className="flex items-center gap-1 px-2.5 py-1 rounded bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium disabled:opacity-50">
                       <Bell className="w-3 h-3" /> Avisar a {sinAvisar.length}
                     </button>
                   ) : null
@@ -723,8 +726,8 @@ export function InformePagos({ players, teams, season, globalTotalPaid, globalTo
                                   title={msSent ? `"${selectedMs.label}" enviado ${daysSince(msSent)}` : `Enviar aviso "${selectedMs.label}"`}
                                   className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors disabled:opacity-40 ${
                                     msSent
-                                      ? 'text-green-400 bg-green-900/20 border border-green-500/20'
-                                      : 'text-yellow-400 bg-yellow-900/20 border border-yellow-500/20 hover:bg-yellow-900/40'
+                                      ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/20 border border-green-300 dark:border-green-500/20'
+                                      : 'text-primary bg-primary/10 border border-primary/30 hover:bg-primary/20'
                                   }`}>
                                   {isSendingMs ? '…' : msSent ? `✓ ${selectedMs.label.split(' ')[0]}` : `↑ ${selectedMs.label.split(' ')[0]}`}
                                 </button>

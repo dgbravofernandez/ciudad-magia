@@ -46,7 +46,7 @@ export default async function InformesPage({
       .eq('season', season)
       .neq('status', 'refunded')),
     getReminderHistory(),
-    sb.from('clubs').select('name').eq('id', clubId).single(),
+    sb.from('clubs').select('name, logo_url, primary_color').eq('id', clubId).single(),
     sb.from('club_settings').select('quota_amounts').eq('club_id', clubId).single(),
     getMilestoneReminderHistory(season),
   ])
@@ -147,6 +147,8 @@ export default async function InformesPage({
           installments={installments}
           milestoneHistory={milestoneHistory}
           tutorEmails={tutorMap}
+          clubLogoUrl={clubRow?.logo_url ?? null}
+          clubPrimaryColor={clubRow?.primary_color ?? '#003087'}
         />
         <AvisosPanel
           players={avisoPlayers}
