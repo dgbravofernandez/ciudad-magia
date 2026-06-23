@@ -7,7 +7,9 @@ import { SeasonSelector } from '@/features/contabilidad/components/SeasonSelecto
 import { InformePagos } from '@/features/contabilidad/components/InformePagos'
 import type { PlayerRow, TeamRow } from '@/features/contabilidad/components/InformePagos'
 import { getActiveSeasons, getCurrentSeason } from '@/lib/utils/currency'
-import { getReminderHistory } from '@/features/contabilidad/actions/accounting.actions'
+import { getReminderHistory, getMilestoneReminderHistory } from '@/features/contabilidad/actions/accounting.actions'
+import { AvisosPanel } from '@/features/contabilidad/components/AvisosPanel'
+import type { AvisoPlayerRow } from '@/features/contabilidad/components/AvisosPanel'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Informes de Pagos' }
@@ -32,7 +34,7 @@ export default async function InformesPage({
   // Cuatro queries independientes — paralelizar. players y payments paginados:
   // PostgREST corta a 1000 filas y una temporada tiene >2000 cuotas → sin
   // paginar los totales salían a la mitad (ver fetchAllRows).
-  const [{ data: teamsRaw }, playersRaw, paymentsRaw, reminderHistory, { data: clubRow }] = await Promise.all([
+  const [{ data: teamsRaw }, playersRaw, paymentsRaw, reminderHistory, { data: clubRow }, { data: settingsRaw }, milestoneHistory] = await Promise.all([
     sb.from('teams').select('id, name, season').eq('club_id', clubId),
     fetchAllRows(() => sb.from('players')
       .select('id, first_name, last_name, team_id, next_team_id')
@@ -45,6 +47,8 @@ export default async function InformesPage({
       .neq('status', 'refunded')),
     getReminderHistory(),
     sb.from('clubs').select('name').eq('id', clubId).single(),
+    sb.from('club_settings').select('quota_amounts').eq('club_id', clubId).single(),
+    getMilestoneReminderHistory(season),
   ])
 
   const teamMap: Record<string, string> = {}
@@ -105,6 +109,28 @@ export default async function InformesPage({
   }
   const teams: TeamRow[] = Object.entries(teamAgg).map(([id, v]) => ({ id, ...v }))
 
+  // Datos para AvisosPanel — tutor_email + equipo para cada jugador activo
+  // Reutilizamos playersRaw (ya paginado) añadiendo tutor_email desde una query ligera.
+  const { data: tutorEmails } = await sb
+    .from('players')
+    .select('id, tutor_email')
+    .eq('club_id', clubId)
+    .neq('status', 'low')
+
+  const tutorMap: Record<string, string | null> = {}
+  for (const t of (tutorEmails ?? [])) tutorMap[t.id] = t.tutor_email ?? null
+
+  const avisoPlayers: AvisoPlayerRow[] = players.map(p => ({
+    id: p.id,
+    name: p.name,
+    teamName: p.teamName,
+    tutorEmail: tutorMap[p.id] ?? null,
+  }))
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const installments: { label: string; amount: number; deadline?: string }[] =
+    (settingsRaw as any)?.quota_amounts?.installments ?? []
+
   return (
     <div className="flex flex-col min-h-screen">
       <Topbar title="Informes de Pagos" />
@@ -114,6 +140,12 @@ export default async function InformesPage({
           <SeasonSelector season={season} seasons={seasons} basePath="/contabilidad/informes" />
         </div>
         <InformePagos players={players} teams={teams} season={season} globalTotalPaid={globalTotalPaid} globalTotalDue={globalTotalDue} reminderHistory={reminderHistory} clubName={clubRow?.name ?? ''} isNextSeason={isNextSeason} />
+        <AvisosPanel
+          players={avisoPlayers}
+          installments={installments}
+          reminderHistory={milestoneHistory}
+          season={season}
+        />
       </main>
     </div>
   )

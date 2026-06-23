@@ -1562,3 +1562,193 @@ export async function getReminderHistory(): Promise<
 
   return result
 }
+
+// ── getMilestoneReminderHistory ───────────────────────────────────────────────
+// Devuelve historial de avisos de payment_reminders agrupado por jugador y milestone.
+export async function getMilestoneReminderHistory(season: string): Promise<
+  Record<string, Record<string, string[]>>  // playerId → milestone → sentAt[]
+> {
+  const { sb, clubId } = await resolveClubAndMember()
+
+  const { data } = await sb
+    .from('payment_reminders')
+    .select('player_id, milestone, sent_at')
+    .eq('club_id', clubId)
+    .eq('season', season)
+    .order('sent_at', { ascending: false })
+
+  const result: Record<string, Record<string, string[]>> = {}
+  for (const row of (data ?? [])) {
+    if (!result[row.player_id]) result[row.player_id] = {}
+    if (!result[row.player_id][row.milestone]) result[row.player_id][row.milestone] = []
+    result[row.player_id][row.milestone].push(row.sent_at)
+  }
+  return result
+}
+
+// ── sendMilestoneReminder ─────────────────────────────────────────────────────
+// Envía aviso formal de un hito de pago concreto (Reserva, 1er plazo, etc.)
+// a los jugadores indicados y lo registra en payment_reminders.
+export async function sendMilestoneReminder(input: {
+  playerIds: string[]
+  milestone: string      // ej. 'Reserva de plaza', '1er plazo'
+  amount: number         // importe del hito en €
+  season: string
+}): Promise<{
+  success: boolean
+  sent: number
+  skippedNoEmail: number
+  failed: number
+  errors?: string[]
+  error?: string
+}> {
+  try {
+    if (!input.playerIds.length) return { success: false, sent: 0, skippedNoEmail: 0, failed: 0, error: 'Sin jugadores seleccionados' }
+    if (!input.milestone?.trim()) return { success: false, sent: 0, skippedNoEmail: 0, failed: 0, error: 'Falta el nombre del hito' }
+    if (!input.amount || input.amount <= 0) return { success: false, sent: 0, skippedNoEmail: 0, failed: 0, error: 'El importe debe ser mayor que 0' }
+
+    const { sb, clubId, memberId } = await resolveClubAndMember()
+
+    // Datos del club y configuración bancaria
+    const { data: clubData } = await sb.from('clubs').select('name').eq('id', clubId).single()
+    const clubName = clubData?.name ?? 'El Club'
+    const { data: settingsData } = await sb
+      .from('club_settings')
+      .select('contact_email, bank_iban, bank_titular, bank_name, current_season')
+      .eq('club_id', clubId).single()
+
+    const contactEmail = settingsData?.contact_email ?? ''
+    const bankIban     = settingsData?.bank_iban     ?? ''
+    const bankTitular  = settingsData?.bank_titular  ?? clubName
+    const bankName     = settingsData?.bank_name     ?? ''
+
+    // Datos de los jugadores
+    const { data: players } = await sb
+      .from('players')
+      .select('id, first_name, last_name, tutor_name, tutor_email')
+      .eq('club_id', clubId)
+      .in('id', input.playerIds)
+
+    const amountStr = formatCurrency(input.amount)
+    let sent = 0, skippedNoEmail = 0, failed = 0
+    const errorList: string[] = []
+
+    for (let i = 0; i < (players ?? []).length; i++) {
+      const player = (players ?? [])[i]
+      if (!player.tutor_email) { skippedNoEmail++; continue }
+
+      const tutorName  = (player.tutor_name ?? '').trim() || 'familia'
+      const playerName = `${player.first_name} ${player.last_name}`.trim()
+
+      const html = buildMilestoneReminderHtml({
+        tutorName, playerName, milestone: input.milestone, amountStr,
+        clubName, contactEmail, bankIban, bankTitular, bankName,
+      })
+      const text = [
+        `Estimada ${tutorName},`,
+        '',
+        `Le comunicamos que el importe correspondiente al concepto "${input.milestone}" de ${playerName} para la temporada ${input.season} es de ${amountStr}.`,
+        'Le rogamos realice el abono en la mayor brevedad posible.',
+        '',
+        ...(bankIban ? [`Transferencia: ${bankIban} · Titular: ${bankTitular}`] : []),
+        ...(bankName ? [`Banco: ${bankName}`] : []),
+        'Indique el nombre del jugador/a en el concepto.',
+        '',
+        'También puede abonar en las oficinas del club.',
+        '',
+        `Ante cualquier duda, contáctenos en ${contactEmail || 'las oficinas del club'}.`,
+        '',
+        `Un saludo,`,
+        clubName,
+      ].join('\n')
+
+      try {
+        const sendPromise = sendHtmlEmail({
+          to: player.tutor_email,
+          subject: `${input.milestone} — ${playerName} · ${clubName}`,
+          html,
+          text,
+          fromName: clubName,
+        })
+        await Promise.race([sendPromise, new Promise<void>((_, rej) => setTimeout(() => rej(new Error('timeout')), 20000))])
+        sent++
+
+        // Registrar en payment_reminders
+        await sb.from('payment_reminders').insert({
+          club_id: clubId,
+          player_id: player.id,
+          season: input.season,
+          milestone: input.milestone,
+          amount: input.amount,
+          sent_by: memberId || null,
+        })
+      } catch (e) {
+        failed++
+        errorList.push(`${playerName}: ${(e as Error).message}`)
+      }
+
+      if (i < (players ?? []).length - 1) await sleep(EMAIL_DELAY_MS)
+    }
+
+    revalidatePath('/contabilidad/informes')
+    return { success: failed === 0, sent, skippedNoEmail, failed, errors: errorList.slice(0, 5) }
+  } catch (e) {
+    logger.error({ action: 'sendMilestoneReminder', error: (e as Error).message })
+    return { success: false, sent: 0, skippedNoEmail: 0, failed: 0, error: (e as Error).message }
+  }
+}
+
+function buildMilestoneReminderHtml(opts: {
+  tutorName: string; playerName: string; milestone: string; amountStr: string
+  clubName: string; contactEmail: string; bankIban: string; bankTitular: string; bankName: string
+}) {
+  return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;">
+
+  <div style="background:#1a1a1a;padding:24px 32px;text-align:center;">
+    <p style="color:#ffcc00;font-size:20px;font-weight:bold;margin:0;letter-spacing:1px;">${opts.clubName.toUpperCase()}</p>
+    <p style="color:#ffffff;font-size:12px;margin:4px 0 0;letter-spacing:2px;text-transform:uppercase;">Aviso de pago</p>
+  </div>
+  <div style="background:#ffcc00;height:4px;"></div>
+
+  <div style="padding:32px;">
+    <p style="font-size:15px;color:#333;margin:0 0 16px;">Estimado/a <strong>${opts.tutorName}</strong>,</p>
+    <p style="font-size:15px;color:#333;line-height:1.7;margin:0 0 16px;">
+      Le informamos que el importe correspondiente al concepto <strong>"${opts.milestone}"</strong> de <strong>${opts.playerName}</strong> está pendiente de abono.
+    </p>
+
+    <div style="background:#fffbe6;border-left:4px solid #ffcc00;border-radius:6px;padding:18px 20px;margin:24px 0;">
+      <p style="margin:0 0 8px;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">Concepto: ${opts.milestone}</p>
+      <p style="margin:0;font-size:26px;font-weight:bold;color:#b76e00;">${opts.amountStr}</p>
+    </div>
+
+    <div style="background:#f9f9f9;border:1px solid #e5e5e5;border-radius:8px;padding:20px;margin:20px 0;">
+      <p style="margin:0 0 14px;font-size:13px;font-weight:bold;color:#555;text-transform:uppercase;letter-spacing:1px;">Formas de pago</p>
+      ${opts.bankIban ? `
+      <p style="margin:0 0 6px;font-size:14px;font-weight:bold;color:#1a1a1a;">🏦 Transferencia bancaria</p>
+      <table style="width:100%;font-size:14px;color:#333;border-collapse:collapse;margin-bottom:16px;">
+        <tr><td style="padding:3px 0;color:#888;width:130px;">Titular</td><td><strong>${opts.bankTitular}</strong></td></tr>
+        ${opts.bankName ? `<tr><td style="padding:3px 0;color:#888;">Banco</td><td>${opts.bankName}</td></tr>` : ''}
+        <tr><td style="padding:3px 0;color:#888;">IBAN</td><td><strong>${opts.bankIban}</strong></td></tr>
+      </table>
+      <p style="margin:0 0 16px;font-size:13px;color:#e05c00;background:#fff3e0;padding:8px 12px;border-radius:4px;">
+        ⚠️ Indique en el concepto el nombre completo del jugador/a.
+      </p>` : ''}
+      <p style="margin:0 0 6px;font-size:14px;font-weight:bold;color:#1a1a1a;">🏢 En la oficina del club</p>
+      <p style="margin:0;font-size:14px;color:#333;">También puede abonar en efectivo o con tarjeta en nuestras instalaciones.</p>
+    </div>
+
+    <p style="font-size:15px;color:#333;line-height:1.7;margin:0 0 8px;">
+      Si ya ha realizado el pago o tiene alguna consulta, contáctenos respondiendo a este correo o en:
+    </p>
+    <p style="margin:0 0 24px;">
+      ${opts.contactEmail ? `<a href="mailto:${opts.contactEmail}" style="color:#ffcc00;font-weight:bold;text-decoration:none;font-size:15px;">📧 ${opts.contactEmail}</a>` : ''}
+    </p>
+    <p style="font-size:15px;color:#333;margin:0;">Gracias por su atención.</p>
+  </div>
+
+  <div style="background:#1a1a1a;padding:18px 32px;text-align:center;">
+    <p style="color:#ffcc00;font-size:13px;font-weight:bold;margin:0 0 4px;">${opts.clubName}</p>
+    ${opts.contactEmail ? `<p style="color:#888;font-size:12px;margin:0;">${opts.contactEmail}</p>` : ''}
+  </div>
+</div>`
+}

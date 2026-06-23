@@ -42,6 +42,7 @@ export interface EngagementLead {
   clickedAt: string | null
   subject: string
   status: string
+  followupSentAt: string | null
 }
 
 export interface ClickDetail {
@@ -258,6 +259,11 @@ export function EngagementPanel({ leads, clickDetails, clickDests, subjectPerf, 
                       }`}>
                         {lead.heat?.badge}
                       </span>
+                      {lead.followupSentAt && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 font-medium">
+                          ✉ Followup enviado · esperando respuesta
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-1 flex-wrap text-xs text-slate-400">
                       {lead.federation && <span>{lead.federation}</span>}
@@ -276,12 +282,16 @@ export function EngagementPanel({ leads, clickDetails, clickDests, subjectPerf, 
                       <button
                         onClick={() => openSendModal(lead)}
                         disabled={sendingClub === lead.clubId || isPending}
-                        title={`Enviar email a ${lead.email}`}
-                        className="flex items-center gap-1 px-2 py-1 rounded bg-pink-900/60 hover:bg-pink-900 text-pink-300 text-xs disabled:opacity-50">
+                        title={lead.followupSentAt ? `Ya enviado. Clic para reenviar otra plantilla a ${lead.email}` : `Enviar followup a ${lead.email}`}
+                        className={`flex items-center gap-1 px-2 py-1 rounded text-xs disabled:opacity-50 ${
+                          lead.followupSentAt
+                            ? 'bg-slate-700 hover:bg-slate-600 text-slate-400'
+                            : 'bg-pink-900/60 hover:bg-pink-900 text-pink-300'
+                        }`}>
                         {sendingClub === lead.clubId
                           ? <Loader2 className="w-3 h-3 animate-spin" />
                           : <Send className="w-3 h-3" />}
-                        Enviar
+                        {lead.followupSentAt ? 'Reenviar' : 'Enviar'}
                       </button>
                     )}
                     {lead.phone && (

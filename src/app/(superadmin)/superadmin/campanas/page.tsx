@@ -115,7 +115,7 @@ export default async function CampanasPage({
     // de apertura pero el clic sí se registra → un clic es señal MÁS fuerte que
     // una apertura, no puede faltar del panel de leads.
     sb.from('marketing_email_sends')
-      .select('id, sent_at, opened_at, clicked_at, subject, club_id, marketing_clubs(id, name, email, phone, federation, location, status)')
+      .select('id, sent_at, opened_at, clicked_at, subject, club_id, marketing_clubs(id, name, email, phone, federation, location, status, followup_click_sent_at)')
       .or('opened_at.not.is.null,clicked_at.not.is.null')
       .gte('sent_at', windowStart)
       .order('clicked_at', { ascending: false, nullsFirst: false })
@@ -147,6 +147,7 @@ export default async function CampanasPage({
     clickedAt: s.clicked_at,
     subject: s.subject,
     status: s.marketing_clubs?.status ?? '',
+    followupSentAt: s.marketing_clubs?.followup_click_sent_at ?? null,
   }))
 
   // Detalle de clics por send (para cruzar con leads)
