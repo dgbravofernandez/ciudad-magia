@@ -31,28 +31,28 @@ COL_WEB   = 3
 RUTA      = r"C:\Users\dgbra\Ciudad Magia\docs\marketing\Seguimiento-Clubes-Multi-Federacion.xlsx"
 
 # ─── TIEMPOS BASE (se aplica jitter ±30% sobre todos) ────────────────────────
-# v2.1: SLEEP_FICHA 7→4s (−43% tiempo activo), CB sleeps más agresivos,
-#        threshold 12→8, early-exit si hit rate < 3% tras 80 fichas
-SLEEP_FICHA    = 4.0   # era 7.0 — la mayoría de fichas no tienen email: no penalizar más
+# v2.2: SLEEP_FICHA 4s→5.5s (4s era demasiado agresivo, bloqueaba IPs),
+#        CB_THRESHOLD 8→10 (menos trigger-happy), early-exit tras 80 fichas
+SLEEP_FICHA    = 5.5   # 4s → IP block. 7s → demasiado lento. 5.5s equilibrio.
 SLEEP_PAGE     = 6.0
 SLEEP_FED      = 12.0
-SLEEP_RETRY_Q  = 1200.0   # era 1800 — 20 min entre pase 1 y pase 2
+SLEEP_RETRY_Q  = 1200.0
 SAVE_EVERY     = 10
 
-def jitter(base: float, pct: float = 0.30) -> float:
+def jitter(base: float, pct: float = 0.25) -> float:
     """Aplica ±pct de variación aleatoria para evitar patrones detectables."""
     return base * random.uniform(1 - pct, 1 + pct)
 
-# CIRCUIT BREAKER — más agresivo (antes tardaba 220 min en 8 trips, ahora ~100 min en 6)
-CB_THRESHOLD   = 8     # era 12 — dispara antes, no malgastes 4 fichas vacías extra
-CB_MAX_TRIPS   = 6     # era 8
+# CIRCUIT BREAKER
+CB_THRESHOLD   = 10    # 8 disparaba demasiado rápido cuando server lento
+CB_MAX_TRIPS   = 6
 
 def cb_sleep_time(trips: int) -> float:
-    """Sleep adaptativo: 5→8→12→18→25→35 min. Era 10→15→…→45 (220 min total)."""
-    bases = [300, 480, 720, 1080, 1500, 2100]
+    """Sleep adaptativo: 8→12→18→25→35→45 min."""
+    bases = [480, 720, 1080, 1500, 2100, 2700]
     return float(bases[min(trips - 1, len(bases) - 1)])
 
-ROTATE_EVERY   = 15   # era 20 — rotar UA más frecuente
+ROTATE_EVERY   = 20   # rotar UA cada 20 fichas
 
 # Federaciones objetivo (baja cobertura)
 TARGET_FEDS = {

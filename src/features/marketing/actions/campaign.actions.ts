@@ -160,7 +160,7 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
       send_id: sendRow.id,
       club_url: clubNameUrl,
       demo_url: demoUrl,
-      reservar_url: `${base}/reservar`,
+      reservar_url: `${base}/reservar?s=${sendRow.id}`,
     }
     const subject = renderTemplate(tpl.subject, vars)
     const html = wrapLinksForTracking(renderTemplate(tpl.body_html, vars), sendRow.id)
