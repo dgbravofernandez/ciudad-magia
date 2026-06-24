@@ -168,6 +168,9 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
       fromName: settings.from_name,
       replyTo: settings.reply_to || settings.from_email,
       unsubscribeUrl: vars.unsubscribe_url,
+      // email_1 = primer contacto frío: texto plano solo, sin List-Unsubscribe header.
+      // El header List-Unsubscribe clasifica el email en Promociones automáticamente.
+      coldOutreach: templateKey === 'email_1',
     })
 
     if (result.sent) {

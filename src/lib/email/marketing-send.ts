@@ -20,6 +20,10 @@ interface MarketingEmailPayload {
   fromName: string
   replyTo?: string
   unsubscribeUrl?: string  // Para List-Unsubscribe one-click (RFC 8058)
+  // coldOutreach: envía solo texto plano, sin List-Unsubscribe header.
+  // Los emails HTML + List-Unsubscribe van siempre a Promociones en Gmail.
+  // Para cold outreach (email_1), el unsubscribe va embebido en body_text como URL plana.
+  coldOutreach?: boolean
 }
 
 const RESEND_KEY = process.env.RESEND_API_KEY
@@ -44,7 +48,8 @@ async function sendViaResend(payload: MarketingEmailPayload): Promise<{ sent: bo
 
   try {
     const extraHeaders: Record<string, string> = {}
-    if (payload.unsubscribeUrl) {
+    // coldOutreach: sin List-Unsubscribe (ese header clasifica automáticamente como Promociones)
+    if (!payload.coldOutreach && payload.unsubscribeUrl) {
       extraHeaders['List-Unsubscribe'] = `<${payload.unsubscribeUrl}>, <mailto:${MARKETING_FROM}?subject=baja>`
       extraHeaders['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
     }
@@ -52,8 +57,11 @@ async function sendViaResend(payload: MarketingEmailPayload): Promise<{ sent: bo
       from: `${payload.fromName} <${MARKETING_FROM}>`,
       to: payload.to,
       subject: payload.subject,
-      html: payload.html,
-      ...(payload.text ? { text: payload.text } : {}),
+      // coldOutreach: solo texto plano — HTML activa clasificador de Promociones de Gmail
+      ...(payload.coldOutreach
+        ? { text: payload.text ?? payload.html }
+        : { html: payload.html, ...(payload.text ? { text: payload.text } : {}) }
+      ),
       replyTo: payload.replyTo ?? MARKETING_REPLY_TO,
       headers: extraHeaders,
     })
@@ -79,7 +87,7 @@ async function sendViaGmail(payload: MarketingEmailPayload): Promise<{ sent: boo
   const transport = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } })
   try {
     const extraHeaders: Record<string, string> = {}
-    if (payload.unsubscribeUrl) {
+    if (!payload.coldOutreach && payload.unsubscribeUrl) {
       extraHeaders['List-Unsubscribe'] = `<${payload.unsubscribeUrl}>, <mailto:${MARKETING_REPLY_TO}?subject=baja>`
       extraHeaders['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
     }
@@ -87,8 +95,10 @@ async function sendViaGmail(payload: MarketingEmailPayload): Promise<{ sent: boo
       from: `${payload.fromName} <${user}>`,
       to: payload.to,
       subject: payload.subject,
-      html: payload.html,
-      ...(payload.text ? { text: payload.text } : {}),
+      ...(payload.coldOutreach
+        ? { text: payload.text ?? payload.html }
+        : { html: payload.html, ...(payload.text ? { text: payload.text } : {}) }
+      ),
       replyTo: payload.replyTo ?? MARKETING_REPLY_TO,
       headers: extraHeaders,
     })
