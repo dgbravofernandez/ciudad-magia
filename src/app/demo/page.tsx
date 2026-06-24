@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { CluberlyMark } from '@/components/brand/CluberlyMark'
+import { recordEmailClick } from '@/lib/marketing/track-click'
 
 export const metadata: Metadata = {
   title: 'Demo Cluberly — 60 segundos',
@@ -18,6 +19,8 @@ export default async function DemoPage({
   searchParams: Promise<{ fed?: string; s?: string }>
 }) {
   const params = await searchParams
+  // Registrar click si viene de un email de texto plano (?s=sendId)
+  if (params.s) await recordEmailClick(params.s, '/demo')
   // fed=rffm → vídeo con datos RFFM/goleadores Madrid
   // el resto → vídeo genérico (sin mención a RFFM)
   const isRffm = params.fed === 'rffm'

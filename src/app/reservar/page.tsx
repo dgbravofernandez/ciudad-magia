@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { BookingView } from './BookingView'
+import { recordEmailClick } from '@/lib/marketing/track-click'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,9 +12,11 @@ export const metadata = {
 export default async function ReservarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ c?: string; club?: string }>
+  searchParams: Promise<{ c?: string; club?: string; s?: string }>
 }) {
   const sp = await searchParams
+  // Registrar click si viene de un email de texto plano (?s=sendId)
+  if (sp.s) await recordEmailClick(sp.s, '/reservar')
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = createAdminClient() as any
