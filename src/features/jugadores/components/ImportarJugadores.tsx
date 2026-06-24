@@ -119,9 +119,9 @@ function birthYear(dob: string | null): number | null {
   return parseInt(dob.slice(0, 4))
 }
 
-// Alevín: born in current season's 1st year → F7, 2nd year → F11
-// Season 2025/26: 1st year = 2015, 2nd year = 2014
-// We detect by: the YOUNGER cohort (higher year) = F7, OLDER cohort (lower year) = F11
+// Alevín: 1er año de la categoría → F7, 2º año → F11.
+// El año se detecta DINÁMICAMENTE de los datos importados (no hardcodeado a una
+// temporada): la cohorte más joven (año mayor) = F7, la más vieja (año menor) = F11.
 function alevinFormat(dob: string | null, allAlevinDobs: (string | null)[]): 'F7' | 'F11' {
   const year = birthYear(dob)
   if (!year) return 'F7'

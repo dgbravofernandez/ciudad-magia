@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -857,9 +857,32 @@ function PagosTab({ payments }: { payments: QuotaPayment[] }) {
 }
 
 import { driveViewUrl, driveImageUrl } from '@/lib/utils/drive'
+import { uploadPlayerDocument } from '@/features/jugadores/actions/document.actions'
 
-function DocRow({ label, url }: { label: string; url: string | null | undefined }) {
+function DocRow({ label, url, playerId, docType }: {
+  label: string
+  url: string | null | undefined
+  playerId: string
+  docType: string
+}) {
   const hasDoc = !!url
+  const router = useRouter()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [isPending, startTransition] = useTransition()
+
+  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const fd = new FormData()
+    fd.append('file', file)
+    startTransition(async () => {
+      const res = await uploadPlayerDocument(playerId, docType, fd)
+      if (res.success) { toast.success('Documento subido'); router.refresh() }
+      else toast.error(res.error ?? 'Error al subir el documento')
+    })
+    e.target.value = ''  // permitir resubir el mismo archivo
+  }
+
   return (
     <div className="flex items-center justify-between py-2 border-b last:border-0">
       <div className="flex items-center gap-2 text-sm">
@@ -868,16 +891,35 @@ function DocRow({ label, url }: { label: string; url: string | null | undefined 
           : <XCircle className="w-4 h-4 text-red-400 shrink-0" />}
         <span className={hasDoc ? 'text-foreground' : 'text-muted-foreground'}>{label}</span>
       </div>
-      {hasDoc && url && (
-        <a
-          href={driveViewUrl(url)}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
-        >
-          Ver <ExternalLink className="w-3 h-3" />
-        </a>
-      )}
+      <div className="flex items-center gap-3">
+        {hasDoc && url && (
+          <a
+            href={driveViewUrl(url)}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
+          >
+            Ver <ExternalLink className="w-3 h-3" />
+          </a>
+        )}
+        <RoleGuard roles={['admin', 'direccion', 'coordinador']}>
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={isPending}
+            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            {isPending ? 'Subiendo…' : hasDoc ? 'Reemplazar' : 'Subir'}
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+            className="hidden"
+            onChange={onPick}
+          />
+        </RoleGuard>
+      </div>
     </div>
   )
 }
@@ -927,18 +969,18 @@ function DocumentosTab({ player }: { player: PlayerWithTeam }) {
           </div>
         )}
 
-        <DocRow label="Foto jugador" url={p.photo_url} />
-        <DocRow label="DNI cara 1" url={p.dni_front_url} />
-        <DocRow label="DNI cara 2 / Libro familia" url={p.dni_back_url} />
-        {!isSpanish && <DocRow label="NIE" url={p.nie_url} />}
-        {!isSpanish && <DocRow label="Pasaporte" url={p.passport_url} />}
+        <DocRow label="Foto jugador" url={p.photo_url} playerId={p.id} docType="photo" />
+        <DocRow label="DNI cara 1" url={p.dni_front_url} playerId={p.id} docType="dni_front" />
+        <DocRow label="DNI cara 2 / Libro familia" url={p.dni_back_url} playerId={p.id} docType="dni_back" />
+        {!isSpanish && <DocRow label="NIE" url={p.nie_url} playerId={p.id} docType="nie" />}
+        {!isSpanish && <DocRow label="Pasaporte" url={p.passport_url} playerId={p.id} docType="passport" />}
       </div>
 
       {/* Certificates */}
       <div className="card p-5 space-y-4">
         <h3 className="font-semibold">Certificados</h3>
-        <DocRow label="Certificado de nacimiento" url={p.birth_cert_url} />
-        <DocRow label="Cert. empadronamiento" url={p.residency_cert_url} />
+        <DocRow label="Certificado de nacimiento" url={p.birth_cert_url} playerId={p.id} docType="birth_cert" />
+        <DocRow label="Cert. empadronamiento" url={p.residency_cert_url} playerId={p.id} docType="residency_cert" />
         {p.forms_link && (
           <a href={p.forms_link} target="_blank" rel="noreferrer"
             className="flex items-center gap-1 text-xs text-blue-600 hover:underline">

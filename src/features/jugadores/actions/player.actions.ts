@@ -331,7 +331,8 @@ export async function sendEmail(playerId: string, emailType: string) {
   const { data: clubRow } = await sb.from('clubs').select('name').eq('id', clubId).single()
   const clubName: string = (clubRow as { name?: string } | null)?.name ?? 'El Club'
 
-  const fallbacks = buildFallbackEmail(emailType, playerName, tutorName, teamName, clubName, player.forms_link, coachName, birthYear)
+  const emailCtx = await buildEmailCtx(sb, clubId)
+  const fallbacks = buildFallbackEmail(emailType, playerName, tutorName, teamName, clubName, player.forms_link, coachName, birthYear, emailCtx)
 
   const tokens: Record<string, string> = {
     '{{player_name}}': playerName,
@@ -390,6 +391,38 @@ export async function sendEmail(playerId: string, emailType: string) {
   return { success: true, emailSent, recipientEmail }
 }
 
+/**
+ * Reúne el contexto de marca/temporada del club para los emails de fallback:
+ * color de marca, etiqueta de la próxima temporada, su año de inicio y la fecha
+ * límite de reserva. Todo desde BD — nada hardcodeado a un club concreto.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function buildEmailCtx(sb: any, clubId: string): Promise<{
+  primaryColor?: string; seasonLabel?: string; seasonStartYear?: number; reservationDeadline?: string | null
+}> {
+  const [{ data: club }, { data: settings }] = await Promise.all([
+    sb.from('clubs').select('primary_color').eq('id', clubId).single(),
+    sb.from('club_settings').select('current_season, reservation_deadline').eq('club_id', clubId).single(),
+  ])
+  const current: string | null = settings?.current_season ?? null
+  let seasonLabel: string | undefined
+  let seasonStartYear: number | undefined
+  if (current) {
+    try {
+      const { bumpSeason } = await import('@/lib/utils/season')
+      seasonLabel = bumpSeason(current)               // temporada destino, ej. '2026/27'
+      const m = seasonLabel.match(/^(\d{4})/)
+      if (m) seasonStartYear = parseInt(m[1], 10)
+    } catch { /* formato no reconocido → sin etiqueta */ }
+  }
+  return {
+    primaryColor: club?.primary_color || undefined,
+    seasonLabel,
+    seasonStartYear,
+    reservationDeadline: settings?.reservation_deadline ?? null,
+  }
+}
+
 function buildFallbackEmail(
   type: string,
   playerName: string,
@@ -398,67 +431,82 @@ function buildFallbackEmail(
   clubName: string,
   formsLink?: string | null,
   coachName?: string | null,
-  birthYear?: number | null
+  birthYear?: number | null,
+  ctx?: {
+    primaryColor?: string
+    seasonLabel?: string        // temporada destino, ej. '2026/27'
+    seasonStartYear?: number    // año de inicio de esa temporada, ej. 2026
+    reservationDeadline?: string | null  // ISO YYYY-MM-DD o null
+  }
 ): { subject: string; body: string } {
-  // Players born in 2010 or earlier belong to the juvenile categories,
-  // where the club cannot confirm continuity until all juvenile renewals
-  // are tallied (limited training slots / teams).
-  const isJuvenile = typeof birthYear === 'number' && birthYear <= 2010
+  // ── Valores dinámicos (no hardcodear datos de un club concreto) ──────────────
+  const brand = ctx?.primaryColor || '#2563eb'       // color de marca del club
+  const seasonTxt = ctx?.seasonLabel || 'la próxima temporada'
+  const seasonShort = ctx?.seasonLabel ?? ''         // para subjects: "Inscripción 2026/27"
+  const deadlineTxt = ctx?.reservationDeadline
+    ? new Date(ctx.reservationDeadline).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+    : null
+  // Categoría juvenil: nacidos hasta (añoInicioTemporada − 16). Generaliza el antiguo
+  // "<= 2010" (temporada 2026/27 → 2026−16 = 2010). Sin contexto, cae al límite previo.
+  const startYear = ctx?.seasonStartYear
+  const isJuvenile = typeof birthYear === 'number'
+    && (typeof startYear === 'number' ? birthYear <= startYear - 16 : birthYear <= 2010)
   const CLUB = clubName
   const border = (color: string) =>
     `font-family:Arial,sans-serif;padding:25px;border:4px solid ${color};border-radius:15px;color:#333;`
 
   switch (type) {
-    case 'fill_form':
+    case 'fill_form': {
+      const limite = deadlineTxt ? ` antes del <strong>${deadlineTxt}</strong>` : ''
       return {
-        subject: `Confirmación de inscripción 26/27 - ${CLUB}`,
-        body: `<div style="${border('#ffcc00')}">
-          <h2 style="color:#000;text-align:center;">Proceso de Inscripción - Temporada 26/27</h2>
+        subject: `Confirmación de inscripción ${seasonShort} - ${CLUB}`.replace(/\s{2,}/g, ' '),
+        body: `<div style="${border(brand)}">
+          <h2 style="color:#000;text-align:center;">Proceso de Inscripción - Temporada ${seasonShort}</h2>
           <p>Estimado/a <strong>${tutorName}</strong>,</p>
-          <p>Nos ponemos en contacto para conocer si <strong>${playerName}</strong> desea continuar en nuestra escuela la próxima temporada, con el objetivo de conocer las plazas disponibles y planificar la temporada 26/27.</p>
-          <p>Por favor, rellena el siguiente formulario antes del <strong>8 de mayo de 2026</strong>:</p>
+          <p>Nos ponemos en contacto para conocer si <strong>${playerName}</strong> desea continuar con nosotros ${seasonTxt}, con el objetivo de conocer las plazas disponibles y planificar la temporada.</p>
+          <p>Por favor, rellena el siguiente formulario${limite}:</p>
           ${formsLink
             ? `<div style="text-align:center;margin:25px 0;">
-                <a href="${formsLink}" style="background:#ffcc00;color:#000;padding:14px 30px;border-radius:8px;font-weight:bold;text-decoration:none;font-size:16px;display:inline-block;">
+                <a href="${formsLink}" style="background:${brand};color:#fff;padding:14px 30px;border-radius:8px;font-weight:bold;text-decoration:none;font-size:16px;display:inline-block;">
                   Rellenar formulario
                 </a>
               </div>
               <p style="font-size:0.85em;color:#888;text-align:center;">O copia este enlace en tu navegador:<br>${formsLink}</p>`
             : `<p><em>El enlace al formulario estará disponible próximamente. Si tienes dudas contacta con la secretaría.</em></p>`
           }
-          <p>La fecha límite para responder es el <strong>8 de mayo de 2026</strong>. Esta información es imprescindible para gestionar correctamente las plazas disponibles en la escuela.</p>
+          <p>${deadlineTxt ? `La fecha límite para responder es el <strong>${deadlineTxt}</strong>. ` : ''}Esta información es imprescindible para gestionar correctamente las plazas disponibles.</p>
           <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
           <p style="text-align:center;font-size:0.9em;">Atentamente,<br><strong>La Dirección - ${CLUB}</strong></p>
         </div>`,
       }
+    }
     case 'team_assignment':
       return {
         subject: `Asignación y Reserva de Plaza - ${CLUB}`,
-        body: `<div style="${border('#ffcc00')}">
-          <h2 style="color:#000;text-align:center;">Notificación de Asignación - Temporada 26/27</h2>
+        body: `<div style="${border(brand)}">
+          <h2 style="color:#000;text-align:center;">Notificación de Asignación${seasonShort ? ` - Temporada ${seasonShort}` : ''}</h2>
           <p>Estimado/a <strong>${tutorName}</strong>,</p>
-          <p>Nos complace comunicarle la asignación oficial de <strong>${playerName}</strong> para la próxima temporada:</p>
-          <div style="background:#f9f9f9;padding:15px;border-radius:10px;margin:20px 0;border-left:5px solid #ffcc00;">
+          <p>Nos complace comunicarle la asignación oficial de <strong>${playerName}</strong> para ${seasonTxt}:</p>
+          <div style="background:#f9f9f9;padding:15px;border-radius:10px;margin:20px 0;border-left:5px solid ${brand};">
             <p style="margin:5px 0;"><strong>Categoría:</strong> ${teamName}</p>
             <p style="margin:5px 0;"><strong>Cuerpo Técnico:</strong> ${coachName ?? 'Pendiente de asignar'}</p>
           </div>
-          <div style="background:#000;color:#ffcc00;padding:20px;text-align:center;border-radius:10px;margin:20px 0;">
-            <h3 style="margin:0;">IMPORTE RESERVA: 60,00€</h3>
-            <p style="margin:10px 0 0 0;font-size:1.1em;"><strong>PLAZO LÍMITE: 15 de junio de 2026</strong></p>
-          </div>
-          <p style="font-size:0.9em;color:#666;"><em>Rogamos respeten los plazos establecidos para garantizar la correcta planificación deportiva. Ante cualquier duda, contacten con la secretaría.</em></p>
+          ${deadlineTxt ? `<div style="background:#000;color:#fff;padding:20px;text-align:center;border-radius:10px;margin:20px 0;">
+            <p style="margin:0;font-size:1.1em;"><strong>Plazo límite de reserva: ${deadlineTxt}</strong></p>
+          </div>` : ''}
+          <p style="font-size:0.9em;color:#666;"><em>Para confirmar la plaza, realicen el pago de la reserva según las tarifas del club dentro del plazo indicado. Ante cualquier duda, contacten con la secretaría.</em></p>
           <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
           <p style="text-align:center;"><strong>Atentamente,<br>La Dirección - ${CLUB}</strong></p>
         </div>`,
       }
     case 'dismissed_requirements':
       return {
-        subject: `Información sobre la inscripción 26/27 - ${CLUB}`,
-        body: `<div style="${border('#ffcc00')}">
-          <h2 style="color:#000;text-align:center;">Inscripción Temporada 26/27</h2>
+        subject: `Información sobre la inscripción ${seasonShort} - ${CLUB}`.replace(/\s{2,}/g, ' '),
+        body: `<div style="${border(brand)}">
+          <h2 style="color:#000;text-align:center;">Inscripción${seasonShort ? ` Temporada ${seasonShort}` : ''}</h2>
           <p>Estimado/a <strong>${tutorName}</strong>,</p>
           <p>En primer lugar, queremos agradecerle de corazón la confianza depositada en la <strong>${CLUB}</strong> y el tiempo que <strong>${playerName}</strong> ha compartido con nosotros.</p>
-          <p>Lamentamos comunicarle que, tras revisar los requisitos de inscripción para la temporada 26/27, en esta ocasión no podemos confirmar la continuidad de su plaza. Somos conscientes de que no es la noticia que esperaban y sentimos de veras no poder darles una respuesta diferente.</p>
+          <p>Lamentamos comunicarle que, tras revisar los requisitos de inscripción para ${seasonTxt}, en esta ocasión no podemos confirmar la continuidad de su plaza. Somos conscientes de que no es la noticia que esperaban y sentimos de veras no poder darles una respuesta diferente.</p>
           <p>Le deseamos lo mejor a <strong>${playerName}</strong> en esta nueva etapa.</p>
           <p>Si tiene alguna pregunta sobre esta decisión, puede dirigirse a la secretaría del club.</p>
           <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
@@ -480,7 +528,7 @@ function buildFallbackEmail(
       const uploadLink = formsLink || ''
       return {
         subject: `Documentación pendiente - ${CLUB}`,
-        body: `<div style="${border('#ffcc00')}">
+        body: `<div style="${border(brand)}">
           <h2 style="color:#000;text-align:center;">Solicitud de Documentación</h2>
           <p>Estimado/a <strong>${tutorName}</strong>,</p>
           <p>Para completar la inscripción de <strong>${playerName}</strong> en la ${teamName ? `categoría <strong>${teamName}</strong> de la ` : ''}${CLUB}, necesitamos recibir la siguiente documentación:</p>
@@ -492,7 +540,7 @@ function buildFallbackEmail(
           </ul>
           ${uploadLink ? `<p>Por favor, suba los documentos en el siguiente enlace:</p>
           <div style="text-align:center;margin:25px 0;">
-            <a href="${uploadLink}" style="background:#ffcc00;color:#000;padding:14px 30px;border-radius:8px;font-weight:bold;text-decoration:none;font-size:16px;display:inline-block;">
+            <a href="${uploadLink}" style="background:${brand};color:#fff;padding:14px 30px;border-radius:8px;font-weight:bold;text-decoration:none;font-size:16px;display:inline-block;">
               Subir documentación
             </a>
           </div>
@@ -507,7 +555,7 @@ function buildFallbackEmail(
       if (isJuvenile) {
         return {
           subject: `Hemos recibido su respuesta - ${CLUB}`,
-          body: `<div style="${border('#ffcc00')}">
+          body: `<div style="${border(brand)}">
             <h2>Respuesta Recibida — Categoría Juvenil</h2>
             <p>Hola <strong>${tutorName}</strong>,</p>
             <p>Hemos recibido su respuesta indicando que <strong>${playerName}</strong> desea continuar con nosotros la próxima temporada.</p>
@@ -520,7 +568,7 @@ function buildFallbackEmail(
       }
       return {
         subject: `¡Contamos contigo! - ${CLUB}`,
-        body: `<div style="${border('#ffcc00')}">
+        body: `<div style="${border(brand)}">
           <h2>¡Confirmación Recibida!</h2>
           <p>Hola <strong>${tutorName}</strong>,</p>
           <p>Hemos recibido su respuesta y nos alegra confirmar que contamos con <strong>${playerName}</strong> para la próxima temporada. En las próximas semanas recibirán un correo con la asignación de equipo y la información para reservar la plaza.</p>
@@ -587,7 +635,8 @@ export async function dismissPlayerInscription(
 
       const { data: clubRow } = await sb.from('clubs').select('name').eq('id', clubId).single()
       const dismissClubName: string = (clubRow as { name?: string } | null)?.name ?? 'El Club'
-      const fallback = buildFallbackEmail(emailType, playerName, tutorName, '', dismissClubName)
+      const dismissCtx = await buildEmailCtx(sb, clubId)
+      const fallback = buildFallbackEmail(emailType, playerName, tutorName, '', dismissClubName, null, null, null, dismissCtx)
       const subject = (template?.subject ?? fallback.subject) as string
       const body = (template?.body_html ?? fallback.body) as string
 
@@ -826,7 +875,12 @@ export async function importPlayers(
 
   // 0. Auto-create any teams that don't exist yet
   //    Group players by team_label, check which exist, create missing ones
-  const SEASON = '2025/26'
+  //    Temporada dinámica: la del club (club_settings.current_season), no hardcodeada.
+  const { getCurrentSeason } = await import('@/lib/utils/currency')
+  const { data: seasonSettings } = await supabase
+    .from('club_settings').select('current_season').eq('club_id', clubId).single()
+  const SEASON = ((seasonSettings as { current_season?: string } | null)?.current_season)
+    || getCurrentSeason().replace('-', '/')   // fallback: temporada actual calculada (formato YYYY/YY)
   const labelMap = new Map<string, string | null>() // team_label → team_id (filled below)
 
   const uniqueLabels = [...new Set(players.map(p => p.team_label).filter(Boolean))] as string[]
@@ -952,11 +1006,17 @@ export async function sendTrialLetter(
   if (!player) return { success: false, error: 'Jugador no encontrado' }
 
   const [{ data: club }, { data: clubSettings }] = await Promise.all([
-    sb.from('clubs').select('name').eq('id', clubId).single(),
-    sb.from('club_settings').select('cif').eq('club_id', clubId).single(),
+    sb.from('clubs').select('name, primary_color').eq('id', clubId).single(),
+    sb.from('club_settings').select('cif, current_season').eq('club_id', clubId).single(),
   ])
 
   const clubName = club?.name ?? 'El Club'
+  const brand = club?.primary_color || '#2563eb'
+  // Temporada destino dinámica (no hardcodear '26/27')
+  let trialSeason = ''
+  if (clubSettings?.current_season) {
+    try { const { bumpSeason } = await import('@/lib/utils/season'); trialSeason = bumpSeason(clubSettings.current_season) } catch { /* sin etiqueta */ }
+  }
   const playerName = `${player.first_name} ${player.last_name}`
   const currentDate = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
 
@@ -995,9 +1055,9 @@ export async function sendTrialLetter(
   let emailSent = false
   if (player.tutor_email) {
     const subject = `Carta de pruebas — ${playerName}`
-    const html = `<div style="font-family:Arial,sans-serif;padding:25px;border:4px solid #ffcc00;border-radius:15px;color:#333;">
+    const html = `<div style="font-family:Arial,sans-serif;padding:25px;border:4px solid ${brand};border-radius:15px;color:#333;">
       <p>Estimado/a Familia:</p>
-      <p>Como es de su conocimiento, al expedir la carta de pruebas, el club se reserva el derecho de no ofrecer continuidad al jugador para la temporada 26/27. Agradecemos su comprensión respecto a esta política de la entidad.</p>
+      <p>Como es de su conocimiento, al expedir la carta de pruebas, el club se reserva el derecho de no ofrecer continuidad al jugador${trialSeason ? ` para la temporada ${trialSeason}` : ''}. Agradecemos su comprensión respecto a esta política de la entidad.</p>
       <p>Adjuntamos la carta de pruebas correspondiente a <strong>${playerName}</strong> para su constancia.</p>
       <p>Quedamos a su disposición para cualquier duda o aclaración adicional.</p>
       <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
@@ -1279,7 +1339,8 @@ export async function getPlayerPerformance(
         .select('current_season')
         .eq('club_id', clubId)
         .single()
-      currentSeason = (settings?.current_season as string | undefined) ?? '2025/26'
+      const { getCurrentSeason } = await import('@/lib/utils/currency')
+      currentSeason = (settings?.current_season as string | undefined) ?? getCurrentSeason().replace('-', '/')
     }
     const { start, end } = seasonRange(currentSeason)
 

@@ -71,9 +71,17 @@ function parseDMY(s: string): string | null {
   return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
 }
 
-function col(headers: string[], keyword: string): number {
-  const kw = keyword.toLowerCase()
-  return headers.findIndex(h => h.toLowerCase().includes(kw))
+// Acepta uno o varios sinónimos (tolerante a la redacción del Form de cada club).
+// Normaliza acentos para que 'pasaporte'/'fotografía' casen sin tildes.
+function col(headers: string[], keyword: string | string[]): number {
+  const kws = (Array.isArray(keyword) ? keyword : [keyword]).map(k =>
+    k.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''))
+  const norm = headers.map(h => h.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''))
+  for (const kw of kws) {
+    const idx = norm.findIndex(h => h.includes(kw))
+    if (idx >= 0) return idx
+  }
+  return -1
 }
 
 // ─── Main action: receives pre-fetched CSV rows from the client ───────────────
@@ -123,18 +131,18 @@ export async function matchAndPreview(
     let unmatchedDocs = 0
     if (docsRows.length > 1) {
       const headers = docsRows[0]
-      const iPhoto     = col(headers, 'foto del jugador')
-      const iNatES     = col(headers, 'nacionalidad española')
-      const iNIE       = col(headers, 'nie del jugador')
-      const iPassport  = col(headers, 'pasaporte del jugador')
-      const iBirthCert = col(headers, 'nacimiento')
-      const iResid     = col(headers, 'empadronamiento')
-      const iDniBack   = col(headers, 'cara 2')
-      const iName      = col(headers, 'nombre y apellidos')
-      const iDob       = col(headers, 'fecha nacimiento')
-      const iDNI       = col(headers, 'dni')
-      const iEmail     = col(headers, 'correo electronico')
-      const iDniFront  = col(headers, 'cara 1')
+      const iPhoto     = col(headers, ['foto del jugador', 'fotografia', 'foto', 'photo'])
+      const iNatES     = col(headers, ['nacionalidad espanola', 'nacionalidad', 'es espanol'])
+      const iNIE       = col(headers, ['nie del jugador', 'nie'])
+      const iPassport  = col(headers, ['pasaporte del jugador', 'pasaporte', 'passport'])
+      const iBirthCert = col(headers, ['certificado de nacimiento', 'partida de nacimiento', 'nacimiento'])
+      const iResid     = col(headers, ['empadronamiento', 'padron', 'residencia'])
+      const iDniBack   = col(headers, ['cara 2', 'dni trasera', 'reverso', 'detras'])
+      const iName      = col(headers, ['nombre y apellidos', 'nombre completo', 'nombre y apellido', 'jugador'])
+      const iDob       = col(headers, ['fecha nacimiento', 'fecha de nacimiento', 'nacimiento'])
+      const iDNI       = col(headers, ['dni', 'nif', 'documento'])
+      const iEmail     = col(headers, ['correo electronico', 'email', 'correo', 'e-mail'])
+      const iDniFront  = col(headers, ['cara 1', 'dni delantera', 'anverso', 'delante'])
 
       for (let r = 1; r < docsRows.length; r++) {
         const row = docsRows[r]
@@ -187,14 +195,14 @@ export async function matchAndPreview(
     let unmatchedTutors = 0
     if (tutorsRows.length > 1) {
       const headers = tutorsRows[0]
-      const iNombre = col(headers, 'nombre')
-      const iApells = col(headers, 'apellidos')
-      const iDob    = col(headers, 'nacimiento')
-      const iDNI    = col(headers, 'dni')
-      const iTutorN = col(headers, 'nombre tutor')
-      const iTutorE = col(headers, 'correo electronico tutor')
-      const iTutorT = col(headers, 'telefono')
-      const iPos    = col(headers, 'posici')
+      const iNombre = col(headers, ['nombre del jugador', 'nombre'])
+      const iApells = col(headers, ['apellidos', 'apellido'])
+      const iDob    = col(headers, ['fecha nacimiento', 'fecha de nacimiento', 'nacimiento'])
+      const iDNI    = col(headers, ['dni', 'nif', 'documento'])
+      const iTutorN = col(headers, ['nombre tutor', 'nombre del tutor', 'tutor', 'padre', 'madre', 'responsable'])
+      const iTutorE = col(headers, ['correo electronico tutor', 'email tutor', 'correo tutor', 'correo electronico', 'email'])
+      const iTutorT = col(headers, ['telefono', 'movil', 'tel', 'contacto'])
+      const iPos    = col(headers, ['posicion', 'posici', 'demarcacion'])
 
       for (let r = 1; r < tutorsRows.length; r++) {
         const row = tutorsRows[r]
