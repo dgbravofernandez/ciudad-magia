@@ -20,6 +20,8 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 import openpyxl, requests
 from bs4 import BeautifulSoup
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 sys.path.insert(0, os.path.dirname(__file__))
 from scraper_federaciones import (
@@ -31,28 +33,51 @@ COL_WEB   = 3
 RUTA      = r"C:\Users\dgbra\Ciudad Magia\docs\marketing\Seguimiento-Clubes-Multi-Federacion.xlsx"
 
 # ─── TIEMPOS BASE (se aplica jitter ±30% sobre todos) ────────────────────────
-# v2.2: SLEEP_FICHA 4s→5.5s (4s era demasiado agresivo, bloqueaba IPs),
-#        CB_THRESHOLD 8→10 (menos trigger-happy), early-exit tras 80 fichas
-SLEEP_FICHA    = 5.5   # 4s → IP block. 7s → demasiado lento. 5.5s equilibrio.
+# v3.0 — ROUND-ROBIN + BAIL RÁPIDO
+#   Causa raíz del atasco en ~50 emails/fed: los servidores PNFG pequeños
+#   (novanet compartido) bloquean tras ~50-80 requests rápidos. El CB v2 hacía
+#   6 trips con sleeps de hasta 45 min (2h muertas) y luego el early-exit
+#   confundía "bloqueado" con "sin emails" → abortaba feds que SÍ tienen emails.
+#   v3: tras 2 backoffs cortos, ABANDONA esta fed por este round (no la pierde),
+#   salta a la siguiente (otro dominio, que está fresco) y vuelve después de que
+#   el primero se haya enfriado. El early-exit ahora mira SOLO fichas que SÍ
+#   cargaron (loaded), nunca las bloqueadas.
+SLEEP_FICHA    = 5.0   # pace moderado por ficha
 SLEEP_PAGE     = 6.0
-SLEEP_FED      = 12.0
-SLEEP_RETRY_Q  = 1200.0
+SLEEP_FED      = 8.0    # pausa entre federaciones (cambio de dominio)
 SAVE_EVERY     = 10
+
+# Round-robin: máximo de fichas por fed en cada pasada. Al alcanzarlo, salta a la
+# siguiente fed para que este dominio se enfríe mientras trabajamos otros.
+MAX_PER_CALL   = 80
+
+# Detección de fed genuinamente SIN emails (no confundir con bloqueo):
+# solo si cargaron >=50 fichas OK y el ratio de email es < 5%.
+MIN_LOADED_FOR_NOEMAIL = 50
+NOEMAIL_RATE           = 0.05
 
 def jitter(base: float, pct: float = 0.25) -> float:
     """Aplica ±pct de variación aleatoria para evitar patrones detectables."""
     return base * random.uniform(1 - pct, 1 + pct)
 
-# CIRCUIT BREAKER
-CB_THRESHOLD   = 10    # 8 disparaba demasiado rápido cuando server lento
-CB_MAX_TRIPS   = 6
+# CIRCUIT BREAKER — backoffs CORTOS, bail rápido (no quemar horas)
+CB_THRESHOLD   = 8     # 8 bloqueos consecutivos = rate-limited ahora mismo
+CB_MAX_TRIPS   = 2     # tras 2 backoffs, abandona esta fed este round (resume luego)
 
 def cb_sleep_time(trips: int) -> float:
-    """Sleep adaptativo: 8→12→18→25→35→45 min."""
-    bases = [480, 720, 1080, 1500, 2100, 2700]
+    """Backoff corto: 90s → 180s. Si sigue bloqueando, mejor saltar de fed."""
+    bases = [90, 180]
     return float(bases[min(trips - 1, len(bases) - 1)])
 
 ROTATE_EVERY   = 20   # rotar UA cada 20 fichas
+
+# Overrides por federación (sobre la config base de scraper_federaciones.py)
+FED_VERIFY   = {"FEXF Extremadura": False}   # cert SSL roto → verify=False
+FED_DISABLED = {                              # plataforma rota: necesitan browser-automation
+    "FFIB Baleares",      # homepage len=121, PNFG movido de host
+    "FFCM Castilla LM",   # servidor devuelve len=0 (JS-gate / movido)
+    "FVF Euskadi",        # instancia PNFG distinta, no lista clubes por cod
+}
 
 # Federaciones objetivo (baja cobertura)
 TARGET_FEDS = {
@@ -167,7 +192,7 @@ def build_headers(ua: str, referer: str = "") -> dict:
     return h
 
 
-def make_fresh_session(base_url: str, ua_idx: int = 0) -> requests.Session:
+def make_fresh_session(base_url: str, ua_idx: int = 0, verify: bool = True) -> requests.Session:
     """
     Crea sesión con warm-up real: visita homepage primero, luego la URL base.
     Esto inicializa cookies anti-bot correctamente.
@@ -175,6 +200,7 @@ def make_fresh_session(base_url: str, ua_idx: int = 0) -> requests.Session:
     ua = USER_AGENTS[ua_idx % len(USER_AGENTS)]
     s = requests.Session()
     s.headers.update(build_headers(ua))
+    s.verify = verify   # algunas feds tienen cert SSL roto (Extremadura)
 
     # Warm-up 1: visita homepage del dominio
     parsed = urlparse(base_url)
@@ -197,7 +223,8 @@ def make_fresh_session(base_url: str, ua_idx: int = 0) -> requests.Session:
 
 
 def get_soup_with_retry(url: str, session: requests.Session,
-                        retries: int = 3, timeout: int = 25) -> BeautifulSoup | None:
+                        retries: int = 3, timeout: int = 25,
+                        verify: bool = True) -> BeautifulSoup | None:
     """
     GET con retry en errores de red/timeout (no solo en respuesta vacía).
     """
@@ -206,7 +233,7 @@ def get_soup_with_retry(url: str, session: requests.Session,
         try:
             if attempt > 0:
                 time.sleep(jitter(5.0 * attempt))  # backoff entre reintentos
-            r = session.get(url, timeout=timeout)
+            r = session.get(url, timeout=timeout, verify=verify)
             r.raise_for_status()
             r.encoding = r.apparent_encoding
             if len(r.text) >= 500:
@@ -290,7 +317,7 @@ def parse_phone_enhanced(soup: BeautifulSoup) -> str:
     return ""
 
 
-def build_mapping_with_retry(fed: dict, session: requests.Session):
+def build_mapping_with_retry(fed: dict, session: requests.Session, verify: bool = True):
     """Build club→ref mapping, retry hasta 4 veces con pausa si está vacío."""
     for attempt in range(4):
         if attempt > 0:
@@ -298,7 +325,7 @@ def build_mapping_with_retry(fed: dict, session: requests.Session):
             time.sleep(jitter(120.0 * attempt))
             session = make_fresh_session(
                 fed["list_url"] + f"?cod_primaria={fed['cod_primaria']}",
-                attempt
+                attempt, verify=verify
             )
 
         pairs = []
@@ -306,7 +333,7 @@ def build_mapping_with_retry(fed: dict, session: requests.Session):
         while True:
             url = (f"{fed['list_url']}?cod_primaria={fed['cod_primaria']}"
                    f"&NPcd_PageLines=999&NPcd_Page={page}&Buscar=1")
-            soup = get_soup_with_retry(url, session)
+            soup = get_soup_with_retry(url, session, verify=verify)
             if not soup:
                 break
             found = 0
@@ -369,11 +396,41 @@ class FuzzyMatcher:
         return (None, 'none')
 
 
-def refill_fed(fed: dict, wb, ws) -> dict:
-    print(f"\n{'='*70}")
-    print(f">> {fed['hoja']}  (tipo {fed['tipo']})")
-    print(f"{'='*70}")
+# Cachés a nivel de módulo (persisten entre rounds del mismo proceso):
+_MATCHER_CACHE: dict = {}   # hoja -> FuzzyMatcher | None (None = listing roto)
+_ATTEMPTED: dict = {}       # hoja -> set(row_idx) ya intentados este proceso (evita re-fetch)
 
+
+def get_matcher(fed: dict, verify: bool):
+    """Construye (y cachea) el mapping club→ref de una federación."""
+    hoja = fed['hoja']
+    if hoja in _MATCHER_CACHE:
+        return _MATCHER_CACHE[hoja]
+    base_url = fed["list_url"] + f"?cod_primaria={fed['cod_primaria']}"
+    print(f"  Construyendo mapping desde {fed['list_url']}...")
+    session = make_fresh_session(base_url, 0, verify=verify)
+    pairs, _ = build_mapping_with_retry(fed, session, verify=verify)
+    print(f"  Mapping: {len(pairs)} entradas")
+    matcher = FuzzyMatcher(pairs) if pairs else None
+    _MATCHER_CACHE[hoja] = matcher
+    return matcher
+
+
+def refill_fed(fed: dict, wb, ws, max_n: int = MAX_PER_CALL) -> dict:
+    """
+    Procesa hasta `max_n` fichas sin email de una federación (round-robin friendly).
+    Devuelve {'encontrados': N, 'status': ...} donde status ∈:
+      'done'     → no quedan filas PNFG por rellenar (fed completa para PNFG)
+      'more'     → alcanzó el cap; quedan filas para el próximo round
+      'blocked'  → servidor bloqueó; abandona este round, resume luego
+      'no_email' → las fichas cargan OK pero la fed no publica emails
+    """
+    hoja = fed['hoja']
+    verify = FED_VERIFY.get(hoja, True)
+    print(f"\n{'='*70}\n>> {hoja}  (tipo {fed['tipo']})\n{'='*70}")
+
+    # Filas sin email (resume natural: lee el estado actual del Excel)
+    attempted = _ATTEMPTED.setdefault(hoja, set())
     rows_sin: list[tuple[int, str, str]] = []
     for r in range(2, ws.max_row + 1):
         nombre = ws.cell(row=r, column=COL_CLUB).value
@@ -389,66 +446,69 @@ def refill_fed(fed: dict, wb, ws) -> dict:
             rows_sin.append((r, n, w))
 
     if not rows_sin:
-        print(f"  Sin filas que rellenar — federacion ya completa.")
-        return {'encontrados': 0}
+        print("  Sin filas que rellenar — federacion completa.")
+        return {'encontrados': 0, 'status': 'done'}
 
     total_filas = ws.max_row - 1
-    cobertura = (total_filas - len(rows_sin)) / total_filas * 100 if total_filas > 0 else 0
-    print(f"  Filas SIN email: {len(rows_sin)} / {total_filas}  (cobertura actual: {cobertura:.0f}%)")
+    cob = (total_filas - len(rows_sin)) / total_filas * 100 if total_filas else 0
+    print(f"  SIN email: {len(rows_sin)} / {total_filas}  (cobertura {cob:.0f}%)  "
+          f"— hasta {max_n} fichas este round")
+
+    matcher = get_matcher(fed, verify)
+    if matcher is None:
+        print("  [SKIP] Listing vacio — servidor bloqueado o config rota.")
+        return {'encontrados': 0, 'status': 'blocked'}
 
     base_url = fed["list_url"] + f"?cod_primaria={fed['cod_primaria']}"
-    print(f"  Inicializando sesion con warm-up...")
-    session = make_fresh_session(base_url, ua_idx=0)
+    session = make_fresh_session(base_url, 0, verify=verify)
 
-    print(f"  Construyendo mapping desde {fed['list_url']}...")
-    pairs, session = build_mapping_with_retry(fed, session)
-    print(f"  Mapping construido: {len(pairs)} entradas")
-    if not pairs:
-        print(f"  [SKIP] Mapping vacio tras 4 intentos. Servidor bloqueado activamente.")
-        return {'encontrados': 0}
+    total = since_save = 0
+    loaded = hits = 0
+    consecutive_blocks = trips = ua = done = 0
+    status = 'done'   # si recorremos todo rows_sin sin cortar antes
 
-    matcher = FuzzyMatcher(pairs)
-    stats = {'exact': 0, 'fuzzy': 0, 'sin': 0}
-    total = 0
-    since_save = 0
-    retry_q: list[tuple[int, str, str, str]] = []
-    cb = {
-        'empties': 0, 'trips': 0, 'session': session,
-        'ua': 0, 'done': 0
-    }
+    for row_idx, nombre, website in rows_sin:
+        if done >= max_n:
+            status = 'more'
+            break
+        if row_idx in attempted:
+            continue                      # ya intentado este proceso (evita re-fetch)
+        ref, modo = matcher.find(nombre)
+        if not ref:
+            continue                      # sin match en el listado → lo deja para web-enrich
 
-    def fetch_ficha(row_idx: int, nombre: str, website: str, ref: str, modo: str) -> bool:
-        nonlocal total, since_save
-        if fed["tipo"] == "A":
-            url = (f"{fed['ficha_url']}?cod_primaria={fed['cod_primaria']}"
-                   f"&codigo_club={ref}")
-        else:
-            url = ref
+        url = (f"{fed['ficha_url']}?cod_primaria={fed['cod_primaria']}&codigo_club={ref}"
+               if fed["tipo"] == "A" else ref)
         time.sleep(jitter(SLEEP_FICHA))
-        soup = get_soup_with_retry(url, cb['session'])
-        cb['done'] += 1
+        soup = get_soup_with_retry(url, session, verify=verify)
+        done += 1
 
         if soup is None:
-            cb['empties'] += 1
-            if cb['empties'] >= CB_THRESHOLD:
-                cb['trips'] += 1
-                if cb['trips'] > CB_MAX_TRIPS:
-                    print(f"  [CB] {cb['trips']} trips alcanzados. Abortando federacion.")
-                    raise AbortFederation()
-                sleep_s = cb_sleep_time(cb['trips'])
-                print(f"  [CB #{cb['trips']}] {CB_THRESHOLD} vacios consecutivos. "
-                      f"Pausa {sleep_s/60:.0f} min + UA nuevo...")
-                time.sleep(sleep_s)
-                cb['ua'] += 1
-                cb['session'] = make_fresh_session(base_url, cb['ua'])
-                cb['empties'] = 0
-            return False
+            # BLOQUEO (no "sin email"): la web no devolvió ficha válida
+            consecutive_blocks += 1
+            if consecutive_blocks >= CB_THRESHOLD:
+                trips += 1
+                if trips > CB_MAX_TRIPS:
+                    print(f"  [CB] {trips} backoffs sin recuperar — abandono {hoja} "
+                          f"este round (resume luego).")
+                    status = 'blocked'
+                    break
+                s = cb_sleep_time(trips)
+                print(f"  [CB #{trips}] {CB_THRESHOLD} bloqueos seguidos. "
+                      f"Backoff {s:.0f}s + sesion nueva...")
+                time.sleep(s)
+                ua += 1
+                session = make_fresh_session(base_url, ua, verify=verify)
+                consecutive_blocks = 0
+            continue
 
-        cb['empties'] = 0
-        # Rotar UA cada ROTATE_EVERY fichas exitosas
-        if cb['done'] % ROTATE_EVERY == 0:
-            cb['ua'] += 1
-            cb['session'] = make_fresh_session(base_url, cb['ua'])
+        # Ficha cargó OK
+        consecutive_blocks = 0
+        loaded += 1
+        attempted.add(row_idx)
+        if done % ROTATE_EVERY == 0:
+            ua += 1
+            session = make_fresh_session(base_url, ua, verify=verify)
 
         email = parse_email_enhanced(soup)
         phone = parse_phone_enhanced(soup)
@@ -457,108 +517,33 @@ def refill_fed(fed: dict, wb, ws) -> dict:
         updated = False
         if email:
             ws.cell(row=row_idx, column=COL_EMAIL).value = email
-            stats['exact' if modo == 'exact' else 'fuzzy'] += 1
-            updated = True
+            hits += 1; updated = True
         if phone:
             ws.cell(row=row_idx, column=COL_TEL).value = phone
             updated = True
         if updated:
-            total += 1
-            since_save += 1
-        hits = stats['exact'] + stats['fuzzy']
-        # Mostrar progreso solo cuando hay resultado o cada 10 fichas
-        if updated or cb['done'] % 10 == 0:
-            rate_pct = hits / cb['done'] * 100 if cb['done'] > 0 else 0
-            print(f"  [{cb['done']}/{len(rows_sin)}] [{modo}] {nombre[:34]:<34} "
-                  f"email: {email or '-':<26} tel: {phone or '-'}"
-                  f"  (hit rate: {rate_pct:.1f}%)")
-        # Early-exit: si tras 80 fichas el hit rate < 3%, esta federación no tiene datos útiles
-        if cb['done'] == 80:
-            rate = hits / cb['done']
-            if rate < 0.03:
-                print(f"  [EARLY-EXIT] Hit rate {rate*100:.1f}% tras 80 fichas — "
-                      f"la federación no expone emails. Abortando.")
-                raise AbortFederation()
-        if since_save >= SAVE_EVERY:
-            atomic_save(wb, RUTA)
-            since_save = 0
-        return bool(email)
+            total += 1; since_save += 1
+        if updated or done % 10 == 0:
+            rate = hits / loaded * 100 if loaded else 0
+            print(f"  [{done}/{min(max_n, len(rows_sin))}] [{modo}] {nombre[:32]:<32} "
+                  f"email: {email or '-':<26} tel: {phone or '-'}  (hit {rate:.0f}%)")
 
-    # ── PASE 1 ────────────────────────────────────────────────────────────────
-    abort1 = False
-    i = -1
-    try:
-        for i, (row_idx, nombre, website) in enumerate(rows_sin):
-            ref, modo = matcher.find(nombre)
-            if not ref:
-                stats['sin'] += 1
-                retry_q.append((row_idx, nombre, website, ''))
-                continue
-            ok = fetch_ficha(row_idx, nombre, website, ref, modo)
-            if not ok:
-                retry_q.append((row_idx, nombre, website, ref))
-    except AbortFederation:
-        abort1 = True
-        for j in range(i + 1, len(rows_sin)):
-            row_idx, nombre, website = rows_sin[j]
-            ref, modo = matcher.find(nombre)
-            retry_q.append((row_idx, nombre, website, ref or ''))
-            if not ref: stats['sin'] += 1
+        # Fed genuinamente SIN emails: fichas cargan OK pero casi ninguna trae email.
+        # (Esto NO se confunde con bloqueo: solo cuenta fichas que cargaron.)
+        if loaded >= MIN_LOADED_FOR_NOEMAIL and (hits / loaded) < NOEMAIL_RATE:
+            print(f"  [NO-EMAIL] {loaded} fichas OK, solo {hits} con email "
+                  f"({hits/loaded*100:.0f}%) — esta fed no publica emails en ficha.")
+            status = 'no_email'
+            break
+
+        if since_save >= SAVE_EVERY:
+            atomic_save(wb, RUTA); since_save = 0
 
     atomic_save(wb, RUTA)
-    print(f"  -- Pase 1 {'[ABORTADO]' if abort1 else 'OK'}: "
-          f"{total} encontrados, {len(retry_q)} en retry_q")
-
-    # ── PASE 2 — solo los que tenian ref ─────────────────────────────────────
-    pnfg_retries = [(ri, n, w, r) for ri, n, w, r in retry_q if r]
-    web_only     = [(ri, n, w)   for ri, n, w, r in retry_q if not r]
-
-    if pnfg_retries:
-        print(f"\n  [PASE 2] Pausa {SLEEP_RETRY_Q/60:.0f} min antes de reintentar "
-              f"{len(pnfg_retries)} fichas...")
-        time.sleep(jitter(SLEEP_RETRY_Q))
-        cb['ua'] += 1
-        cb['session'] = make_fresh_session(base_url, cb['ua'])
-        cb['empties'] = 0
-        cb['trips'] = 0
-        try:
-            for row_idx, nombre, website, ref in pnfg_retries:
-                ok = fetch_ficha(row_idx, nombre, website, ref, 'retry')
-                if not ok:
-                    web_only.append((row_idx, nombre, website))
-        except AbortFederation:
-            print(f"  [CB] Pase 2 abortado.")
-        atomic_save(wb, RUTA)
-        print(f"  -- Pase 2 OK: total {total} encontrados")
-
-    # ── PASE 3 — website fallback ─────────────────────────────────────────────
-    web_cands = [(ri, n, w) for ri, n, w in web_only if w]
-    if web_cands:
-        print(f"\n  [PASE 3] Website fallback en {len(web_cands)} clubes...")
-        ua = USER_AGENTS[cb['ua'] % len(USER_AGENTS)]
-        web_headers = build_headers(ua)
-        for row_idx, nombre, website in web_cands:
-            time.sleep(jitter(2.0))
-            try:
-                url = ('https://' + website
-                       if not website.startswith('http') else website)
-                r = requests.get(url, headers=web_headers,
-                                 timeout=12, allow_redirects=True)
-                if r.status_code == 200:
-                    r.encoding = r.apparent_encoding
-                    soup = BeautifulSoup(r.text, "html.parser")
-                    email = parse_email_enhanced(soup)
-                    if email and email not in EMAIL_BLACKLIST:
-                        ws.cell(row=row_idx, column=COL_EMAIL).value = email
-                        total += 1
-                        print(f"  [web] {nombre[:38]} -> {email}")
-            except Exception:
-                pass
-        atomic_save(wb, RUTA)
-
-    print(f"\n  -- TOTAL {fed['hoja']}: {total} emails nuevos  "
-          f"(exact={stats['exact']} fuzzy={stats['fuzzy']} sin_match={stats['sin']})")
-    return {'encontrados': total}
+    rate = hits / loaded * 100 if loaded else 0
+    print(f"  -- {hoja}: +{total} emails este round  "
+          f"(fichas OK {loaded}, hit {rate:.0f}%, status={status})")
+    return {'encontrados': total, 'status': status}
 
 
 # ─── DB CHECK ─────────────────────────────────────────────────────────────────
@@ -581,109 +566,124 @@ def check_email_count_in_db() -> int:
 
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
 
-def main():
-    # Priorizar por número de clubs sin email (mayor primero)
-    priority = {
-        "RFAF Andalucia":     2640,
-        "FFCM Castilla LM":   1974,
-        "FEXF Extremadura":    973,
-        "IFCF Canarias":       853,
-        "FAF Aragon":          539,
-        "FFRM Murcia":         421,
-        "FVF Euskadi":         400,
-        "FFPA Asturias":       260,
-        "FNF Navarra":         274,
-        "FFIB Baleares":       225,
-        "FCYLF Castilla Leon": 217,
-        "FCF Cantabria":       116,
-        "FGF Galicia":          41,
-        "RFMF Melilla":         41,
-        "FRF La Rioja":          5,
-    }
-    feds_to_run = [f for f in FEDERACIONES if f["hoja"] in TARGET_FEDS]
-    feds_to_run.sort(key=lambda f: priority.get(f["hoja"], 0), reverse=True)
-
-    # TCP-level timeout: prevents OS-level hangs where a club website never responds
-    # even after the HTTP timeout fires (Windows TCP keepalive can hold connections open)
-    socket.setdefaulttimeout(45)
-
-    print(f"Abriendo Excel: {RUTA}")
-    wb = openpyxl.load_workbook(RUTA)
-
-    def run_import_now(fed_name: str) -> None:
-        """Import Excel → Supabase after each federation so data is safe even if killed."""
-        import subprocess
-        print(f"\n  [sync] Importando {fed_name} a Supabase...")
+def run_import_now(tag: str = "") -> None:
+    """Importa Excel → Supabase (idempotente: on_conflict=email). Datos a salvo aunque maten el proceso."""
+    import subprocess
+    print(f"\n  [sync] Importando a Supabase ({tag})...")
+    try:
         r = subprocess.run(
             [sys.executable, "import_to_supabase.py"],
             capture_output=True, text=True, encoding='utf-8',
             cwd=os.path.dirname(os.path.abspath(__file__)),
-            timeout=120,
+            timeout=180,
         )
-        # Print last few lines of output (totals)
         if r.stdout:
-            for line in r.stdout.strip().splitlines()[-5:]:
+            for line in r.stdout.strip().splitlines()[-4:]:
                 print(f"    {line}")
         if r.returncode != 0 and r.stderr:
             print(f"    [WARN import] {r.stderr[-200:]}")
+    except Exception as e:
+        print(f"    [WARN import] {e}")
 
-    total_nuevos = 0
-    for fed in feds_to_run:
-        ws = wb[fed["hoja"]]
 
-        # Skip si la hoja no existe (Cataluña, etc.)
-        if ws is None:
-            continue
+def sheet_coverage(ws) -> float:
+    """% de filas con email en una hoja."""
+    total_filas = ws.max_row - 1
+    if total_filas <= 0:
+        return 100.0
+    sin = sum(
+        1 for r in range(2, ws.max_row + 1)
+        if str(ws.cell(row=r, column=COL_EMAIL).value or "").strip()
+        in ("", "-", "None", "club@ejemplo.es")
+    )
+    return (total_filas - sin) / total_filas * 100
 
-        # Skip automático si cobertura >= 95%
-        total_filas = ws.max_row - 1
-        if total_filas > 0:
-            sin_email = sum(
-                1 for r in range(2, ws.max_row + 1)
-                if not (ws.cell(row=r, column=COL_EMAIL).value or "").strip()
-                or str(ws.cell(row=r, column=COL_EMAIL).value).strip() in ("-","None","club@ejemplo.es")
-            )
-            cobertura = (total_filas - sin_email) / total_filas * 100
-            if cobertura >= 95.0:
-                print(f"\n[SKIP] {fed['hoja']} — cobertura {cobertura:.0f}% >= 95%, ya completa.")
+
+def main():
+    # Prioridad por nº de clubs sin email (mayor primero)
+    priority = {
+        "RFAF Andalucia": 2640, "IFCF Canarias": 853, "FEXF Extremadura": 973,
+        "FAF Aragon": 539, "FFRM Murcia": 421, "FFPA Asturias": 260,
+        "FNF Navarra": 274, "FCYLF Castilla Leon": 217, "FCF Cantabria": 116,
+        "FGF Galicia": 41, "RFMF Melilla": 41, "FRF La Rioja": 5,
+    }
+    # Excluir feds deshabilitadas (plataforma rota) y hojas inexistentes
+    socket.setdefaulttimeout(45)
+    print(f"Abriendo Excel: {RUTA}")
+    wb = openpyxl.load_workbook(RUTA)
+
+    feds_to_run = [
+        f for f in FEDERACIONES
+        if f["hoja"] in TARGET_FEDS
+        and f["hoja"] not in FED_DISABLED
+        and f["hoja"] in wb.sheetnames
+    ]
+    feds_to_run.sort(key=lambda f: priority.get(f["hoja"], 0), reverse=True)
+    if FED_DISABLED:
+        print(f"[INFO] Deshabilitadas (necesitan browser-automation): "
+              f"{', '.join(sorted(FED_DISABLED))}")
+
+    # Presupuesto de tiempo por proceso (override con SCRAPER_BUDGET_H). Round-robin:
+    # cada round procesa hasta MAX_PER_CALL fichas/fed y salta a la siguiente, dando
+    # tiempo a cada dominio a enfriarse antes de volver.
+    start = time.time()
+    TIME_BUDGET = float(os.environ.get("SCRAPER_BUDGET_H", "3.5")) * 3600
+    MAX_ROUNDS  = 15
+    completed: set = set()
+    no_email:  set = set()
+    grand_total = 0
+
+    for round_n in range(1, MAX_ROUNDS + 1):
+        active = [f for f in feds_to_run
+                  if f["hoja"] not in completed and f["hoja"] not in no_email]
+        if not active:
+            print("\n[FIN] No quedan federaciones activas.")
+            break
+        print(f"\n{'#'*70}\n# ROUND {round_n}/{MAX_ROUNDS} — {len(active)} feds activas\n{'#'*70}")
+        gained = 0
+        time_up = False
+        for fed in active:
+            if time.time() - start > TIME_BUDGET:
+                print(f"\n[TIME] Presupuesto {TIME_BUDGET/3600:.1f}h agotado — paro.")
+                time_up = True
+                break
+            ws = wb[fed["hoja"]]
+            cob = sheet_coverage(ws)
+            if cob >= 95.0:
+                print(f"\n[SKIP] {fed['hoja']} — cobertura {cob:.0f}% >= 95%.")
+                completed.add(fed["hoja"])
                 continue
-
-        result = refill_fed(fed, wb, ws)
-        encontrados = result.get('encontrados', 0)
-        total_nuevos += encontrados
-        # Sync to Supabase immediately after each federation — data safe even if killed
-        if encontrados > 0:
-            run_import_now(fed["hoja"])
-        print(f"\n  Pausa entre federaciones {SLEEP_FED}s...")
-        time.sleep(jitter(SLEEP_FED))
+            res = refill_fed(fed, wb, ws)
+            grand_total += res['encontrados']
+            gained += res['encontrados']
+            if res['encontrados'] > 0:
+                run_import_now(fed["hoja"])
+            st = res['status']
+            if st == 'done':
+                completed.add(fed["hoja"])
+            elif st == 'no_email':
+                no_email.add(fed["hoja"])
+            # 'more' / 'blocked' → sigue activa para el próximo round (resume)
+            time.sleep(jitter(SLEEP_FED))
+        if time_up:
+            break
+        if gained == 0 and round_n >= 2:
+            print("\n[FIN] Round sin progreso — restantes bloqueadas o sin match PNFG.")
+            break
 
     wb.close()
 
     print(f"\n{'='*70}")
-    print(f"TOTAL emails nuevos encontrados en este run: {total_nuevos}")
+    print(f"TOTAL emails nuevos este proceso: {grand_total}")
+    if completed:
+        print(f"Completadas: {', '.join(sorted(completed))}")
+    if no_email:
+        print(f"Sin emails en ficha (web-enrich aparte): {', '.join(sorted(no_email))}")
     print(f"{'='*70}")
 
-    # Importar a BD
-    print("\nEjecutando import a Supabase...")
-    import subprocess
-    result = subprocess.run(
-        [sys.executable, "import_to_supabase.py"],
-        capture_output=True, text=True, encoding='utf-8',
-        cwd=os.path.dirname(os.path.abspath(__file__))
-    )
-    if result.stdout:
-        print(result.stdout[-2000:])
-    if result.returncode != 0 and result.stderr:
-        print(f"[ERROR import] {result.stderr[-500:]}")
-
+    run_import_now("FINAL")
     count = check_email_count_in_db()
-    pct = count / 11560 * 100
-    print(f"\n>>> EMAILS EN BD AHORA: {count:,} ({pct:.1f}% de 11.560)")
-    if pct >= 80:
-        print(f">>> OBJETIVO 80% ALCANZADO!")
-    else:
-        print(f">>> Faltan {int(11560 * 0.8) - count:,} emails para llegar al 80%")
-        print(f">>> Relanza esta noche a las 4am: python refill_patient.py")
+    print(f"\n>>> EMAILS CON EMAIL EN BD AHORA: {count:,}")
 
 
 if __name__ == "__main__":
