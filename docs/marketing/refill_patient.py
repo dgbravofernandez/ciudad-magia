@@ -31,26 +31,28 @@ COL_WEB   = 3
 RUTA      = r"C:\Users\dgbra\Ciudad Magia\docs\marketing\Seguimiento-Clubes-Multi-Federacion.xlsx"
 
 # ─── TIEMPOS BASE (se aplica jitter ±30% sobre todos) ────────────────────────
-SLEEP_FICHA    = 7.0
-SLEEP_PAGE     = 8.0
-SLEEP_FED      = 15.0
-SLEEP_RETRY_Q  = 1800.0   # 30 min entre pase 1 y pase 2
-SAVE_EVERY     = 10       # guardar más frecuente (antes 20)
+# v2.1: SLEEP_FICHA 7→4s (−43% tiempo activo), CB sleeps más agresivos,
+#        threshold 12→8, early-exit si hit rate < 3% tras 80 fichas
+SLEEP_FICHA    = 4.0   # era 7.0 — la mayoría de fichas no tienen email: no penalizar más
+SLEEP_PAGE     = 6.0
+SLEEP_FED      = 12.0
+SLEEP_RETRY_Q  = 1200.0   # era 1800 — 20 min entre pase 1 y pase 2
+SAVE_EVERY     = 10
 
 def jitter(base: float, pct: float = 0.30) -> float:
     """Aplica ±pct de variación aleatoria para evitar patrones detectables."""
     return base * random.uniform(1 - pct, 1 + pct)
 
-# CIRCUIT BREAKER — adaptativo
-CB_THRESHOLD   = 12    # 12 fichas None seguidas dispara
-CB_MAX_TRIPS   = 8     # 8 trips antes de abortar
+# CIRCUIT BREAKER — más agresivo (antes tardaba 220 min en 8 trips, ahora ~100 min en 6)
+CB_THRESHOLD   = 8     # era 12 — dispara antes, no malgastes 4 fichas vacías extra
+CB_MAX_TRIPS   = 6     # era 8
 
 def cb_sleep_time(trips: int) -> float:
-    """Sleep adaptativo: 10min → 15 → 20 → 25 → 30 → 35 → 40 → 45 min."""
-    base = 600.0 + (trips - 1) * 300.0   # crece 5 min por cada trip
-    return min(base, 2700.0)              # máximo 45 min
+    """Sleep adaptativo: 5→8→12→18→25→35 min. Era 10→15→…→45 (220 min total)."""
+    bases = [300, 480, 720, 1080, 1500, 2100]
+    return float(bases[min(trips - 1, len(bases) - 1)])
 
-ROTATE_EVERY   = 20   # rotar UA cada 20 fichas (antes 30)
+ROTATE_EVERY   = 15   # era 20 — rotar UA más frecuente
 
 # Federaciones objetivo (baja cobertura)
 TARGET_FEDS = {
@@ -463,8 +465,20 @@ def refill_fed(fed: dict, wb, ws) -> dict:
         if updated:
             total += 1
             since_save += 1
-            print(f"  [{cb['done']}/{len(rows_sin)}] [{modo}] {nombre[:36]:<36} "
-                  f"email: {email or '-':<26} tel: {phone or '-'}")
+        hits = stats['exact'] + stats['fuzzy']
+        # Mostrar progreso solo cuando hay resultado o cada 10 fichas
+        if updated or cb['done'] % 10 == 0:
+            rate_pct = hits / cb['done'] * 100 if cb['done'] > 0 else 0
+            print(f"  [{cb['done']}/{len(rows_sin)}] [{modo}] {nombre[:34]:<34} "
+                  f"email: {email or '-':<26} tel: {phone or '-'}"
+                  f"  (hit rate: {rate_pct:.1f}%)")
+        # Early-exit: si tras 80 fichas el hit rate < 3%, esta federación no tiene datos útiles
+        if cb['done'] == 80:
+            rate = hits / cb['done']
+            if rate < 0.03:
+                print(f"  [EARLY-EXIT] Hit rate {rate*100:.1f}% tras 80 fichas — "
+                      f"la federación no expone emails. Abortando.")
+                raise AbortFederation()
         if since_save >= SAVE_EVERY:
             atomic_save(wb, RUTA)
             since_save = 0

@@ -12,7 +12,23 @@ export const metadata: Metadata = {
   },
 }
 
-export default function DemoPage() {
+export default async function DemoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ fed?: string; s?: string }>
+}) {
+  const params = await searchParams
+  // fed=rffm → vídeo con datos RFFM/goleadores Madrid
+  // el resto → vídeo genérico (sin mención a RFFM)
+  const isRffm = params.fed === 'rffm'
+  const videoSrc = isRffm
+    ? '/downloads/cluberly-demo-madrid.mp4'
+    : '/downloads/cluberly-demo.mp4'
+
+  const subtitleText = isRffm
+    ? 'Cuotas, asistencia, pizarra táctica, comunicaciones y goleadores de la RFFM. Todo en un sitio.'
+    : 'Cuotas, asistencia, avisos de deuda y comunicaciones con las familias. Todo en un sitio.'
+
   return (
     <div style={{
       minHeight: '100vh', padding: '2rem 1rem',
@@ -37,7 +53,7 @@ export default function DemoPage() {
           Cluberly en <span style={{ background: 'linear-gradient(90deg,#EC4899,#BE185D)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>60 segundos</span>
         </h1>
         <p style={{ textAlign: 'center', color: '#475569', fontSize: '1.1rem', marginBottom: '2.5rem', maxWidth: 600, margin: '0 auto 2.5rem' }}>
-          Cuotas, asistencia, avisos de deuda y cierre de caja. Todo en un sitio.
+          {subtitleText}
         </p>
 
         <div style={{
@@ -52,7 +68,7 @@ export default function DemoPage() {
             poster="/downloads/cluberly-demo-thumbnail.png"
             style={{ width: '100%', display: 'block' }}
           >
-            <source src="/downloads/cluberly-demo.mp4" type="video/mp4" />
+            <source src={videoSrc} type="video/mp4" />
             Tu navegador no soporta vídeo HTML5.
           </video>
         </div>
