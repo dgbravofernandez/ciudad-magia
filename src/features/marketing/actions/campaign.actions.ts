@@ -160,6 +160,7 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
       send_id: sendRow.id,
       club_url: clubNameUrl,
       demo_url: demoUrl,
+      reservar_url: `${base}/reservar`,
     }
     const subject = renderTemplate(tpl.subject, vars)
     const html = wrapLinksForTracking(renderTemplate(tpl.body_html, vars), sendRow.id)
@@ -555,22 +556,29 @@ export async function sendTestEmail(targetEmail: string) {
   if (!settings) return { success: false, error: 'No hay marketing_settings (id=1) en la BD' }
 
   const clubName = 'Club de Prueba'
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.club'
   const vars = {
     club_name: clubName,
     club_url: encodeURIComponent(clubName),
     location: 'Madrid',
     federation: 'RFFM',
     send_id: 'test',
-    unsubscribe_url: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.club'}/api/marketing/unsubscribe?c=test&s=test&t=test`,
+    demo_url: `${base}/demo?s=test&utm_source=email&utm_campaign=outbound&fed=rffm`,
+    reservar_url: `${base}/reservar`,
+    unsubscribe_url: `${base}/api/marketing/unsubscribe?c=test&s=test&t=test`,
   }
   const errors: string[] = []
   for (const tpl of templates) {
+    const html = renderTemplate(tpl.body_html, vars)
+    const text = tpl.body_text ? renderTemplate(tpl.body_text, vars) : undefined
     const result = await sendMarketingEmail({
       to: targetEmail,
       subject: `[TEST-${tpl.variant}] ${renderTemplate(tpl.subject, vars)}`,
-      html: renderTemplate(tpl.body_html, vars),
+      html,
+      text,
       fromName: settings.from_name,
       replyTo: settings.reply_to || settings.from_email,
+      coldOutreach: true,  // igual que el envío real: texto plano
     })
     if (!result.sent) errors.push(`Variante ${tpl.variant}: ${result.error}`)
   }
