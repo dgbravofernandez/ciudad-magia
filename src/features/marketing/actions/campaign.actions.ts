@@ -149,9 +149,8 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
     const clubNameUrl = encodeURIComponent(claimed.name)
     const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.club'
     const unsub = await unsubscribeUrl(claimed.id, sendRow.id)
-    // demo_url: vídeo con datos RFFM solo para clubs de la federación Madrid
-    const isRffm = (claimed.federation ?? '').toUpperCase().includes('RFFM')
-    const demoUrl = `${base}/demo?s=${sendRow.id}&utm_source=email&utm_campaign=outbound${isRffm ? '&fed=rffm' : ''}`
+    // Short links: /go/d/[8chars] y /go/r/[8chars] — más cortos y limpios en texto plano
+    const shortCode = sendRow.id.substring(0, 8)
     const vars = {
       club_name: claimed.name,
       location: claimed.location || 'tu zona',
@@ -159,8 +158,8 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
       unsubscribe_url: unsub,
       send_id: sendRow.id,
       club_url: clubNameUrl,
-      demo_url: demoUrl,
-      reservar_url: `${base}/reservar?s=${sendRow.id}`,
+      demo_url: `${base}/go/d/${shortCode}`,
+      reservar_url: `${base}/go/r/${shortCode}`,
     }
     const subject = renderTemplate(tpl.subject, vars)
     const html = wrapLinksForTracking(renderTemplate(tpl.body_html, vars), sendRow.id)
