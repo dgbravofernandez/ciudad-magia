@@ -147,13 +147,19 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
 
     // URL-encode club_name para que sea seguro en query strings de links del email
     const clubNameUrl = encodeURIComponent(claimed.name)
+    const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.club'
+    const unsub = await unsubscribeUrl(claimed.id, sendRow.id)
+    // demo_url: vídeo con datos RFFM solo para clubs de la federación Madrid
+    const isRffm = (claimed.federation ?? '').toUpperCase().includes('RFFM')
+    const demoUrl = `${base}/demo?s=${sendRow.id}&utm_source=email&utm_campaign=outbound${isRffm ? '&fed=rffm' : ''}`
     const vars = {
       club_name: claimed.name,
       location: claimed.location || 'tu zona',
       federation: claimed.federation || '',
-      unsubscribe_url: await unsubscribeUrl(claimed.id, sendRow.id),
+      unsubscribe_url: unsub,
       send_id: sendRow.id,
       club_url: clubNameUrl,
+      demo_url: demoUrl,
     }
     const subject = renderTemplate(tpl.subject, vars)
     const html = wrapLinksForTracking(renderTemplate(tpl.body_html, vars), sendRow.id)
