@@ -16,13 +16,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // email_1 (pendientes) y click_followup (leads que clicaron sin reservar) son
-  // conjuntos disjuntos — se pueden correr en paralelo sin riesgo de solapamiento.
-  const [result, clickFollowupResult] = await Promise.all([
-    runCampaignBatch({ force: true }),
-    runClickFollowupBatch({ force: true }),
-  ])
-  const combined = { email_1: result, click_followup: clickFollowupResult }
+  // click_followup desactivado: se gestiona manualmente desde el panel de campañas.
+  const result = await runCampaignBatch({ force: true })
+  const combined = { email_1: result, click_followup: 'disabled' }
   console.log('[cron/marketing-batch]', JSON.stringify(combined))
   return NextResponse.json(combined)
 }
