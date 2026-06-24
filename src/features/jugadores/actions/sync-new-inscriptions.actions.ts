@@ -233,3 +233,83 @@ export async function getNewInscriptionsSheetId(): Promise<{ sheetId: string | n
     return { sheetId: null }
   }
 }
+
+/**
+ * Versión para el CRON (sin sesión): auto-crea jugadores NUEVOS 'pendientes' desde
+ * la hoja de inscripciones nuevas de un club concreto, con dedup por DNI/email.
+ * Reusa la misma detección de columnas que el flujo manual. source='google_form'.
+ * No envía emails ni asigna equipo — el club revisa los pendientes en la app.
+ */
+export async function autoImportNewInscriptions(
+  clubId: string,
+): Promise<{ created: number; skipped: number; error?: string }> {
+  try {
+    if (!clubId) return { created: 0, skipped: 0, error: 'no_club' }
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createAdminClient() as any
+
+    const { data: settings } = await sb.from('club_settings')
+      .select('new_inscriptions_sheet_id').eq('club_id', clubId).maybeSingle()
+    const sheetId: string | null = settings?.new_inscriptions_sheet_id ?? null
+    if (!sheetId) return { created: 0, skipped: 0 }   // club sin hoja de altas nuevas
+
+    const rows = await fetchSheetCsv(extractSheetId(sheetId))
+    if (rows.length < 2) return { created: 0, skipped: 0 }
+
+    const headers = rows[0]
+    const dataRows = rows.slice(1)
+    const colNombre    = detectColumn(headers, ['nombre', 'name', 'first'])
+    const colApellidos = detectColumn(headers, ['apellido', 'apellidos', 'last', 'surname'])
+    const colEmail     = detectColumn(headers, ['email', 'correo', 'mail'])
+    const colTelefono  = detectColumn(headers, ['telefono', 'tel', 'phone', 'movil', 'contacto'])
+    const colTutor     = detectColumn(headers, ['tutor', 'padre', 'madre', 'responsable', 'familiar'])
+    const colFechaNac  = detectColumn(headers, ['fecha', 'nacimiento', 'birth', 'nacido', 'nac'])
+    const colDni       = detectColumn(headers, ['dni', 'nif', 'documento', 'id'])
+    const colCategoria = detectColumn(headers, ['categoria', 'category', 'equipo', 'team', 'grupo', 'division'])
+    if (colNombre < 0 && colApellidos < 0) return { created: 0, skipped: 0, error: 'sin_columna_nombre' }
+
+    const { data: existing } = await sb.from('players')
+      .select('dni, tutor_email').eq('club_id', clubId)
+    const existingDnis = new Set<string>((existing ?? [])
+      .map((p: { dni: string }) => p.dni?.trim().toLowerCase()).filter(Boolean))
+    const existingEmails = new Set<string>((existing ?? [])
+      .map((p: { tutor_email: string }) => p.tutor_email?.trim().toLowerCase()).filter(Boolean))
+
+    let created = 0, skipped = 0
+    for (const row of dataRows) {
+      const g = (i: number) => (i >= 0 ? (row[i] ?? '').trim() : '')
+      const firstName = g(colNombre)
+      const lastName  = g(colApellidos)
+      const name = `${firstName} ${lastName}`.trim()
+      if (!name) { skipped++; continue }
+      const email = g(colEmail).toLowerCase()
+      const dni   = g(colDni).toUpperCase()
+      if (dni && existingDnis.has(dni.toLowerCase())) { skipped++; continue }
+      if (email && existingEmails.has(email)) { skipped++; continue }
+
+      const categoria = g(colCategoria)
+      const { error } = await sb.from('players').insert({
+        club_id: clubId,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        tutor_email: email || null,
+        tutor_phone: g(colTelefono) || null,
+        tutor_name: g(colTutor) || null,
+        birth_date: parseDate(g(colFechaNac)) || null,
+        dni: dni || null,
+        status: 'pending',
+        source: 'google_form',
+        notes: categoria ? `Categoría solicitada: ${categoria}` : null,
+      })
+      if (error) { skipped++; continue }
+      // marcar como vistos dentro de esta pasada (evita duplicar si la hoja repite fila)
+      if (dni) existingDnis.add(dni.toLowerCase())
+      if (email) existingEmails.add(email)
+      created++
+    }
+    return { created, skipped }
+  } catch (e) {
+    return { created: 0, skipped: 0, error: (e as Error).message }
+  }
+}

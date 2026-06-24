@@ -18,6 +18,7 @@ const PUBLIC_PREFIX = [
   '/api/cron',          // crons de Vercel — protegidos por CRON_SECRET en su propio handler
   '/api/user-clubs',    // endpoint para listar clubs del usuario
   '/reservar',          // Página pública de reserva de demo (sin login)
+  '/inscripcion',       // Formulario público de inscripción por club (sin login)
   '/recomendar',        // Página pública de referidos (sin login)
   '/plantilla-cuotas',  // Lead magnet público
   '/casos-de-exito',    // Casos de éxito públicos

@@ -20,6 +20,12 @@ import {
   getDocsSheetConfig,
   saveDocsSheetConfig,
 } from '@/features/integraciones/actions/backend-sheet.actions'
+import {
+  getInscriptionConfig,
+  setInscriptionOpen,
+} from '@/features/integraciones/actions/inscription-config.actions'
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://cluberly.club'
 
 export function IntegracionesPage() {
   const [config, setConfig] = useState<BackendSheetConfig | null>(null)
@@ -40,6 +46,11 @@ const [loading, setLoading] = useState(true)
   const [coachesFormLink, setCoachesFormLink] = useState('')
   const [docsSaving, setDocsSaving] = useState(false)
 
+  // Config formulario de inscripción nativo
+  const [inscOpen, setInscOpen] = useState(false)
+  const [inscSlug, setInscSlug] = useState<string | null>(null)
+  const [inscSaving, setInscSaving] = useState(false)
+
   const reloadConfig = useCallback(async () => {
     const r = await getBackendSheetConfig()
     if (r.success && r.config) {
@@ -54,12 +65,15 @@ const [loading, setLoading] = useState(true)
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const [r, rffm, docs] = await Promise.all([
+      const [r, rffm, docs, insc] = await Promise.all([
         getBackendSheetConfig(),
         getRffmConfig(),
         getDocsSheetConfig(),
+        getInscriptionConfig(),
       ])
       if (cancelled) return
+      setInscOpen(insc.open)
+      setInscSlug(insc.slug)
       if (r.success && r.config) {
         setConfig(r.config)
         setDraftId(r.config.sheetId ?? '')
@@ -117,6 +131,22 @@ const [loading, setLoading] = useState(true)
       }
     })()
   }
+
+  function handleToggleInscription(next: boolean) {
+    setInscSaving(true)
+    ;(async () => {
+      const r = await setInscriptionOpen(next)
+      setInscSaving(false)
+      if (r.success) {
+        setInscOpen(next)
+        toast.success(next ? 'Inscripciones abiertas' : 'Inscripciones cerradas')
+      } else {
+        toast.error(r.error ?? 'Error guardando')
+      }
+    })()
+  }
+
+  const inscriptionUrl = inscSlug ? `${APP_URL}/inscripcion/${inscSlug}` : null
 
   function handleConnectGoogle() {
     startTransition(async () => {
@@ -206,6 +236,64 @@ const [loading, setLoading] = useState(true)
 
   return (
     <div className="space-y-6 max-w-3xl">
+      {/* Sección: Formulario de inscripción nativo */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="flex items-start gap-3 mb-4">
+          <Mail className="w-6 h-6 text-pink-600 mt-0.5" />
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Formulario de inscripción</h2>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Comparte este enlace con las familias para que se inscriban solas. Los jugadores
+              entran directos a tu club como <strong>pendientes de revisar</strong>, con sus documentos.
+            </p>
+          </div>
+        </div>
+
+        <label className="flex items-center gap-3 mb-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={inscOpen}
+            disabled={inscSaving}
+            onChange={e => handleToggleInscription(e.target.checked)}
+            className="w-4 h-4"
+          />
+          <span className="text-sm font-medium text-slate-800">
+            Inscripciones {inscOpen ? 'abiertas' : 'cerradas'}
+          </span>
+          <span className={`text-xs px-2 py-0.5 rounded-full ${inscOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+            {inscOpen ? 'El formulario acepta inscripciones' : 'El formulario muestra "cerradas"'}
+          </span>
+        </label>
+
+        {inscriptionUrl ? (
+          <div className="flex items-center gap-2">
+            <input
+              readOnly
+              value={inscriptionUrl}
+              onFocus={e => e.currentTarget.select()}
+              className="flex-1 text-sm px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-700"
+            />
+            <button
+              type="button"
+              onClick={() => { navigator.clipboard?.writeText(inscriptionUrl); toast.success('Enlace copiado') }}
+              className="px-3 py-2 text-sm font-medium text-white rounded-lg bg-pink-600 hover:bg-pink-700 whitespace-nowrap"
+            >
+              Copiar enlace
+            </button>
+            <a
+              href={inscriptionUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-2 text-sm font-medium text-pink-700 border border-pink-200 rounded-lg hover:bg-pink-50 whitespace-nowrap"
+            >
+              Abrir
+            </a>
+          </div>
+        ) : (
+          <p className="text-sm text-amber-600">Tu club aún no tiene un enlace público generado. Contacta con soporte.</p>
+        )}
+      </div>
+
       {/* Sección: Código del club RFFM */}
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <div className="flex items-start gap-3 mb-4">

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { previewInscriptionSync, applyInscriptionSync } from '@/features/jugadores/actions/sync-inscriptions.actions'
+import { autoImportNewInscriptions } from '@/features/jugadores/actions/sync-new-inscriptions.actions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/logger'
 
@@ -96,8 +97,29 @@ export async function GET(req: NextRequest) {
     await Promise.all(workers)
 
     const totalUpdated = results.reduce((s, r) => s + (r.updated ?? 0), 0)
-    logger.info({ action: 'syncSheets', phase: 'done', clubs: results.length, totalUpdated })
-    return NextResponse.json({ success: true, clubs: results.length, totalUpdated, results, timestamp: new Date().toISOString() })
+
+    // ── Fase 2: auto-crear jugadores NUEVOS desde la hoja de altas nuevas ────────
+    // Cierra el hueco: las familias nuevas que rellenan el Google Form entran solas
+    // como 'pendiente' (antes quedaban 'sin coincidencia' a la espera de alta manual).
+    const { data: newCfgs } = await sb
+      .from('club_settings')
+      .select('club_id')
+      .not('new_inscriptions_sheet_id', 'is', null)
+    let totalCreated = 0
+    const createdResults: Array<{ clubId: string; created?: number; skipped?: number; error?: string }> = []
+    for (const cfg of (newCfgs ?? []) as Array<{ club_id: string }>) {
+      try {
+        const r = await autoImportNewInscriptions(cfg.club_id)
+        totalCreated += r.created
+        createdResults.push({ clubId: cfg.club_id, created: r.created, skipped: r.skipped, error: r.error })
+      } catch (e) {
+        // un club roto no debe tumbar el batch
+        createdResults.push({ clubId: cfg.club_id, error: e instanceof Error ? e.message : String(e) })
+      }
+    }
+
+    logger.info({ action: 'syncSheets', phase: 'done', clubs: results.length, totalUpdated, totalCreated })
+    return NextResponse.json({ success: true, clubs: results.length, totalUpdated, totalCreated, results, createdResults, timestamp: new Date().toISOString() })
   } catch (err) {
     logger.error({ action: 'syncSheets', error: err instanceof Error ? err.message : String(err) })
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 500 })
