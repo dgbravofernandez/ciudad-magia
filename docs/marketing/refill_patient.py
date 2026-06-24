@@ -75,8 +75,10 @@ ROTATE_EVERY   = 20   # rotar UA cada 20 fichas
 FED_VERIFY   = {"FEXF Extremadura": False}   # cert SSL roto → verify=False
 FED_DISABLED = {                              # plataforma rota: necesitan browser-automation
     "FFIB Baleares",      # homepage len=121, PNFG movido de host
-    "FFCM Castilla LM",   # servidor devuelve len=0 (JS-gate / movido)
     "FVF Euskadi",        # instancia PNFG distinta, no lista clubes por cod
+    # NOTA: Castilla LM (ffcm.es) NO está deshabilitada: el probe dio len=0 por
+    # bloqueo temporal de IP (probes repetidos), pero el scraper en vivo saca
+    # emails con normalidad (~29% hit sobre 1795 clubes). Funciona.
 }
 
 # Federaciones objetivo (baja cobertura)
