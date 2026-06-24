@@ -202,6 +202,59 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// computeDynamicCap — cap diario seguro basado en madurez del dominio y engagement
+// Lógica de warming estándar de deliverability:
+//   Fase 1  (0-7d):    40/día — dominio nuevo, poca reputación
+//   Fase 2  (8-14d):   70/día — reputación básica
+//   Fase 3 (15-28d):  110/día — dominio con historial positivo
+//   Fase 4 (29-60d):  150/día — dominio maduro
+//   Fase 5  (60d+):   200/día — máximo para dominios sin equipo dedicado
+// Ajuste por engagement (últimos 50 enviados):
+//   Open rate > 20% → +15% (inbox placement bueno)
+//   Open rate < 10% → −25% (algo va mal, reducir)
+//   Devuelve siempre [20, 200] para evitar extremos.
+// ─────────────────────────────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function computeDynamicCap(sb: any): Promise<{ cap: number; phase: number; openRate: number; domainAgeDays: number }> {
+  // Edad del dominio de envío = días desde el primer email enviado
+  const { data: firstSend } = await sb
+    .from('marketing_email_sends')
+    .select('sent_at')
+    .order('sent_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  const domainAgeDays = firstSend
+    ? Math.floor((Date.now() - new Date(firstSend.sent_at).getTime()) / 86_400_000)
+    : 0
+
+  // Cap base por fase
+  let baseCap: number
+  let phase: number
+  if (domainAgeDays < 7)  { baseCap = 40;  phase = 1 }
+  else if (domainAgeDays < 14) { baseCap = 70;  phase = 2 }
+  else if (domainAgeDays < 28) { baseCap = 110; phase = 3 }
+  else if (domainAgeDays < 60) { baseCap = 150; phase = 4 }
+  else                         { baseCap = 200; phase = 5 }
+
+  // Engagement de los últimos 50 enviados
+  const { data: recent } = await sb
+    .from('marketing_email_sends')
+    .select('opened_at')
+    .order('sent_at', { ascending: false })
+    .limit(50)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const openRate = recent && recent.length > 0 ? recent.filter((r: any) => r.opened_at).length / recent.length : 0
+
+  let cap = baseCap
+  if (openRate > 0.20) cap = Math.round(cap * 1.15)
+  if (openRate < 0.10 && recent && recent.length >= 20) cap = Math.round(cap * 0.75)
+
+  cap = Math.max(20, Math.min(200, cap))
+  return { cap, phase, openRate, domainAgeDays }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // runCampaignBatch — usado por cron y por botón "Enviar X ahora por prioridad"
 // ─────────────────────────────────────────────────────────────────────────────
 export async function runCampaignBatch(opts?: { force?: boolean; max?: number }) {
@@ -216,7 +269,11 @@ export async function runCampaignBatch(opts?: { force?: boolean; max?: number })
   if (!settings) return { success: false, error: 'Sin settings' }
   if (settings.is_paused) return { success: false, error: 'Campaña pausada' }
 
-  const cap: number = Math.min(500, Math.max(1, opts?.max ?? settings.daily_send_cap ?? 50))
+  // Cap dinámico: min entre el cap automático (madurez+engagement) y el manual (override desde UI)
+  const dynamic = await computeDynamicCap(sb)
+  const manualOverride: number = settings.daily_send_cap ?? 999
+  const cap: number = opts?.max ?? Math.min(dynamic.cap, manualOverride)
+  console.log(`[campaign] cap dinámico: ${dynamic.cap} (fase ${dynamic.phase}, ${dynamic.domainAgeDays}d, open ${Math.round(dynamic.openRate * 100)}%), override manual: ${manualOverride}, cap efectivo: ${cap}`)
   const { count: sentToday } = await sb
     .from('marketing_email_sends')
     .select('id', { count: 'exact', head: true })
