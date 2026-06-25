@@ -49,7 +49,10 @@ SAVE_EVERY     = 10
 
 # Round-robin: máximo de fichas por fed en cada pasada. Al alcanzarlo, salta a la
 # siguiente fed para que este dominio se enfríe mientras trabajamos otros.
-MAX_PER_CALL   = 80
+# 80→40: por debajo del umbral de bloqueo (~50-80 req/dominio) → cada dominio se
+# enfría más entre visitas y se pierden menos backoffs. Menos throughput por
+# vuelta pero MÁS throughput neto al no quedarse atascado en bloqueos.
+MAX_PER_CALL   = 40
 
 # Detección de fed genuinamente SIN emails (no confundir con bloqueo):
 # solo si cargaron >=50 fichas OK y el ratio de email es < 5%.
