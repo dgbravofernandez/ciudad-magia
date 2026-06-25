@@ -83,7 +83,7 @@ export async function sendTeamAssignmentEmail(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const { sb, clubId, roles } = await getScopedClient()
-    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo', 'coordinador'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
 
@@ -220,7 +220,7 @@ export async function sendNewPlayerAssignmentEmail(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const { sb, clubId, roles } = await getScopedClient()
-    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo', 'coordinador'].includes(r))) {
       return { success: false, error: 'Sin permisos' }
     }
 
@@ -525,7 +525,7 @@ export async function sendBatchTeamAssignmentEmails(
 ): Promise<{ success: boolean; sent: number; failed: number; remaining: number; error?: string }> {
   try {
     const { sb, clubId, roles } = await getScopedClient()
-    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo'].includes(r))) {
+    if (!roles.some(r => ['admin', 'direccion', 'director_deportivo', 'coordinador'].includes(r))) {
       return { success: false, sent: 0, failed: 0, remaining: 0, error: 'Sin permisos' }
     }
 
