@@ -1,6 +1,7 @@
 'use server'
 
 import { getScopedClient } from '@/lib/supabase/scoped-client'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { revalidatePath } from 'next/cache'
 
 // ──────────────────────────────────────────────────────────────
@@ -101,10 +102,12 @@ export async function previewNewInscriptions(sheetUrlOrId: string): Promise<NewI
       return { toCreate: [], alreadyExist: [], sheetRows: dataRows.length, error: 'No se encontró columna de nombre en el Sheet' }
     }
 
-    const { data: existingPlayers } = await sb
+    // fetchAllRows: pagina >1000 jugadores (Getafe ya supera 1000) — si no, el
+    // dedup ignoraría a los de más allá de la fila 1000 y crearía DUPLICADOS.
+    const existingPlayers = await fetchAllRows(() => sb
       .from('players')
       .select('dni, tutor_email, first_name, last_name')
-      .eq('club_id', clubId)
+      .eq('club_id', clubId))
 
     const existingDnis = new Set((existingPlayers ?? []).map((p: { dni: string }) => p.dni?.trim().toLowerCase()).filter(Boolean))
     const existingEmails = new Set((existingPlayers ?? []).map((p: { tutor_email: string }) => p.tutor_email?.trim().toLowerCase()).filter(Boolean))
@@ -156,10 +159,11 @@ export async function importNewInscriptions(rows: NewPlayerRow[]): Promise<{
     if (!rows.length) return { success: true, created: 0, skipped: 0 }
 
     // SEC: Re-validar deduplicación server-side — nunca confiar en los rows del cliente
-    const { data: existingPlayers } = await sb
+    // fetchAllRows: pagina >1000 (Getafe ya supera 1000) — evita duplicados al alta masiva.
+    const existingPlayers = await fetchAllRows(() => sb
       .from('players')
       .select('dni, tutor_email')
-      .eq('club_id', clubId)
+      .eq('club_id', clubId))
     const existingDnis = new Set<string>(
       (existingPlayers ?? []).map((p: { dni: string }) => p.dni?.trim().toLowerCase()).filter(Boolean)
     )
@@ -269,8 +273,10 @@ export async function autoImportNewInscriptions(
     const colCategoria = detectColumn(headers, ['categoria', 'category', 'equipo', 'team', 'grupo', 'division'])
     if (colNombre < 0 && colApellidos < 0) return { created: 0, skipped: 0, error: 'sin_columna_nombre' }
 
-    const { data: existing } = await sb.from('players')
-      .select('dni, tutor_email').eq('club_id', clubId)
+    // fetchAllRows: pagina >1000 jugadores (Getafe ya supera 1000) — sin esto el
+    // dedup ignoraría a los de más allá de la fila 1000 y crearía DUPLICADOS.
+    const existing = await fetchAllRows(() => sb.from('players')
+      .select('dni, tutor_email').eq('club_id', clubId))
     const existingDnis = new Set<string>((existing ?? [])
       .map((p: { dni: string }) => p.dni?.trim().toLowerCase()).filter(Boolean))
     const existingEmails = new Set<string>((existing ?? [])

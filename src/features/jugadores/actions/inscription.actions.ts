@@ -23,7 +23,10 @@ type DocType = keyof typeof DOC_COLUMNS
 
 const ALLOWED_EXT = new Set(['jpg', 'jpeg', 'png', 'webp', 'pdf'])
 const SIGN_TTL_SECONDS = 60 * 60 * 24 * 365 * 10  // 10 años
-const MAX_PENDING_PER_HOUR = 40                    // anti-abuso simple por club
+// Anti-abuso por club (backstop): alto para NO bloquear días de inscripción con
+// gran volumen. La defensa real es el honeypot + que todo entra 'pendiente' a
+// revisión. Solo frena spam descontrolado de un bot.
+const MAX_PENDING_PER_HOUR = 500
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function resolveOpenClub(sb: any, slug: string): Promise<{ club?: { id: string; name: string }; error?: string }> {
