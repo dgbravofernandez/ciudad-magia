@@ -297,15 +297,17 @@ export async function sendNewPlayerAssignmentEmail(
       html = html.replaceAll(key, val)
     }
 
-    // 7. Bloque de documentación — se inserta DESPUÉS del recuadro del equipo (antes del resto)
-    if (player.forms_link) {
+    // 7. Bloque de documentación → SUBIDA NATIVA en la app (ya no Google Form)
+    {
+      const { playerDocUploadUrl } = await import('@/lib/utils/doc-token')
+      const docUrl = playerDocUploadUrl(player.id)
       const docsBlock = `<div style="margin:16px 0;padding:16px;background:#fff7ed;border:2px solid #f97316;border-radius:8px;text-align:center;">
   <p style="margin:0 0 10px;font-weight:bold;color:#c2410c;font-size:1em;">📋 Tramitación de ficha</p>
   <p style="margin:0 0 14px;font-size:0.9em;color:#374151;">
-    Para poder tramitar la ficha correctamente, es necesario que rellenéis el siguiente formulario:
+    Para tramitar la ficha necesitamos la documentación del jugador. Súbela aquí (foto, DNI/NIE y certificados):
   </p>
-  <a href="${player.forms_link}" style="display:inline-block;background:#f97316;color:#fff;padding:11px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:0.95em;">
-    Rellenar formulario →
+  <a href="${docUrl}" style="display:inline-block;background:#f97316;color:#fff;padding:11px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:0.95em;">
+    Subir documentación →
   </a>
 </div>`
       // Intentar insertar después del recuadro del equipo (cierre del div amarillo)

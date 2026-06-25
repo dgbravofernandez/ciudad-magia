@@ -332,13 +332,17 @@ export async function sendEmail(playerId: string, emailType: string) {
   const clubName: string = (clubRow as { name?: string } | null)?.name ?? 'El Club'
 
   const emailCtx = await buildEmailCtx(sb, clubId)
-  const fallbacks = buildFallbackEmail(emailType, playerName, tutorName, teamName, clubName, player.forms_link, coachName, birthYear, emailCtx)
+  // request_docs → formulario NATIVO de subida de documentos (no el Google Form).
+  // El resto (fill_form de renovación) conserva el forms_link del jugador.
+  const { playerDocUploadUrl } = await import('@/lib/utils/doc-token')
+  const docFormLink = emailType === 'request_docs' ? playerDocUploadUrl(playerId) : (player.forms_link ?? '')
+  const fallbacks = buildFallbackEmail(emailType, playerName, tutorName, teamName, clubName, docFormLink, coachName, birthYear, emailCtx)
 
   const tokens: Record<string, string> = {
     '{{player_name}}': playerName,
     '{{tutor_name}}': tutorName,
     '{{team}}': teamName,
-    '{{form_link}}': player.forms_link ?? '',
+    '{{form_link}}': docFormLink,
     '{{club_name}}': clubName,
   }
 
