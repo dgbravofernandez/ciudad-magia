@@ -151,6 +151,16 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
     const unsub = await unsubscribeUrl(claimed.id, sendRow.id)
     // Short links: /go/d/[8chars] y /go/r/[8chars] — más cortos y limpios en texto plano
     const shortCode = sendRow.id.substring(0, 8)
+    // Gancho por federación: Madrid (RFFM) → goleadores scrapeados (activo único);
+    // resto → dolor Excel/WhatsApp. {{hook_subject}} y {{hook}} en las plantillas.
+    const isRffm = (claimed.federation ?? '').toUpperCase().includes('RFFM')
+      || (claimed.federation ?? '').toLowerCase().includes('madrid')
+    const hookSubject = isRffm
+      ? `los goleadores de tu categoría, ${claimed.name}`
+      : `algo rápido sobre ${claimed.name}`
+    const hook = isRffm
+      ? `Soy Diego. He recopilado los máximos goleadores de toda la RFFM por categoría (con año de nacimiento). Te puedo pasar el ranking del equipo de ${claimed.name}, gratis y sin compromiso. De paso te cuento lo que hago: una herramienta para que el club lleve cuotas, asistencias e inscripciones desde un sitio, sin Excel ni grupos de WhatsApp.`
+      : `Soy Diego. He construido una herramienta para que clubes como ${claimed.name} lleven cuotas, asistencias e inscripciones desde un sitio, sin depender de Excel ni de grupos de WhatsApp.`
     const vars = {
       club_name: claimed.name,
       location: claimed.location || 'tu zona',
@@ -160,6 +170,8 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
       club_url: clubNameUrl,
       demo_url: `${base}/go/d/${shortCode}`,
       reservar_url: `${base}/go/r/${shortCode}`,
+      hook_subject: hookSubject,
+      hook,
     }
     const subject = renderTemplate(tpl.subject, vars)
     const html = wrapLinksForTracking(renderTemplate(tpl.body_html, vars), sendRow.id)
@@ -174,9 +186,11 @@ async function sendBatchInternal(clubIds: string[], templateKey: string = 'email
       fromName: settings.from_name,
       replyTo: settings.reply_to || settings.from_email,
       unsubscribeUrl: vars.unsubscribe_url,
-      // email_1 = primer contacto frío: texto plano solo, sin List-Unsubscribe header.
-      // El header List-Unsubscribe clasifica el email en Promociones automáticamente.
+      // email_1 = primer contacto frío: sin List-Unsubscribe header (clasifica en Promociones).
       coldOutreach: templateKey === 'email_1',
+      // A/B de FORMATO en email_1: variante A = texto plano, B = HTML mínimo.
+      // Ambas en frío (sin List-Unsubscribe); textOnly distingue el formato.
+      textOnly: templateKey === 'email_1' ? tpl.variant !== 'B' : undefined,
     })
 
     if (result.sent) {
@@ -565,6 +579,9 @@ export async function sendTestEmail(targetEmail: string) {
     demo_url: `${base}/demo?s=test&utm_source=email&utm_campaign=outbound&fed=rffm`,
     reservar_url: `${base}/reservar`,
     unsubscribe_url: `${base}/api/marketing/unsubscribe?c=test&s=test&t=test`,
+    // Test = club RFFM → gancho de goleadores
+    hook_subject: `los goleadores de tu categoría, ${clubName}`,
+    hook: `Soy Diego. He recopilado los máximos goleadores de toda la RFFM por categoría (con año de nacimiento). Te puedo pasar el ranking del equipo de ${clubName}, gratis y sin compromiso. De paso te cuento lo que hago: una herramienta para que el club lleve cuotas, asistencias e inscripciones desde un sitio, sin Excel ni grupos de WhatsApp.`,
   }
   const errors: string[] = []
   for (const tpl of templates) {
@@ -577,7 +594,8 @@ export async function sendTestEmail(targetEmail: string) {
       text,
       fromName: settings.from_name,
       replyTo: settings.reply_to || settings.from_email,
-      coldOutreach: true,  // igual que el envío real: texto plano
+      coldOutreach: true,                    // sin List-Unsubscribe (igual que real)
+      textOnly: tpl.variant !== 'B',          // A = texto plano, B = HTML mínimo
     })
     if (!result.sent) errors.push(`Variante ${tpl.variant}: ${result.error}`)
   }

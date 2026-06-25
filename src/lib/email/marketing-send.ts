@@ -20,10 +20,13 @@ interface MarketingEmailPayload {
   fromName: string
   replyTo?: string
   unsubscribeUrl?: string  // Para List-Unsubscribe one-click (RFC 8058)
-  // coldOutreach: envía solo texto plano, sin List-Unsubscribe header.
-  // Los emails HTML + List-Unsubscribe van siempre a Promociones en Gmail.
-  // Para cold outreach (email_1), el unsubscribe va embebido en body_text como URL plana.
+  // coldOutreach: NO añade el header List-Unsubscribe (ese header clasifica como
+  // Promociones en Gmail). El unsubscribe va embebido en el cuerpo como URL plana.
   coldOutreach?: boolean
+  // textOnly: envía solo texto plano (sin HTML). Por defecto = coldOutreach, para
+  // no cambiar el comportamiento previo. Permite el A/B "HTML mínimo en frío":
+  // coldOutreach=true (sin List-Unsubscribe) + textOnly=false (HTML).
+  textOnly?: boolean
 }
 
 const RESEND_KEY = process.env.RESEND_API_KEY
@@ -53,12 +56,13 @@ async function sendViaResend(payload: MarketingEmailPayload): Promise<{ sent: bo
       extraHeaders['List-Unsubscribe'] = `<${payload.unsubscribeUrl}>, <mailto:${MARKETING_FROM}?subject=baja>`
       extraHeaders['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
     }
+    const textOnly = payload.textOnly ?? payload.coldOutreach
     const { error } = await resend.emails.send({
       from: `${payload.fromName} <${MARKETING_FROM}>`,
       to: payload.to,
       subject: payload.subject,
-      // coldOutreach: solo texto plano — HTML activa clasificador de Promociones de Gmail
-      ...(payload.coldOutreach
+      // textOnly: solo texto plano. Si no, HTML (+ text de respaldo).
+      ...(textOnly
         ? { text: payload.text ?? payload.html }
         : { html: payload.html, ...(payload.text ? { text: payload.text } : {}) }
       ),
@@ -91,11 +95,12 @@ async function sendViaGmail(payload: MarketingEmailPayload): Promise<{ sent: boo
       extraHeaders['List-Unsubscribe'] = `<${payload.unsubscribeUrl}>, <mailto:${MARKETING_REPLY_TO}?subject=baja>`
       extraHeaders['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
     }
+    const textOnly = payload.textOnly ?? payload.coldOutreach
     const info = await transport.sendMail({
       from: `${payload.fromName} <${user}>`,
       to: payload.to,
       subject: payload.subject,
-      ...(payload.coldOutreach
+      ...(textOnly
         ? { text: payload.text ?? payload.html }
         : { html: payload.html, ...(payload.text ? { text: payload.text } : {}) }
       ),
