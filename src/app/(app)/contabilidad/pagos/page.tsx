@@ -83,6 +83,8 @@ export default async function PagosPage({
   // players y quota_payments usan fetchAllRows: PostgREST corta a 1000 filas y sin
   // paginar se perdían jugadores (últimos del alfabeto) y filas de pago → KPIs de
   // dinero (recaudado/deuda) incompletos. Mismo bug que en jugadores e informes.
+  // PERF: una sola query season_fees con .in() para ambos formatos (slash/dash);
+  // antes hacíamos 2 queries y una solía devolver 0 filas. Reduce 1 round-trip.
   const [
     paidThisMonth,
     pendingPayments,
@@ -90,8 +92,7 @@ export default async function PagosPage({
     { data: teams },
     seasonPayments,
     reminderHistory,
-    { data: seasonFeesSlash },
-    { data: seasonFeesDash },
+    { data: seasonFeesAll },
     { data: settings },
   ] = await Promise.all([
     fetchAllRows(() => sb.from('quota_payments').select('amount_paid')
@@ -107,12 +108,15 @@ export default async function PagosPage({
     fetchAllRows(() => sb.from('quota_payments').select('*')
       .eq('club_id', clubId).eq('season', season).order('created_at', { ascending: false })),
     getReminderHistory().catch(() => ({})),
-    sb.from('season_fees').select('team_id, concept, amount')
-      .eq('club_id', clubId).eq('season', feesSeason),
-    sb.from('season_fees').select('team_id, concept, amount')
-      .eq('club_id', clubId).eq('season', season),
+    sb.from('season_fees').select('team_id, concept, amount, season')
+      .eq('club_id', clubId).in('season', [feesSeason, season]),
     sb.from('club_settings').select('quota_amounts').eq('club_id', clubId).single(),
   ])
+  // Particionar por formato (preferimos slash/feesSeason, fallback dash/season)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const _allFees = (seasonFeesAll ?? []) as any[]
+  const seasonFeesSlash = _allFees.filter(f => f.season === feesSeason)
+  const seasonFeesDash  = _allFees.filter(f => f.season === season)
 
   // KPI: total recaudado este mes
   const totalPaidThisMonth = (paidThisMonth ?? []).reduce(

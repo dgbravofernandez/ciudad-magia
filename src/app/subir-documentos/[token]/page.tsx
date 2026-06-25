@@ -49,11 +49,13 @@ export default async function SubirDocumentosPage({ params }: { params: Promise<
       <SubirDocsForm
         token={token}
         brand={brand}
+        clubName={info.clubName ?? 'el club'}
         baseDocs={DOC_CATALOG.base as unknown as { key: string; label: string }[]}
         foreignDocs={DOC_CATALOG.foreign as unknown as { key: string; label: string }[]}
         foreignNotice={DOC_CATALOG.foreignNotice}
         defaultForeign={info.spanish === false}
         have={info.have ?? {}}
+        requested={info.requested}
       />
     </>
   )

@@ -42,6 +42,10 @@ export interface PlayerDocInfo {
   brand?: string         // primary_color del club (corporativo)
   spanish?: boolean
   have?: Record<string, boolean>
+  // Lista CUSTOM de docs solicitados por el club a este jugador (rellenada
+  // desde la ficha al pulsar "Solicitar documentos"). Si está vacío/nulo,
+  // la página cae al catálogo por defecto (base/foreign).
+  requested?: Array<{ key: string; label: string }>
 }
 
 /** Datos para la página: nombre, club + branding, si es español, qué docs ya tiene. */
@@ -55,6 +59,8 @@ export async function getPlayerDocInfo(token: string): Promise<PlayerDocInfo> {
     const { data: club } = await sb.from('clubs').select('name, logo_url, primary_color').eq('id', p.club_id).maybeSingle()
     const have: Record<string, boolean> = {}
     for (const [k, col] of Object.entries(DOC_COLUMNS)) have[k] = !!p[col]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const req = (p as any).requested_docs as Array<{ key: string; label: string }> | null | undefined
     return {
       ok: true,
       name: `${p.first_name} ${p.last_name}`.trim(),
@@ -63,6 +69,7 @@ export async function getPlayerDocInfo(token: string): Promise<PlayerDocInfo> {
       brand: club?.primary_color || '#2563eb',
       spanish: p.spanish_nationality !== false,
       have,
+      requested: Array.isArray(req) && req.length > 0 ? req : undefined,
     }
   } catch (e) {
     return { ok: false, error: (e as Error).message }
@@ -95,8 +102,14 @@ export async function getPlayerDocUploadTicket(
 /** Adjunta los documentos subidos (paths) al jugador del token. */
 export async function submitPlayerDocs(
   token: string, docs: Array<{ docType: string; path: string }>,
+  consent?: boolean,
 ): Promise<{ success: boolean; error?: string; saved?: number }> {
   try {
+    // RGPD: consentimiento explícito ANTES de tocar nada (Art. 6.1.a y Art. 9 RGPD —
+    // los datos de menores requieren autorización del tutor legal).
+    if (consent !== true) {
+      return { success: false, error: 'Debes aceptar el tratamiento de datos para continuar.' }
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
     const r = await resolvePlayer(sb, token)
@@ -158,6 +171,21 @@ export async function requestPlayerDocs(
     const extraTxt = (extra ?? '').trim()
     if (extraTxt) items.push(extraTxt)
     if (items.length === 0) return { success: false, error: 'Selecciona al menos un documento.' }
+
+    // Guardar la lista exacta solicitada (la página pública la usa para mostrar
+    // SOLO esos campos). Mezcla tipos conocidos + extras como texto libre.
+    const requestedDocs: Array<{ key: string; label: string }> = [
+      ...(docTypes ?? [])
+        .filter(k => REQUEST_DOC_LABELS[k])
+        .map(k => ({ key: k, label: REQUEST_DOC_LABELS[k] })),
+      ...(extraTxt
+        ? [{ key: `custom_${Date.now()}`, label: extraTxt }]
+        : []),
+    ]
+    await sb.from('players').update({
+      requested_docs: requestedDocs,
+      requested_docs_at: new Date().toISOString(),
+    }).eq('id', playerId).eq('club_id', clubId)
 
     const uploadUrl = playerDocUploadUrl(playerId)
     const playerName = `${player.first_name ?? ''} ${player.last_name ?? ''}`.trim()
