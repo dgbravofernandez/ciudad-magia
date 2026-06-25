@@ -858,6 +858,7 @@ function PagosTab({ payments }: { payments: QuotaPayment[] }) {
 
 import { driveViewUrl, driveImageUrl } from '@/lib/utils/drive'
 import { uploadPlayerDocument } from '@/features/jugadores/actions/document.actions'
+import { requestPlayerDocs } from '@/features/jugadores/actions/player-docs.actions'
 
 function DocRow({ label, url, playerId, docType }: {
   label: string
@@ -996,19 +997,12 @@ function DocumentosTab({ player }: { player: PlayerWithTeam }) {
           </span>
         </div>
 
-        {/* Request docs button */}
-        {missingCount > 0 && p.tutor_email && (
-          <a
-            href={`mailto:${p.tutor_email}?subject=Documentación pendiente - ${p.first_name} ${p.last_name}&body=Estimada familia,%0D%0A%0D%0AEn el club tenemos pendiente recibir la documentación de ${p.first_name} ${p.last_name}.%0D%0APor favor, envíe los documentos solicitados.%0D%0A%0D%0AUn saludo,%0D%0AEl Club`}
-            className="flex items-center gap-2 w-full justify-center px-3 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors mt-2"
-          >
-            <Send className="w-4 h-4" />
-            Solicitar {missingCount} documento{missingCount !== 1 ? 's' : ''} por email
-          </a>
-        )}
-        {missingCount > 0 && !p.tutor_email && (
+        {/* Request docs — modal con checklist editable */}
+        {p.tutor_email ? (
+          <RequestDocsButton player={p} />
+        ) : (
           <p className="text-xs text-muted-foreground mt-2">
-            Sin email de tutor — sincroniza desde Google Sheets para obtenerlo.
+            Sin email de tutor — añádeselo en datos para poder enviar la solicitud.
           </p>
         )}
       </div>
@@ -1032,6 +1026,142 @@ function DocumentosTab({ player }: { player: PlayerWithTeam }) {
           ))}
         </div>
       </div>
+    </>
+  )
+}
+
+// ── Solicitar docs (modal con checklist editable + texto libre) ───────────────
+type RequestablePlayer = Player & {
+  spanish_nationality?: boolean | null
+  photo_url?: string | null; dni_front_url?: string | null; dni_back_url?: string | null
+  birth_cert_url?: string | null; residency_cert_url?: string | null
+  passport_url?: string | null; nie_url?: string | null
+}
+
+const REQUEST_DOC_OPTIONS: { key: string; label: string; col: keyof RequestablePlayer }[] = [
+  { key: 'photo',          label: 'Foto del jugador',                         col: 'photo_url' },
+  { key: 'dni_front',      label: 'DNI/NIE — cara 1',                         col: 'dni_front_url' },
+  { key: 'dni_back',       label: 'DNI/NIE — cara 2 / Libro de familia',     col: 'dni_back_url' },
+  { key: 'birth_cert',     label: 'Certificado de nacimiento',                col: 'birth_cert_url' },
+  { key: 'nie',            label: 'NIE del jugador',                          col: 'nie_url' },
+  { key: 'passport',       label: 'Pasaporte',                                col: 'passport_url' },
+  { key: 'residency_cert', label: 'Permiso de residencia / empadronamiento', col: 'residency_cert_url' },
+]
+
+function RequestDocsButton({ player }: { player: RequestablePlayer }) {
+  const [open, setOpen] = useState(false)
+  const isForeign = player.spanish_nationality === false
+  // Por defecto: los que FALTAN. Para extranjero, prioriza NIE + foto (caso RFFM).
+  const defaultPick = () => {
+    const missing = REQUEST_DOC_OPTIONS.filter(o => !player[o.col])
+    const def: Record<string, boolean> = {}
+    for (const o of missing) {
+      if (isForeign && (o.key === 'nie' || o.key === 'photo')) def[o.key] = true
+      else if (!isForeign && ['photo', 'dni_front', 'dni_back', 'birth_cert'].includes(o.key)) def[o.key] = true
+    }
+    return def
+  }
+  const [picks, setPicks] = useState<Record<string, boolean>>({})
+  const [extra, setExtra] = useState('')
+  const [sending, setSending] = useState(false)
+  const router = useRouter()
+
+  const missingCount = REQUEST_DOC_OPTIONS.filter(o => !player[o.col]).length
+
+  function openModal() {
+    setPicks(defaultPick())
+    setExtra('')
+    setOpen(true)
+  }
+
+  async function send() {
+    const docTypes = Object.entries(picks).filter(([, v]) => v).map(([k]) => k)
+    if (docTypes.length === 0 && !extra.trim()) {
+      toast.error('Selecciona al menos un documento o escribe uno.')
+      return
+    }
+    setSending(true)
+    const r = await requestPlayerDocs(player.id, docTypes, extra.trim() || undefined)
+    setSending(false)
+    if (r.success) {
+      toast.success(r.emailSent ? 'Solicitud enviada al tutor' : 'Solicitud registrada (email no enviado)')
+      setOpen(false)
+      router.refresh()
+    } else {
+      toast.error(r.error ?? 'Error enviando la solicitud')
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={openModal}
+        className="flex items-center gap-2 w-full justify-center px-3 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors mt-2"
+      >
+        <Send className="w-4 h-4" />
+        Solicitar documentos {missingCount > 0 ? `(${missingCount} faltan)` : ''}
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => !sending && setOpen(false)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Solicitar documentos</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              A <strong>{player.tutor_name || `${player.first_name} ${player.last_name}`}</strong> · {player.tutor_email}
+            </p>
+            <p className="text-xs text-gray-500 mb-3">
+              {isForeign
+                ? 'Extranjero: marca lo que pida la federación esta vez. Pasaporte/residencia son opcionales.'
+                : 'Marca los documentos que necesitas del jugador.'}
+            </p>
+            <div className="space-y-1 mb-4">
+              {REQUEST_DOC_OPTIONS.map(o => {
+                const have = !!player[o.col]
+                return (
+                  <label key={o.key} className="flex items-center gap-2 py-1.5 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!picks[o.key]}
+                      onChange={e => setPicks(p => ({ ...p, [o.key]: e.target.checked }))}
+                    />
+                    <span className={have ? 'text-gray-400' : 'text-gray-800'}>
+                      {o.label} {have && <span className="text-xs">· ya recibido</span>}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Otro documento (texto libre)</label>
+            <input
+              type="text"
+              value={extra}
+              onChange={e => setExtra(e.target.value)}
+              placeholder="Ej: certificado médico federativo"
+              className="w-full text-sm px-3 py-2 border border-gray-200 rounded-lg mb-4"
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                disabled={sending}
+                className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={send}
+                disabled={sending}
+                className="px-4 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-50"
+                style={{ background: 'var(--color-primary, #2563eb)' }}
+              >
+                {sending ? 'Enviando…' : 'Enviar solicitud'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

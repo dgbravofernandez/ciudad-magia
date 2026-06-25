@@ -9,10 +9,12 @@ const ACCEPT = 'image/jpeg,image/png,image/webp,application/pdf'
 
 type Doc = { key: string; label: string }
 
-export function SubirDocsForm({ token, baseDocs, foreignDocs, defaultForeign, have }: {
+export function SubirDocsForm({ token, brand, baseDocs, foreignDocs, foreignNotice, defaultForeign, have }: {
   token: string
+  brand: string
   baseDocs: Doc[]
   foreignDocs: Doc[]
+  foreignNotice: string
   defaultForeign: boolean
   have: Record<string, boolean>
 }) {
@@ -23,7 +25,9 @@ export function SubirDocsForm({ token, baseDocs, foreignDocs, defaultForeign, ha
   const [done, setDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const docs = foreign ? [...baseDocs, ...foreignDocs] : baseDocs
+  // Si es extranjero, foreignDocs es la lista COMPLETA (no se concatena con base).
+  // Así pedimos lo mínimo (NIE + foto) y el aviso informa del resto a posteriori.
+  const docs = foreign ? foreignDocs : baseDocs
 
   function pick(key: string, f: File | null) {
     if (f && f.size > MAX_BYTES) { setError(`"${f.name}" supera los 8 MB`); return }
@@ -61,14 +65,17 @@ export function SubirDocsForm({ token, baseDocs, foreignDocs, defaultForeign, ha
     }
   }
 
-  const card: React.CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: '1.5rem', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', marginBottom: '1rem' }
+  const card: React.CSSProperties = {
+    background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16,
+    padding: '1.5rem', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', marginBottom: '1rem',
+  }
   const labelStyle: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, color: '#334155', marginBottom: 4 }
 
   if (done) {
     return (
       <div style={{ ...card, textAlign: 'center' }}>
         <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
-        <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', margin: '0 0 8px' }}>¡Documentos recibidos!</h2>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0F172A', margin: '0 0 8px' }}>¡Documentos recibidos!</h2>
         <p style={{ color: '#475569' }}>El club ya los tiene. Gracias.</p>
       </div>
     )
@@ -79,13 +86,28 @@ export function SubirDocsForm({ token, baseDocs, foreignDocs, defaultForeign, ha
       <div style={card}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#334155', marginBottom: '1rem' }}>
           <input type="checkbox" checked={foreign} onChange={e => setForeign(e.target.checked)} />
-          El jugador es extranjero (no español) — pide documentación adicional
+          El jugador es extranjero (no español)
         </label>
-        <p style={{ fontSize: 13, color: '#64748B', marginTop: 0 }}>JPG, PNG o PDF (máx. 8 MB cada uno). Solo sube los que tengas a mano.</p>
+
+        {foreign && (
+          <div style={{
+            background: `${brand}11`, border: `1px solid ${brand}33`,
+            borderRadius: 10, padding: '0.75rem 0.9rem', fontSize: 13,
+            color: '#334155', marginBottom: '1rem', lineHeight: 1.5,
+          }}>
+            ℹ️ {foreignNotice}
+          </div>
+        )}
+
+        <p style={{ fontSize: 13, color: '#64748B', marginTop: 0, marginBottom: '0.75rem' }}>
+          JPG, PNG o PDF (máx. 8 MB cada uno). Solo sube los que tengas a mano.
+        </p>
+
         {docs.map(d => (
-          <div key={d.key} style={{ marginBottom: '0.85rem' }}>
+          <div key={d.key} style={{ marginBottom: '1rem' }}>
             <label style={labelStyle}>
-              {d.label} {have[d.key] && <span style={{ color: '#16a34a', fontWeight: 400 }}>· ya recibido (puedes reemplazar)</span>}
+              {d.label}
+              {have[d.key] && <span style={{ color: '#16a34a', fontWeight: 400, marginLeft: 6 }}>· ya recibido (puedes reemplazar)</span>}
             </label>
             <input type="file" accept={ACCEPT} onChange={e => pick(d.key, e.target.files?.[0] ?? null)} style={{ fontSize: 14 }} />
             {files[d.key] && <span style={{ fontSize: 12, color: '#16a34a', marginLeft: 8 }}>✓ {files[d.key]!.name}</span>}
@@ -97,8 +119,9 @@ export function SubirDocsForm({ token, baseDocs, foreignDocs, defaultForeign, ha
 
       <button type="submit" disabled={pending} style={{
         width: '100%', padding: '0.95rem', borderRadius: 12, border: 'none',
-        background: '#2563eb', color: '#fff', fontWeight: 800, fontSize: '1rem',
+        background: brand, color: '#fff', fontWeight: 800, fontSize: '1rem',
         cursor: pending ? 'default' : 'pointer', opacity: pending ? 0.6 : 1,
+        boxShadow: `0 10px 24px ${brand}44`,
       }}>
         {pending ? 'Subiendo…' : 'Enviar documentación'}
       </button>

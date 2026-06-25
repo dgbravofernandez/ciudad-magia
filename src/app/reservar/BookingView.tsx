@@ -184,16 +184,24 @@ export function BookingView({ occupiedSlots, clubName, marketingClubId }: Props)
           <h1 style={{ fontWeight: 800, fontSize: 'clamp(1.5rem,4vw,2rem)', marginTop: '1.5rem', marginBottom: '0.5rem', color: '#0F172A', letterSpacing: '-0.02em' }}>
             Te enseño Cluberly en 15 minutos
           </h1>
-          <p style={{ color: '#475569', fontSize: '1rem' }}>
-            Sobre tu club concreto. Sin guion comercial. Tú me dices cuándo te viene bien y me adapto.
+          <p style={{ color: '#475569', fontSize: '1.05rem', marginBottom: '0.75rem' }}>
+            Sobre tu club concreto. Sin guion comercial.
           </p>
+          {/* CTA grande "sin compromiso" — la criba de hora es opcional */}
+          <div style={{
+            display: 'inline-block', padding: '0.5rem 1rem', borderRadius: 999,
+            background: '#FCE7F3', color: '#BE185D', fontWeight: 800, fontSize: '0.95rem',
+            border: '1px solid #FBCFE8',
+          }}>
+            🤝 Sin compromiso ninguno · te llamamos cuando os venga bien
+          </div>
         </div>
 
         {/* Card */}
         <form onSubmit={handleSubmit} style={{ background: '#fff', borderRadius: 20, padding: 'clamp(1.5rem,4vw,2.5rem)', boxShadow: '0 8px 40px rgba(236,72,153,0.12)', border: '1px solid #FBCFE8' }}>
           {/* Selector de modo */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1.5rem', background: '#F8FAFC', padding: 4, borderRadius: 12 }}>
-            {([['callback', '📞 Que me llamen'], ['slot', '🗓 Reservar hueco']] as const).map(([m, label]) => (
+            {([['callback', '📞 Que me llamen cuando me venga bien'], ['slot', '🗓 Prefiero elegir hora']] as const).map(([m, label]) => (
               <button type="button" key={m} onClick={() => setMode(m)}
                 style={{
                   padding: '0.7rem', borderRadius: 9, border: 'none', cursor: 'pointer',

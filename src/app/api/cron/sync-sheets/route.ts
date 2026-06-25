@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { previewInscriptionSync, applyInscriptionSync } from '@/features/jugadores/actions/sync-inscriptions.actions'
 import { autoImportNewInscriptions } from '@/features/jugadores/actions/sync-new-inscriptions.actions'
+import { matchAndPreview, applySheetSync } from '@/features/jugadores/actions/sync-docs.actions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/logger'
 
@@ -118,8 +119,48 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    logger.info({ action: 'syncSheets', phase: 'done', clubs: results.length, totalUpdated, totalCreated })
-    return NextResponse.json({ success: true, clubs: results.length, totalUpdated, totalCreated, results, createdResults, timestamp: new Date().toISOString() })
+    // ── Fase 3: auto-sync de DOCUMENTOS (foto/DNI/tutor) desde Google Sheets ─────
+    // El cron antes solo hacía esto a mano. Ahora cruza docs_sheet_id + tutors_sheet_id
+    // de cada club con sus jugadores → adjunta URLs de foto/DNI/etc + email/teléfono
+    // del tutor. Cierra el hueco de "los nuevos del Google Form no traían foto/DNI".
+    const { data: docCfgs } = await sb
+      .from('club_settings')
+      .select('club_id, docs_sheet_id, tutors_sheet_id')
+      .or('docs_sheet_id.not.is.null,tutors_sheet_id.not.is.null')
+    let totalDocsUpdated = 0
+    const docsResults: Array<{ clubId: string; updated?: number; unmatched?: number; error?: string }> = []
+    for (const cfg of (docCfgs ?? []) as Array<{ club_id: string; docs_sheet_id: string | null; tutors_sheet_id: string | null }>) {
+      try {
+        const docsUrl   = cfg.docs_sheet_id   ? `https://docs.google.com/spreadsheets/d/${cfg.docs_sheet_id}/export?format=csv&gid=0`   : null
+        const tutorsUrl = cfg.tutors_sheet_id ? `https://docs.google.com/spreadsheets/d/${cfg.tutors_sheet_id}/export?format=csv&gid=0` : null
+        const [docsRes, tutorsRes] = await Promise.all([
+          docsUrl   ? fetch(docsUrl)   : Promise.resolve(null),
+          tutorsUrl ? fetch(tutorsUrl) : Promise.resolve(null),
+        ])
+        const docsRows   = docsRes   && docsRes.ok   ? parseCSV(await docsRes.text())   : []
+        const tutorsRows = tutorsRes && tutorsRes.ok ? parseCSV(await tutorsRes.text()) : []
+        if (docsRows.length < 2 && tutorsRows.length < 2) {
+          docsResults.push({ clubId: cfg.club_id, updated: 0, unmatched: 0 })
+          continue
+        }
+        const preview = await matchAndPreview('', docsRows, tutorsRows, cfg.club_id)
+        if (preview.error) { docsResults.push({ clubId: cfg.club_id, error: preview.error }); continue }
+        if (preview.matches.length === 0) {
+          docsResults.push({ clubId: cfg.club_id, updated: 0, unmatched: preview.unmatched_docs + preview.unmatched_tutors })
+          continue
+        }
+        const r = await applySheetSync('', preview.matches, cfg.club_id)
+        if (r.error) { docsResults.push({ clubId: cfg.club_id, error: r.error }); continue }
+        totalDocsUpdated += r.updated
+        docsResults.push({ clubId: cfg.club_id, updated: r.updated, unmatched: preview.unmatched_docs + preview.unmatched_tutors })
+      } catch (e) {
+        // un club roto no debe tumbar el batch
+        docsResults.push({ clubId: cfg.club_id, error: e instanceof Error ? e.message : String(e) })
+      }
+    }
+
+    logger.info({ action: 'syncSheets', phase: 'done', clubs: results.length, totalUpdated, totalCreated, totalDocsUpdated })
+    return NextResponse.json({ success: true, clubs: results.length, totalUpdated, totalCreated, totalDocsUpdated, results, createdResults, docsResults, timestamp: new Date().toISOString() })
   } catch (err) {
     logger.error({ action: 'syncSheets', error: err instanceof Error ? err.message : String(err) })
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 500 })

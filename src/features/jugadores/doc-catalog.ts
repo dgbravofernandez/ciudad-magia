@@ -1,7 +1,10 @@
-// Catálogo de documentos solicitados. base = todos; foreign = extra para NO españoles
-// (la RFFM pide NIE/pasaporte/residencia a extranjeros, y a veces varía).
+// Catálogo de documentos solicitados.
+// base   = documentos por defecto para jugadores españoles.
+// foreign = documentos para extranjeros. La RFFM puede pedir más a posteriori
+//          (residencia, etc.); pedimos lo MÍNIMO viable y se lo decimos al tutor
+//          en un aviso para no abrumar (el resto se pide desde la ficha si hace
+//          falta — ver request-docs configurable).
 // Módulo plano (NO 'use server') para poder exportar el objeto a cliente y servidor.
-// Configurable a futuro por club; de momento un default sensato RFFM.
 export const DOC_CATALOG = {
   base: [
     { key: 'photo',      label: 'Foto del jugador (tipo carnet)' },
@@ -10,8 +13,10 @@ export const DOC_CATALOG = {
     { key: 'birth_cert', label: 'Certificado de nacimiento' },
   ],
   foreign: [
-    { key: 'nie',            label: 'NIE del jugador' },
-    { key: 'passport',       label: 'Pasaporte' },
-    { key: 'residency_cert', label: 'Permiso de residencia / empadronamiento' },
+    { key: 'nie',   label: 'NIE del jugador' },
+    { key: 'photo', label: 'Foto del jugador (tipo carnet)' },
   ],
+  foreignNotice:
+    'Si la federación nos pide algún documento adicional (pasaporte, ' +
+    'permiso de residencia, etc.), te lo pediremos más adelante por correo.',
 } as const

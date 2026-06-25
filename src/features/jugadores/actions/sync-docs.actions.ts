@@ -90,12 +90,14 @@ function col(headers: string[], keyword: string | string[]): number {
 export async function matchAndPreview(
   _clubIdUnused: string,
   docsRows: string[][],
-  tutorsRows: string[][]
+  tutorsRows: string[][],
+  clubIdOverride?: string,
 ): Promise<SyncPreview> {
   try {
     const { createAdminClient } = await import('@/lib/supabase/admin')
     const supabase = createAdminClient()
-    const clubId = await getClubId()
+    // clubIdOverride lo usa el cron (sin sesión); el flujo manual usa getClubId()
+    const clubId = clubIdOverride || await getClubId()
     if (!clubId) return { matches: [], unmatched_docs: 0, unmatched_tutors: 0, error: 'no_club' }
 
     const { data: rawPlayers } = await supabase
@@ -256,12 +258,14 @@ export async function matchAndPreview(
 // ─── Apply the confirmed sync ─────────────────────────────────────────────────
 export async function applySheetSync(
   _clubIdUnused: string,
-  matches: SyncMatch[]
+  matches: SyncMatch[],
+  clubIdOverride?: string,
 ): Promise<{ updated: number; error?: string }> {
   try {
     const { createAdminClient } = await import('@/lib/supabase/admin')
     const supabase = createAdminClient()
-    const clubId = await getClubId()
+    // clubIdOverride lo usa el cron (sin sesión); el flujo manual usa getClubId()
+    const clubId = clubIdOverride || await getClubId()
     if (!clubId) return { updated: 0, error: 'no_club' }
 
     // Run updates in parallel batches of 25 to avoid sequential timeout

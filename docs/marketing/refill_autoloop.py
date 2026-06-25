@@ -179,17 +179,27 @@ def run_enrich(brave_key: str) -> int:
     if brave_key:
         env["BRAVE_API_KEY"] = brave_key
 
-    with open(enrich_log, "a", encoding="utf-8", errors="replace") as lf:
-        result = subprocess.run(
-            [sys.executable, "-u", ENRICH_PY],
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
-            cwd=DIR, timeout=7200, env=env  # max 2h
-        )
+    # Timeout corto (20 min): el enrich web se cuelga en webs que no responden y
+    # antes el timeout de 2h mataba al autoloop entero. Si caduca, lo saltamos y
+    # el siguiente ciclo lo intenta otra vez — NO bloqueamos el resto del scraper.
+    try:
+        with open(enrich_log, "a", encoding="utf-8", errors="replace") as lf:
+            del lf  # solo aseguramos que el log exista; el resultado va a capture_output
+            result = subprocess.run(
+                [sys.executable, "-u", ENRICH_PY],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                cwd=DIR, timeout=1200, env=env
+            )
+    except subprocess.TimeoutExpired:
+        log("  [enrich TIMEOUT] 20min agotados — salto enrich este ciclo y sigo")
+        return 0
+    except Exception as e:
+        log(f"  [enrich CRASH] {str(e)[:200]} — salto y sigo")
+        return 0
     if result.stdout:
         lines = result.stdout.strip().splitlines()
         for line in lines[-12:]:
             log(f"  enrich> {line}")
-        # Parsear emails encontrados de la ultima linea de resumen
         for line in reversed(lines):
             if "emails este run:" in line:
                 try:
