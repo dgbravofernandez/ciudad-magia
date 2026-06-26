@@ -160,6 +160,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Planificación temporada', href: '/configuracion/planificacion' },
       { label: 'Plantillas email', href: '/configuracion/plantillas-email' },
       { label: 'Integraciones', href: '/configuracion/integraciones' },
+      { label: 'Cobros con tarjeta', href: '/configuracion/cobros' },
     ],
   },
 ]

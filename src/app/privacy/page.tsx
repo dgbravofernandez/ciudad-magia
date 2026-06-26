@@ -12,7 +12,7 @@ const SECTIONS = [
   },
   {
     title: '2. Datos que recogemos',
-    content: 'Recogemos los datos que tú o tu club introducen en la plataforma: nombre, email, teléfono, fecha de nacimiento de los socios, datos de pago (gestionados por Stripe, nunca almacenamos tarjetas), y datos de uso de la aplicación (sesiones, asistencias, comunicaciones).',
+    content: 'Recogemos los datos que tú o tu club introducen en la plataforma: nombre, email, teléfono, fecha de nacimiento de los socios, datos de pago (gestionados por Stripe, nunca almacenamos tarjetas), y datos de uso de la aplicación (sesiones, asistencias, comunicaciones). Si el club ha activado los cobros con tarjeta (servicio opcional), Stripe procesa también los datos de las familias pagadoras como entidad de pago. Más información en los Términos del servicio de cobros (cluberly.club/legal/cobros).',
   },
   {
     title: '3. Finalidad del tratamiento',
