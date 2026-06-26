@@ -291,7 +291,7 @@ export async function sendEmail(playerId: string, emailType: string, clubIdOverr
     ? createAdminClient()
     : (await createClient())
 
-  // Get player + team info (including next_team for 26/27 assignment emails)
+  // Get player + team info (including next_team for próxima temporada)
   const { data: player } = await sb
     .from('players')
     .select('*, teams:team_id(name), next_team:next_team_id(id, name)')
@@ -301,26 +301,20 @@ export async function sendEmail(playerId: string, emailType: string, clubIdOverr
 
   if (!player) return { success: false, error: 'Jugador no encontrado' }
 
-  // Try to get template; fall back to built-in content
-  const { data: template } = await sb
-    .from('email_templates')
-    .select('*')
-    .eq('club_id', clubId)
-    .eq('event_type', emailType)
-    .eq('active', true)
-    .single()
-
-  const playerName = `${player.first_name} ${player.last_name}`
+  // Templates v2 — usa renderClubEmail (lee de email_templates o cae al default
+  // limpio en código). Aplica wrapper visual con logo + color del club +
+  // footer estándar. El club edita texto plano + variables en la UI; no
+  // puede romper el HTML.
+  const playerName = `${player.first_name} ${player.last_name}`.trim()
   const tutorName = player.tutor_name || playerName
 
-  // For team_assignment emails, show the 26/27 (next) team; otherwise current team
+  // Para team_assignment: equipo y entrenador de la próxima temporada
   const isTeamAssignment = emailType === 'team_assignment'
   const teamName = isTeamAssignment
     ? (player.next_team?.name ?? player.teams?.name ?? 'Por confirmar')
     : (player.teams?.name ?? 'Por confirmar')
 
-  // Fetch coach name: for team_assignment use next_team_id, otherwise current team_id
-  let coachName: string | null = null
+  let coachName = ''
   const coachTeamId = isTeamAssignment ? (player.next_team_id ?? player.team_id) : player.team_id
   if (coachTeamId) {
     const { data: coachRow } = await sb
@@ -329,38 +323,44 @@ export async function sendEmail(playerId: string, emailType: string, clubIdOverr
       .eq('team_id', coachTeamId)
       .limit(1)
       .maybeSingle()
-    coachName = coachRow?.club_members?.full_name ?? null
+    coachName = coachRow?.club_members?.full_name ?? 'Por confirmar'
   }
 
-  // Birth year is used to apply the juvenile-specific message variant
-  // (born <= 2010 → cannot guarantee continuity until full juvenile renewal count is done)
-  const birthYear = player.birth_date ? new Date(player.birth_date).getFullYear() : null
-
-  // Fetch club name for email templates
-  const { data: clubRow } = await sb.from('clubs').select('name').eq('id', clubId).single()
-  const clubName: string = (clubRow as { name?: string } | null)?.name ?? 'El Club'
-
+  // Contexto temporada / deadlines / docs solicitados — todo opcional, el
+  // render decide si lo muestra (bloques {{#var}}).
   const emailCtx = await buildEmailCtx(sb, clubId)
-  // request_docs → formulario NATIVO de subida de documentos (no el Google Form).
-  // El resto (fill_form de renovación) conserva el forms_link del jugador.
   const { playerDocUploadUrl } = await import('@/lib/utils/doc-token')
-  const docFormLink = emailType === 'request_docs' ? playerDocUploadUrl(playerId) : (player.forms_link ?? '')
-  const fallbacks = buildFallbackEmail(emailType, playerName, tutorName, teamName, clubName, docFormLink, coachName, birthYear, emailCtx)
+  const { playerRenewalUrl } = await import('@/lib/utils/renewal-token')
 
-  const tokens: Record<string, string> = {
-    '{{player_name}}': playerName,
-    '{{tutor_name}}': tutorName,
-    '{{team}}': teamName,
-    '{{form_link}}': docFormLink,
-    '{{club_name}}': clubName,
+  // Lista de docs solicitados (si el club personalizó; si no, sin nada)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const requested = (player as any).requested_docs as Array<{ key: string; label: string }> | null
+  const docsHtml = (requested && requested.length > 0)
+    ? `<ul style="margin:0;padding-left:18px;line-height:1.7">${requested.map(r => `<li>${r.label}</li>`).join('')}</ul>`
+    : ''
+
+  const vars: import('@/lib/email/render-template').EmailVars = {
+    jugador_nombre: playerName,
+    jugador_dni: player.dni ?? '',
+    tutor_nombre: tutorName,
+    tutor_email: player.tutor_email ?? '',
+    temporada: emailCtx?.seasonLabel ?? '',
+    equipo: teamName,
+    entrenador_nombre: coachName,
+    fecha_limite: emailCtx?.reservationDeadline
+      ? new Date(emailCtx.reservationDeadline).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+      : '',
+    link_renovacion: playerRenewalUrl(playerId),
+    link_subir_docs: playerDocUploadUrl(playerId),
+    docs_solicitados: docsHtml,
+    // link_pago: pendiente Stripe Connect fase 2; cuando exista, se rellena aquí.
   }
 
-  let subject = (template?.subject ?? fallbacks.subject) as string
-  let body = (template?.body_html ?? fallbacks.body) as string
-  for (const [token, value] of Object.entries(tokens)) {
-    subject = subject.replaceAll(token, value)
-    body = body.replaceAll(token, value)
-  }
+  const { renderClubEmail } = await import('@/lib/email/render-template')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rendered = await renderClubEmail(emailType as any, clubId!, vars)
+  const subject = rendered.subject
+  const body = rendered.html
 
   // Determine recipient email (tutor preferred, player as fallback)
   const recipientEmail = player.tutor_email ?? null
@@ -368,7 +368,14 @@ export async function sendEmail(playerId: string, emailType: string, clubIdOverr
   // Send the actual email
   let emailSent = false
   if (recipientEmail) {
-    const { sent } = await sendHtmlEmail({ to: recipientEmail, subject, html: body })
+    const { sent } = await sendHtmlEmail({
+      to: recipientEmail,
+      subject,
+      html: body,
+      text: rendered.text,
+      fromName: rendered.fromName,
+      replyTo: rendered.replyTo,
+    })
     emailSent = sent
   }
 
@@ -377,7 +384,7 @@ export async function sendEmail(playerId: string, emailType: string, clubIdOverr
     club_id: clubId,
     subject,
     body_html: body,
-    template_id: template?.id ?? null,
+    template_id: null,
     recipient_type: 'individual',
     recipient_ids: [playerId],
     status: emailSent ? 'sent' : (recipientEmail ? 'error' : 'no_email'),
