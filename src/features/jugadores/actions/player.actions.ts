@@ -274,13 +274,22 @@ export async function updateInscriptionStatus(
   return { success: true, feesCreated }
 }
 
-export async function sendEmail(playerId: string, emailType: string) {
-  const supabase = await createClient()
-  const { getClubId } = await import('@/lib/supabase/get-club-id')
-  const clubId = await getClubId()
-
+export async function sendEmail(playerId: string, emailType: string, clubIdOverride?: string) {
+  // clubIdOverride: lo usan los flujos PÚBLICOS sin sesión (formulario de
+  // renovación /renovacion/[token], formulario de inscripción, etc.). El flujo
+  // con sesión sigue usando getClubId() como antes. En ambos casos se filtra
+  // por club_id en todas las queries y emails para mantener el aislamiento.
+  let clubId: string | null = clubIdOverride ?? null
+  if (!clubId) {
+    const { getClubId } = await import('@/lib/supabase/get-club-id')
+    clubId = await getClubId()
+  }
+  // En el flujo sin sesión usamos el admin client; con sesión, el server client
+  // (mantiene RLS si algún día se activa).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const sb: any = clubIdOverride
+    ? createAdminClient()
+    : (await createClient())
 
   // Get player + team info (including next_team for 26/27 assignment emails)
   const { data: player } = await sb
@@ -682,7 +691,7 @@ export async function createPlayer(formData: FormData) {
 
   const sendDocsRequest = formData.get('send_docs_request') === 'on'
   const sendTeamAssignment = formData.get('send_team_assignment') === 'on'
-  const formsLink = (formData.get('forms_link') as string)?.trim() || null
+  let formsLink = (formData.get('forms_link') as string)?.trim() || null
 
   const data = {
     club_id: clubId,
@@ -709,6 +718,32 @@ export async function createPlayer(formData: FormData) {
   const { data: player, error } = await (supabase as any).from('players').insert(data).select().single()
 
   if (error) return { success: false, error: error.message }
+
+  // Autogenerar forms_link NATIVO (/renovacion/[token]) solo para clubes NUEVOS
+  // que no tengan Google Form configurado en club_settings. Getafe (con
+  // inscriptions_sheet_id) sigue usando su Google Form como hasta ahora.
+  // El email `fill_form` usará player.forms_link en sendEmail.
+  if (!formsLink && player?.id && clubId) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sbAdmin = createAdminClient() as any
+      const { data: settings } = await sbAdmin.from('club_settings')
+        .select('inscriptions_sheet_id, inscription_form_link')
+        .eq('club_id', clubId).maybeSingle()
+      const hasGoogleForm = !!(settings?.inscriptions_sheet_id || settings?.inscription_form_link)
+      if (!hasGoogleForm) {
+        const { playerRenewalUrl } = await import('@/lib/utils/renewal-token')
+        formsLink = playerRenewalUrl(player.id)
+        await sbAdmin.from('players')
+          .update({ forms_link: formsLink })
+          .eq('id', player.id).eq('club_id', clubId)
+        player.forms_link = formsLink   // para que sendEmail lo lea fresco
+      }
+    } catch (e) {
+      // No bloqueamos la creación si esto falla: el jugador ya existe.
+      console.warn('[createPlayer] no se pudo autogenerar forms_link nativo:', (e as Error).message)
+    }
+  }
 
   // Email de documentación — solo si NO se envía también el de asignación
   // (el de asignación ya incluye el bloque de docs, mandar los dos sería duplicado)

@@ -19,6 +19,7 @@ const PUBLIC_PREFIX = [
   '/api/user-clubs',    // endpoint para listar clubs del usuario
   '/reservar',          // Página pública de reserva de demo (sin login)
   '/inscripcion',       // Formulario público de inscripción por club (sin login)
+  '/renovacion',        // Formulario público de renovación por jugador (sin login, token HMAC)
   '/subir-documentos',  // Subida pública de docs por jugador (token HMAC, sin login)
   '/recomendar',        // Página pública de referidos (sin login)
   '/plantilla-cuotas',  // Lead magnet público
