@@ -138,41 +138,68 @@ export async function sendTeamAssignmentEmail(
       .eq('club_id', clubId)
       .single()
 
-    const { data: clubRow } = await sb.from('clubs').select('name').eq('id', clubId).single()
+    const { data: clubRow } = await sb.from('clubs').select('name, primary_color').eq('id', clubId).single()
     const clubName: string = (clubRow as { name?: string } | null)?.name ?? 'El Club'
-    const subject = settings?.assignment_email_subject || `Equipo asignado temporada ${team.season}`
-    const bodyTemplate = settings?.assignment_email_body || buildDefaultBody(clubName)
+    const brandColor: string = (clubRow as { primary_color?: string } | null)?.primary_color || '#2563eb'
     const deadlineRaw = settings?.reservation_deadline as string | null
     const fechaLimite = deadlineRaw ? formatDate(deadlineRaw) : 'próximamente'
     const feesImageUrl = settings?.fees_image_url as string | null
-
-    // 6. Reemplazar placeholders
     const playerName = `${player.first_name} ${player.last_name}`.trim()
     const tutorName = player.tutor_name || playerName
 
-    const tokens: Record<string, string> = {
-      '{jugador_nombre}': playerName,
-      '{tutor_nombre}': tutorName,
-      '{equipo}': team.name,
-      '{entrenador_nombre}': entrenadorNombre,
-      '{importe_reserva}': importeReserva || '—',
-      '{fecha_limite}': fechaLimite,
-      '{temporada}': team.season,
+    // ── Renderizado: prioridad al sistema unificado (email_templates) ─────────
+    // Si el club tiene fila en email_templates(team_assignment, enabled=true) →
+    // usa el render unificado (wrapper con branding + variables {{xxx}}).
+    // Si NO → fallback al sistema legacy (settings.assignment_email_body con
+    // tokens {xxx}). Cero regresión para clubes que ya tenían su template
+    // personalizado configurado (Getafe).
+    let html: string
+    let subject: string
+    let fromName: string | undefined
+    let replyTo: string | undefined
+    const { data: unifiedTpl } = await sb.from('email_templates')
+      .select('id').eq('club_id', clubId).eq('event_type', 'team_assignment')
+      .eq('active', true).eq('enabled', true).maybeSingle()
+
+    if (unifiedTpl) {
+      const { renderClubEmail } = await import('@/lib/email/render-template')
+      const rendered = await renderClubEmail('team_assignment', clubId, {
+        jugador_nombre: playerName,
+        tutor_nombre: tutorName,
+        equipo: team.name,
+        entrenador_nombre: entrenadorNombre,
+        importe_reserva: importeReserva || '',
+        fecha_limite: fechaLimite,
+        temporada: team.season,
+      })
+      html = rendered.html
+      subject = rendered.subject
+      fromName = rendered.fromName
+      replyTo = rendered.replyTo
+    } else {
+      // Legacy: tokens {xxx} sobre settings.assignment_email_body o fallback
+      subject = settings?.assignment_email_subject || `Equipo asignado temporada ${team.season}`
+      const bodyTemplate = settings?.assignment_email_body || buildDefaultBody(clubName, brandColor)
+      const tokens: Record<string, string> = {
+        '{jugador_nombre}': playerName,
+        '{tutor_nombre}': tutorName,
+        '{equipo}': team.name,
+        '{entrenador_nombre}': entrenadorNombre,
+        '{importe_reserva}': importeReserva || '—',
+        '{fecha_limite}': fechaLimite,
+        '{temporada}': team.season,
+      }
+      html = bodyTemplate
+      for (const [key, val] of Object.entries(tokens)) html = html.replaceAll(key, val)
     }
 
-    let html = bodyTemplate
-    for (const [key, val] of Object.entries(tokens)) {
-      html = html.replaceAll(key, val)
-    }
-
-    // 7. Insertar imagen de cuotas si existe
+    // 7. Insertar imagen de cuotas si existe (compatible con AMBOS sistemas)
     if (feesImageUrl) {
       const imgTag = `<div style="text-align:center;margin:20px 0;">
   <img src="${feesImageUrl}" alt="Cuotas temporada ${team.season}" style="max-width:100%;border-radius:8px;" />
 </div>`
       html = html.replace('</body>', `${imgTag}</body>`)
       if (!html.includes(imgTag)) {
-        // Si no hay </body>, añadir al final
         html = html + imgTag
       }
     }
@@ -182,6 +209,8 @@ export async function sendTeamAssignmentEmail(
       to: player.tutor_email,
       subject,
       html,
+      fromName,
+      replyTo,
     })
 
     if (!sent) return { success: false, error: sendErr ?? 'Error al enviar el email' }
@@ -271,30 +300,53 @@ export async function sendNewPlayerAssignmentEmail(
       .eq('club_id', clubId)
       .single()
 
-    const { data: clubRow2 } = await sb.from('clubs').select('name').eq('id', clubId).single()
+    const { data: clubRow2 } = await sb.from('clubs').select('name, primary_color').eq('id', clubId).single()
     const clubName2: string = (clubRow2 as { name?: string } | null)?.name ?? 'El Club'
-    const subject = settings?.assignment_email_subject || `Bienvenido/a — Equipo asignado temporada ${team.season}`
-    const bodyTemplate = settings?.assignment_email_body || buildDefaultBody(clubName2)
+    const brandColor2: string = (clubRow2 as { primary_color?: string } | null)?.primary_color || '#2563eb'
     const deadlineRaw = settings?.reservation_deadline as string | null
     const fechaLimite = deadlineRaw ? formatDate(deadlineRaw) : 'próximamente'
     const feesImageUrl = settings?.fees_image_url as string | null
-
-    // 6. Tokens
     const playerName = `${player.first_name} ${player.last_name}`.trim()
     const tutorName = player.tutor_name || playerName
-    const tokens: Record<string, string> = {
-      '{jugador_nombre}': playerName,
-      '{tutor_nombre}': tutorName,
-      '{equipo}': team.name,
-      '{entrenador_nombre}': entrenadorNombre,
-      '{importe_reserva}': importeReserva || '—',
-      '{fecha_limite}': fechaLimite,
-      '{temporada}': team.season,
-    }
 
-    let html = bodyTemplate
-    for (const [key, val] of Object.entries(tokens)) {
-      html = html.replaceAll(key, val)
+    // ── Render: prioridad al sistema unificado, fallback a legacy ────────────
+    let html: string
+    let subject: string
+    let fromName: string | undefined
+    let replyTo: string | undefined
+    const { data: unifiedTpl } = await sb.from('email_templates')
+      .select('id').eq('club_id', clubId).eq('event_type', 'team_assignment')
+      .eq('active', true).eq('enabled', true).maybeSingle()
+
+    if (unifiedTpl) {
+      const { renderClubEmail } = await import('@/lib/email/render-template')
+      const rendered = await renderClubEmail('team_assignment', clubId, {
+        jugador_nombre: playerName,
+        tutor_nombre: tutorName,
+        equipo: team.name,
+        entrenador_nombre: entrenadorNombre,
+        importe_reserva: importeReserva || '',
+        fecha_limite: fechaLimite,
+        temporada: team.season,
+      })
+      html = rendered.html
+      subject = rendered.subject
+      fromName = rendered.fromName
+      replyTo = rendered.replyTo
+    } else {
+      subject = settings?.assignment_email_subject || `Bienvenido/a — Equipo asignado temporada ${team.season}`
+      const bodyTemplate = settings?.assignment_email_body || buildDefaultBody(clubName2, brandColor2)
+      const tokens: Record<string, string> = {
+        '{jugador_nombre}': playerName,
+        '{tutor_nombre}': tutorName,
+        '{equipo}': team.name,
+        '{entrenador_nombre}': entrenadorNombre,
+        '{importe_reserva}': importeReserva || '—',
+        '{fecha_limite}': fechaLimite,
+        '{temporada}': team.season,
+      }
+      html = bodyTemplate
+      for (const [key, val] of Object.entries(tokens)) html = html.replaceAll(key, val)
     }
 
     // 7. Bloque de documentación → SUBIDA NATIVA en la app (ya no Google Form)
@@ -327,7 +379,7 @@ export async function sendNewPlayerAssignmentEmail(
     }
 
     // 9. Enviar
-    const { sent, error: sendErr } = await sendHtmlEmail({ to: player.tutor_email, subject, html })
+    const { sent, error: sendErr } = await sendHtmlEmail({ to: player.tutor_email, subject, html, fromName, replyTo })
     if (!sent) return { success: false, error: sendErr ?? 'Error al enviar el email' }
 
     // 10. Log
@@ -502,21 +554,28 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-function buildDefaultBody(clubName = 'El Club'): string {
-  return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;border:3px solid #ffcc00;border-radius:12px;color:#333;">
+/**
+ * Fallback legacy del email de asignación. Se usa SOLO cuando el club no tiene
+ * plantilla unificada (email_templates) ni body configurado (assignment_email_body).
+ * El color usa la marca del club; antes era #ffcc00 (Getafe) hardcoded.
+ */
+function buildDefaultBody(clubName = 'El Club', brand = '#2563eb'): string {
+  // Hex con 10% alpha para el fondo del recuadro (vía hex con alpha=1a)
+  const tint = `${brand}1a`
+  return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;border:3px solid ${brand};border-radius:12px;color:#333;">
   <h2 style="color:#000;text-align:center;margin-bottom:4px;">Asignación de equipo — Temporada {temporada}</h2>
   <p style="text-align:center;font-size:0.9em;color:#666;">${clubName}</p>
   <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
   <p>Hola <strong>{tutor_nombre}</strong>,</p>
   <p>Nos complace comunicaros que <strong>{jugador_nombre}</strong> ha sido asignado/a al equipo:</p>
-  <div style="background:#fffbe6;border:2px solid #ffcc00;border-radius:8px;padding:14px;text-align:center;margin:16px 0;">
+  <div style="background:${tint};border:2px solid ${brand};border-radius:8px;padding:14px;text-align:center;margin:16px 0;">
     <p style="margin:0;font-size:1.1em;font-weight:bold;">{equipo}</p>
     <p style="margin:4px 0 0;font-size:0.9em;color:#555;">Entrenador/a: {entrenador_nombre}</p>
   </div>
   <p>Para confirmar la plaza, os pedimos que realicéis el pago de la reserva de <strong>{importe_reserva}</strong> antes del <strong>{fecha_limite}</strong>.</p>
   <p>En caso de dudas, podéis poneros en contacto con nosotros respondiendo a este correo.</p>
   <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
-  <p style="text-align:center;font-size:0.85em;color:#888;">Un saludo,<br><strong>La Dirección — ${clubName}</strong></p>
+  <p style="text-align:center;font-size:0.85em;color:#888;">Un saludo,<br><strong>${clubName}</strong></p>
 </div>`
 }
 

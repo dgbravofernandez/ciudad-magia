@@ -6,13 +6,17 @@ import { Mail, ImageIcon, Calendar, Eye, EyeOff, Loader2, Save, Upload } from 'l
 import { saveAssignmentEmailConfig, getAssignmentEmailConfig, type AssignmentEmailConfig } from '@/features/configuracion/actions/assignment-email.actions'
 import { createClient } from '@/lib/supabase/client'
 
-const DEFAULT_BODY = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;border:3px solid #ffcc00;border-radius:12px;color:#333;">
+// Placeholder neutro para el editor legacy de asignación. Los colores reales se
+// aplican en el envío con el primary_color del club (ver buildDefaultBody en
+// assignment-email.actions.ts). Aquí no usamos color de marca porque este
+// componente vive en la UI de Configuración → Planificación y no conoce el club.
+const DEFAULT_BODY = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;border:3px solid #2563eb;border-radius:12px;color:#333;">
   <h2 style="color:#000;text-align:center;margin-bottom:4px;">Asignación de equipo — Temporada {temporada}</h2>
   <p style="text-align:center;font-size:0.9em;color:#666;">Tu Club</p>
   <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
   <p>Hola <strong>{tutor_nombre}</strong>,</p>
   <p>Nos complace comunicaros que <strong>{jugador_nombre}</strong> ha sido asignado/a al equipo:</p>
-  <div style="background:#fffbe6;border:2px solid #ffcc00;border-radius:8px;padding:14px;text-align:center;margin:16px 0;">
+  <div style="background:#eff6ff;border:2px solid #2563eb;border-radius:8px;padding:14px;text-align:center;margin:16px 0;">
     <p style="margin:0;font-size:1.1em;font-weight:bold;">{equipo}</p>
     <p style="margin:4px 0 0;font-size:0.9em;color:#555;">Entrenador/a: {entrenador_nombre}</p>
   </div>

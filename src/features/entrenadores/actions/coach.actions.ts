@@ -3,33 +3,16 @@
 import { revalidatePath } from 'next/cache'
 import { getScopedClient } from '@/lib/supabase/scoped-client'
 import { sendHtmlEmail } from '@/lib/email/send'
+import { renderClubEmail } from '@/lib/email/render-template'
 
-/** Lee nombre del club + link de formulario de entrenadores desde club_settings.
- *  El form link puede ser null — en ese caso los emails no incluyen el botón. */
+/** Lee link de formulario de entrenadores desde club_settings.
+ *  El form link puede ser null — en ese caso la plantilla 'coach_invitation'
+ *  omite el bloque del botón (vía bloque condicional {{#link_inscripcion}}). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getClubMeta(sb: any, clubId: string): Promise<{ clubName: string; coachesFormLink: string | null }> {
-  const [{ data: clubRow }, { data: settingsRow }] = await Promise.all([
-    sb.from('clubs').select('name').eq('id', clubId).single(),
-    sb.from('club_settings').select('coaches_form_link').eq('club_id', clubId).single(),
-  ])
-  return {
-    clubName: (clubRow as { name?: string } | null)?.name ?? 'El Club',
-    coachesFormLink: (settingsRow as { coaches_form_link?: string | null } | null)?.coaches_form_link ?? null,
-  }
-}
-
-function buildCoachFormBlock(formLink: string | null): string {
-  if (!formLink) {
-    return `<p style="background:#f9f9f9;padding:12px;border-radius:8px;font-size:0.9em;color:#666;text-align:center;">
-      El coordinador del club se pondrá en contacto contigo para completar el proceso de inscripción.
-    </p>`
-  }
-  return `<div style="text-align:center;margin:25px 0;">
-    <a href="${formLink}" style="background:#ffcc00;color:#000;padding:14px 30px;border-radius:8px;font-weight:bold;text-decoration:none;font-size:16px;display:inline-block;">
-      Rellenar formulario de inscripción
-    </a>
-  </div>
-  <p style="font-size:0.85em;color:#888;text-align:center;">O copia este enlace: ${formLink}</p>`
+async function getCoachesFormLink(sb: any, clubId: string): Promise<string | null> {
+  const { data } = await sb.from('club_settings')
+    .select('coaches_form_link').eq('club_id', clubId).maybeSingle()
+  return (data?.coaches_form_link as string | null) ?? null
 }
 
 export async function sendCoachInvitation(
@@ -39,20 +22,25 @@ export async function sendCoachInvitation(
   const { sb, clubId } = await getScopedClient()
   if (!clubId) return { success: false, error: 'No autenticado' }
 
-  const { clubName, coachesFormLink } = await getClubMeta(sb, clubId)
-  const subject = `Formulario de inscripción para el cuerpo técnico - ${clubName}`
-  const body = `<div style="font-family:Arial,sans-serif;padding:25px;border:4px solid #ffcc00;border-radius:15px;color:#333;">
-    <h2 style="color:#000;text-align:center;">Bienvenido/a al Cuerpo Técnico - Temporada 26/27</h2>
-    <p>Hola${name ? ` <strong>${name}</strong>` : ''},</p>
-    <p>Nos ponemos en contacto para invitarte a formar parte del cuerpo técnico de la <strong>${clubName}</strong> la próxima temporada.</p>
-    <p>Por favor, rellena el siguiente formulario con tus datos y documentación:</p>
-    ${buildCoachFormBlock(coachesFormLink)}
-    <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
-    <p style="text-align:center;font-size:0.9em;">Atentamente,<br><strong>La Dirección - ${clubName}</strong></p>
-  </div>`
+  const coachesFormLink = await getCoachesFormLink(sb, clubId)
+  // Render unificado: el club edita la plantilla 'coach_invitation' desde la UI.
+  // jugador_nombre se reutiliza como "nombre del invitado" (el render lo usa en
+  // bloque condicional {{#jugador_nombre}}...{{/jugador_nombre}} de la plantilla
+  // por defecto, así que si no hay nombre, no se imprime).
+  const rendered = await renderClubEmail('coach_invitation', clubId, {
+    jugador_nombre: name ?? '',
+    link_inscripcion: coachesFormLink ?? '',
+  })
 
   try {
-    const { sent } = await sendHtmlEmail({ to: email, subject, html: body })
+    const { sent } = await sendHtmlEmail({
+      to: email,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      fromName: rendered.fromName,
+      replyTo: rendered.replyTo,
+    })
     return { success: true, emailSent: sent }
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : 'Error al enviar' }
@@ -76,18 +64,20 @@ export async function sendCoachFormLink(
     return { success: false, error: 'Sin email válido' }
   }
 
-  const { clubName, coachesFormLink } = await getClubMeta(sb, clubId!)
-  const subject = `Formulario de inscripción para el cuerpo técnico - ${clubName}`
-  const body = `<div style="font-family:Arial,sans-serif;padding:25px;border:4px solid #ffcc00;border-radius:15px;color:#333;">
-    <h2 style="color:#000;text-align:center;">Bienvenido/a al Cuerpo Técnico</h2>
-    <p>Hola <strong>${member.full_name}</strong>,</p>
-    <p>Para completar tu inscripción como entrenador/a en la ${clubName}, necesitamos que rellenes el siguiente formulario con tus datos y documentación:</p>
-    ${buildCoachFormBlock(coachesFormLink)}
-    <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
-    <p style="text-align:center;font-size:0.9em;">Atentamente,<br><strong>La Dirección - ${clubName}</strong></p>
-  </div>`
+  const coachesFormLink = await getCoachesFormLink(sb, clubId!)
+  const rendered = await renderClubEmail('coach_invitation', clubId!, {
+    jugador_nombre: member.full_name ?? '',
+    link_inscripcion: coachesFormLink ?? '',
+  })
 
-  const { sent } = await sendHtmlEmail({ to: member.email, subject, html: body })
+  const { sent } = await sendHtmlEmail({
+    to: member.email,
+    subject: rendered.subject,
+    html: rendered.html,
+    text: rendered.text,
+    fromName: rendered.fromName,
+    replyTo: rendered.replyTo,
+  })
 
   // Guardar el form_link real (null si no configurado) en el miembro
   await sb.from('club_members').update({

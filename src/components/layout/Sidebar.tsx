@@ -158,7 +158,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Roles y accesos', href: '/configuracion/roles' },
       { label: 'Cuotas', href: '/configuracion/cuotas' },
       { label: 'Planificación temporada', href: '/configuracion/planificacion' },
-      { label: 'Plantillas email', href: '/configuracion/plantillas-email' },
+      { label: 'Plantillas email', href: '/configuracion/plantillas-email' },  // NUEVA (editable, con preview)
       { label: 'Integraciones', href: '/configuracion/integraciones' },
       { label: 'Cobros con tarjeta', href: '/configuracion/cobros' },
     ],

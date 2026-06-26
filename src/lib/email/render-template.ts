@@ -286,6 +286,53 @@ export async function renderClubEmail(
   return { subject, html, text, fromName, replyTo }
 }
 
+/**
+ * Variante del render que acepta overrides en memoria (NO toca BD). La usa el
+ * PREVIEW en el editor de plantillas para que el usuario vea cómo queda lo que
+ * está escribiendo sin tener que guardar. Misma lógica de wrapper y variables.
+ */
+export async function renderClubEmailWithOverride(
+  eventType: EmailEventType,
+  clubId: string,
+  vars: EmailVars,
+  override: { subject?: string; bodyHtml?: string },
+): Promise<RenderedEmail> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const [{ data: club }, { data: settings }] = await Promise.all([
+    sb.from('clubs').select('name, logo_url, primary_color').eq('id', clubId).maybeSingle(),
+    sb.from('club_settings').select('contact_email, email_from_label').eq('club_id', clubId).maybeSingle(),
+  ])
+  const clubName = (club?.name as string) || 'el club'
+  const wrapperCtx: WrapperContext = {
+    clubName,
+    clubLogo: club?.logo_url ?? null,
+    primaryColor: club?.primary_color ?? null,
+    contactEmail: settings?.contact_email ?? null,
+  }
+  const allVars: EmailVars = {
+    club_nombre: clubName,
+    club_email_contacto: settings?.contact_email ?? '',
+    color_marca: club?.primary_color ?? '#2563eb',
+    ...vars,
+  }
+
+  const defTpl = DEFAULT_TEMPLATES[eventType] ?? { subject: 'Notificación de {{club_nombre}}', body: '<p>Hola.</p>' }
+  const rawSubject = override.subject ?? defTpl.subject
+  const rawBodyHtml = override.bodyHtml ?? defTpl.body
+  const rawBodyText = htmlToText(rawBodyHtml)
+
+  const subject = substitute(rawSubject, allVars, false)
+  const bodyHtml = substitute(rawBodyHtml, allVars, true)
+  const bodyText = substitute(rawBodyText, allVars, false)
+
+  const html = wrapEmailHtml(bodyHtml, wrapperCtx)
+  const text = wrapEmailText(bodyText, wrapperCtx)
+  const fromName = settings?.email_from_label || `Cluberly · ${clubName}`
+  const replyTo = settings?.contact_email || undefined
+  return { subject, html, text, fromName, replyTo }
+}
+
 // ─── Sustitución de variables ────────────────────────────────────────────────
 
 /**

@@ -948,35 +948,32 @@ export async function sendPendingReminders(playerIds: string[]) {
     const amountDueNow = computeAmountDueNow(info.total, alreadyPaid)
     const debtStr = formatCurrency(amountDueNow)
 
-    const html = buildReminderHtml({
-      tutorName, playerName, debtStr, clubName,
-      contactEmail, bankIban, bankTitular, bankName,
+    // Render unificado: el club edita la plantilla 'payment_reminder' desde la
+    // UI; el wrapper aplica branding (logo + color + footer). IBAN/titular/banco
+    // son variables condicionales → si el club no los tiene configurados, no
+    // aparecen en el email.
+    const { renderClubEmail } = await import('@/lib/email/render-template')
+    const rendered = await renderClubEmail('payment_reminder', clubId, {
+      tutor_nombre: tutorName,
+      jugador_nombre: playerName,
+      importe_deuda: debtStr,
+      concepto: 'cuotas pendientes',
+      club_iban: bankIban,
+      club_titular: bankTitular || clubName,
+      club_banco: bankName,
+      // link_pago: pendiente Stripe Connect fase 2.
     })
-
-    // Versión plain text para reducir spam score (Gmail penaliza emails solo-HTML)
-    const text = [
-      `Estimada ${tutorName},`,
-      '',
-      `Le informamos que ${playerName} tiene cuotas pendientes con ${clubName}.`,
-      `Para estar al corriente de pago, el importe a abonar es: ${debtStr}.`,
-      '',
-      'MÉTODOS DE PAGO:',
-      ...(bankIban ? [`  · Transferencia bancaria: ${bankIban} (${bankTitular || clubName})`] : []),
-      '  · En las oficinas del club',
-      '',
-      'Por favor, realice el pago a la mayor brevedad posible.',
-      '',
-      `Un saludo,`,
-      clubName,
-    ].join('\n')
+    const html = rendered.html
+    const subject = rendered.subject
 
     try {
       const sendPromise = sendHtmlEmail({
         to: player.tutor_email,
-        subject: `Cuota pendiente — ${playerName}`,
+        subject,
         html,
-        text,
-        fromName: clubName,
+        text: rendered.text,
+        fromName: rendered.fromName,
+        replyTo: rendered.replyTo,
       })
       const timeout = new Promise<void>((_, rej) =>
         setTimeout(() => rej(new Error('timeout')), 20000)
@@ -984,11 +981,11 @@ export async function sendPendingReminders(playerIds: string[]) {
       await Promise.race([sendPromise, timeout])
       sent++
 
-      // Registrar el envío en communications
+      // Registrar el envío en communications (subject del render)
       await sb.from('communications').insert({
         club_id: clubId,
         sent_by: memberId || null,
-        subject: `Cuota pendiente — ${playerName}`,
+        subject,
         body_html: html,
         recipient_type: 'individual',
         recipient_ids: [player.id],
@@ -1029,17 +1026,20 @@ export async function sendPendingReminders(playerIds: string[]) {
 function buildReminderHtml(opts: {
   tutorName: string; playerName: string; debtStr: string; clubName: string
   contactEmail: string; bankIban: string; bankTitular: string; bankName: string
+  brand?: string                // color de marca del club; default neutro
 }) {
+  const brand = opts.brand || '#2563eb'
+  const tint = `${brand}1a`     // fondo 10% alpha
   return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;">
 
   <!-- Cabecera -->
   <div style="background:#1a1a1a;padding:24px 32px;text-align:center;">
-    <p style="color:#ffcc00;font-size:20px;font-weight:bold;margin:0;letter-spacing:1px;">${opts.clubName.toUpperCase()}</p>
+    <p style="color:${brand};font-size:20px;font-weight:bold;margin:0;letter-spacing:1px;">${opts.clubName.toUpperCase()}</p>
     <p style="color:#ffffff;font-size:12px;margin:4px 0 0;letter-spacing:2px;text-transform:uppercase;">Recordatorio de pago de cuotas</p>
   </div>
 
   <!-- Franja amarilla -->
-  <div style="background:#ffcc00;height:4px;"></div>
+  <div style="background:${brand};height:4px;"></div>
 
   <!-- Cuerpo -->
   <div style="padding:32px;">
@@ -1051,7 +1051,7 @@ function buildReminderHtml(opts: {
     </p>
 
     <!-- Importe para estar al corriente -->
-    <div style="background:#fffbe6;border-left:4px solid #ffcc00;border-radius:6px;padding:18px 20px;margin:24px 0;">
+    <div style="background:${tint};border-left:4px solid ${brand};border-radius:6px;padding:18px 20px;margin:24px 0;">
       <p style="margin:0 0 8px;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">Importe para estar al corriente</p>
       <p style="margin:0;font-size:26px;font-weight:bold;color:#b76e00;">${opts.debtStr}</p>
       <p style="margin:6px 0 0;font-size:12px;color:#888;">Calculado según los plazos de pago de la temporada vigente.</p>
@@ -1087,7 +1087,7 @@ function buildReminderHtml(opts: {
       Si ya ha efectuado el pago o existe alguna circunstancia que debamos conocer, le rogamos que conteste a este correo para revisar el caso.
     </p>
     <p style="margin:0 0 24px;">
-      ${opts.contactEmail ? `<a href="mailto:${opts.contactEmail}" style="color:#ffcc00;font-weight:bold;text-decoration:none;font-size:15px;">📧 ${opts.contactEmail}</a>` : ''}
+      ${opts.contactEmail ? `<a href="mailto:${opts.contactEmail}" style="color:${brand};font-weight:bold;text-decoration:none;font-size:15px;">📧 ${opts.contactEmail}</a>` : ''}
     </p>
 
     <p style="font-size:15px;color:#333;line-height:1.7;margin:0;">
@@ -1098,7 +1098,7 @@ function buildReminderHtml(opts: {
 
   <!-- Pie -->
   <div style="background:#1a1a1a;padding:18px 32px;text-align:center;">
-    <p style="color:#ffcc00;font-size:13px;font-weight:bold;margin:0 0 4px;">${opts.clubName}</p>
+    <p style="color:${brand};font-size:13px;font-weight:bold;margin:0 0 4px;">${opts.clubName}</p>
     ${opts.contactEmail ? `<p style="color:#888;font-size:12px;margin:0;">${opts.contactEmail}</p>` : ''}
   </div>
 
@@ -1610,8 +1610,9 @@ export async function sendMilestoneReminder(input: {
     const { sb, clubId, memberId } = await resolveClubAndMember()
 
     // Datos del club y configuración bancaria
-    const { data: clubData } = await sb.from('clubs').select('name').eq('id', clubId).single()
+    const { data: clubData } = await sb.from('clubs').select('name, primary_color').eq('id', clubId).single()
     const clubName = clubData?.name ?? 'El Club'
+    const brandColor: string = clubData?.primary_color || '#2563eb'
     const { data: settingsData } = await sb
       .from('club_settings')
       .select('contact_email, bank_iban, bank_titular, bank_name, current_season')
@@ -1642,7 +1643,7 @@ export async function sendMilestoneReminder(input: {
 
       const html = buildMilestoneReminderHtml({
         tutorName, playerName, milestone: input.milestone, amountStr,
-        clubName, contactEmail, bankIban, bankTitular, bankName,
+        clubName, contactEmail, bankIban, bankTitular, bankName, brand: brandColor,
       })
       const text = [
         `Estimada ${tutorName},`,
@@ -1701,14 +1702,17 @@ export async function sendMilestoneReminder(input: {
 function buildMilestoneReminderHtml(opts: {
   tutorName: string; playerName: string; milestone: string; amountStr: string
   clubName: string; contactEmail: string; bankIban: string; bankTitular: string; bankName: string
+  brand?: string
 }) {
+  const brand = opts.brand || '#2563eb'
+  const tint = `${brand}1a`
   return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;">
 
   <div style="background:#1a1a1a;padding:24px 32px;text-align:center;">
-    <p style="color:#ffcc00;font-size:20px;font-weight:bold;margin:0;letter-spacing:1px;">${opts.clubName.toUpperCase()}</p>
+    <p style="color:${brand};font-size:20px;font-weight:bold;margin:0;letter-spacing:1px;">${opts.clubName.toUpperCase()}</p>
     <p style="color:#ffffff;font-size:12px;margin:4px 0 0;letter-spacing:2px;text-transform:uppercase;">Aviso de pago</p>
   </div>
-  <div style="background:#ffcc00;height:4px;"></div>
+  <div style="background:${brand};height:4px;"></div>
 
   <div style="padding:32px;">
     <p style="font-size:15px;color:#333;margin:0 0 16px;">Estimado/a <strong>${opts.tutorName}</strong>,</p>
@@ -1716,7 +1720,7 @@ function buildMilestoneReminderHtml(opts: {
       Le informamos que el importe correspondiente al concepto <strong>"${opts.milestone}"</strong> de <strong>${opts.playerName}</strong> está pendiente de abono.
     </p>
 
-    <div style="background:#fffbe6;border-left:4px solid #ffcc00;border-radius:6px;padding:18px 20px;margin:24px 0;">
+    <div style="background:${tint};border-left:4px solid ${brand};border-radius:6px;padding:18px 20px;margin:24px 0;">
       <p style="margin:0 0 8px;font-size:13px;color:#888;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">Concepto: ${opts.milestone}</p>
       <p style="margin:0;font-size:26px;font-weight:bold;color:#b76e00;">${opts.amountStr}</p>
     </div>
@@ -1741,13 +1745,13 @@ function buildMilestoneReminderHtml(opts: {
       Si ya ha realizado el pago o tiene alguna consulta, contáctenos respondiendo a este correo o en:
     </p>
     <p style="margin:0 0 24px;">
-      ${opts.contactEmail ? `<a href="mailto:${opts.contactEmail}" style="color:#ffcc00;font-weight:bold;text-decoration:none;font-size:15px;">📧 ${opts.contactEmail}</a>` : ''}
+      ${opts.contactEmail ? `<a href="mailto:${opts.contactEmail}" style="color:${brand};font-weight:bold;text-decoration:none;font-size:15px;">📧 ${opts.contactEmail}</a>` : ''}
     </p>
     <p style="font-size:15px;color:#333;margin:0;">Gracias por su atención.</p>
   </div>
 
   <div style="background:#1a1a1a;padding:18px 32px;text-align:center;">
-    <p style="color:#ffcc00;font-size:13px;font-weight:bold;margin:0 0 4px;">${opts.clubName}</p>
+    <p style="color:${brand};font-size:13px;font-weight:bold;margin:0 0 4px;">${opts.clubName}</p>
     ${opts.contactEmail ? `<p style="color:#888;font-size:12px;margin:0;">${opts.contactEmail}</p>` : ''}
   </div>
 </div>`
