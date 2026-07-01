@@ -133,7 +133,12 @@ export async function GET(req: NextRequest) {
             } else {
               res = await fetch(task.url)
             }
-            if (!res.ok) return
+            if (!res.ok) {
+              // 403 = scope OAuth insuficiente o fichero no compartido con el club.
+              // 404 = fichero borrado en Drive. Loguear ambos para diagnóstico.
+              console.warn(`[documentos-zip] ${res.status} ${task.teamFolder}/${task.playerFolder}/${task.label} — ${task.url.slice(0, 80)}`)
+              return
+            }
             const ext = extFromContentType(res.headers.get('content-type'))
             const buffer = Buffer.from(await res.arrayBuffer())
             archive.append(buffer, { name: `${task.teamFolder}/${task.playerFolder}/${task.label}.${ext}` })

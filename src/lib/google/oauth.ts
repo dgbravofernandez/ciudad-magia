@@ -15,7 +15,12 @@ import type { sheets_v4, drive_v3 } from 'googleapis'
 
 export const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets',
+  // drive.file: crear/leer las hojas propias que Cluberly genera (backend sheet).
   'https://www.googleapis.com/auth/drive.file',
+  // drive.readonly: leer ficheros preexistentes del Drive del club — imprescindible
+  // para descargar los docs (fotos, DNIs) que subieron las familias vía Google Form,
+  // que no fueron creados por Cluberly y por eso no entran en drive.file.
+  'https://www.googleapis.com/auth/drive.readonly',
   'https://www.googleapis.com/auth/userinfo.email',
 ]
 
