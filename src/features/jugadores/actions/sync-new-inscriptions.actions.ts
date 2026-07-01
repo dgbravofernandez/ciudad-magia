@@ -29,6 +29,12 @@ export interface NewInscriptionsPreview {
   error?: string
 }
 
+// Normaliza DNI/NIE para comparar dedup: quita guiones/espacios que varían entre
+// el Sheet y la BD (p.ej. "Z1294570-D" vs "Z1294570D") y que hacían fallar el match.
+function normDni(raw: string | null | undefined): string {
+  return (raw ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
 function extractSheetId(urlOrId: string): string {
   const match = urlOrId.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]{20,})/)
   if (match) return match[1]
@@ -45,9 +51,29 @@ function parseDate(raw: string): string {
   return ''
 }
 
+/**
+ * Divide "Nombre Apellidos" en { firstName, lastName } cuando el sheet solo tiene
+ * una columna de nombre completo (colNombre === colApellidos) — sin esto se guardaba
+ * el nombre completo duplicado en first_name Y last_name.
+ */
+function splitFullName(firstRaw: string, lastRaw: string, sameColumn: boolean): { firstName: string; lastName: string } {
+  if (!sameColumn || !firstRaw) return { firstName: firstRaw, lastName: lastRaw }
+  const parts = firstRaw.trim().split(/\s+/)
+  if (parts.length < 2) return { firstName: firstRaw, lastName: '' }
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') }
+}
+
 function detectColumn(headers: string[], keywords: string[]): number {
   const h = headers.map(h => h.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''))
   const kw = keywords.map(k => k.toLowerCase())
+  // 1) Cabecera EXACTA primero: en sheets reales, columnas como "FOTO DEL DNI (CARA 2)..."
+  // contienen la palabra clave "dni" y aparecen antes que la columna real "DNI",
+  // así que un match por substring capturaría el link de la foto en vez del valor.
+  for (const kwd of kw) {
+    const idx = h.findIndex(col => col === kwd)
+    if (idx >= 0) return idx
+  }
+  // 2) Fallback: substring, como antes
   for (const kwd of kw) {
     const idx = h.findIndex(col => col.includes(kwd))
     if (idx >= 0) return idx
@@ -55,8 +81,12 @@ function detectColumn(headers: string[], keywords: string[]): number {
   return -1
 }
 
-async function fetchSheetCsv(sheetId: string, gid = '0'): Promise<string[][]> {
-  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
+async function fetchSheetCsv(sheetId: string, gid?: string): Promise<string[][]> {
+  // Sin gid: Google exporta la primera pestaña visible. Forzar "gid=0" fallaba en sheets
+  // reales cuya primera pestaña no tiene ese id (p.ej. tras borrar/reordenar pestañas).
+  const url = gid
+    ? `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`
+    : `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`
   const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) throw new Error(`No se pudo leer el Sheet (HTTP ${res.status}). Asegúrate de que es público.`)
   const text = await res.text()
@@ -109,16 +139,17 @@ export async function previewNewInscriptions(sheetUrlOrId: string): Promise<NewI
       .select('dni, tutor_email, first_name, last_name')
       .eq('club_id', clubId))
 
-    const existingDnis = new Set((existingPlayers ?? []).map((p: { dni: string }) => p.dni?.trim().toLowerCase()).filter(Boolean))
+    const existingDnis = new Set((existingPlayers ?? []).map((p: { dni: string }) => normDni(p.dni)).filter(Boolean))
     const existingEmails = new Set((existingPlayers ?? []).map((p: { tutor_email: string }) => p.tutor_email?.trim().toLowerCase()).filter(Boolean))
 
     const toCreate: NewPlayerRow[] = []
     const alreadyExist: { name: string; reason: string }[] = []
 
+    const sameNameColumn = colNombre >= 0 && colNombre === colApellidos
+
     for (const row of dataRows) {
       const g = (i: number) => (i >= 0 ? (row[i] ?? '').trim() : '')
-      const firstName  = g(colNombre)
-      const lastName   = g(colApellidos)
+      const { firstName, lastName } = splitFullName(g(colNombre), g(colApellidos), sameNameColumn)
       const email      = g(colEmail).toLowerCase()
       const phone      = g(colTelefono)
       const tutorName  = g(colTutor)
@@ -129,7 +160,7 @@ export async function previewNewInscriptions(sheetUrlOrId: string): Promise<NewI
       if (!name) continue
 
       // Deduplicar
-      if (dni && existingDnis.has(dni.toLowerCase())) {
+      if (dni && existingDnis.has(normDni(dni))) {
         alreadyExist.push({ name, reason: `DNI ${dni} ya existe` }); continue
       }
       if (email && existingEmails.has(email)) {
@@ -165,7 +196,7 @@ export async function importNewInscriptions(rows: NewPlayerRow[]): Promise<{
       .select('dni, tutor_email')
       .eq('club_id', clubId))
     const existingDnis = new Set<string>(
-      (existingPlayers ?? []).map((p: { dni: string }) => p.dni?.trim().toLowerCase()).filter(Boolean)
+      (existingPlayers ?? []).map((p: { dni: string }) => normDni(p.dni)).filter(Boolean)
     )
     const existingEmails = new Set<string>(
       (existingPlayers ?? []).map((p: { tutor_email: string }) => p.tutor_email?.trim().toLowerCase()).filter(Boolean)
@@ -176,7 +207,7 @@ export async function importNewInscriptions(rows: NewPlayerRow[]): Promise<{
 
     for (const row of rows) {
       // Rechazar duplicados que el cliente pudo haber omitido
-      const dniKey = row.dni?.trim().toLowerCase()
+      const dniKey = normDni(row.dni)
       const emailKey = row.tutor_email?.trim().toLowerCase()
       if (dniKey && existingDnis.has(dniKey)) { skipped++; continue }
       if (emailKey && existingEmails.has(emailKey)) { skipped++; continue }
@@ -278,20 +309,21 @@ export async function autoImportNewInscriptions(
     const existing = await fetchAllRows(() => sb.from('players')
       .select('dni, tutor_email').eq('club_id', clubId))
     const existingDnis = new Set<string>((existing ?? [])
-      .map((p: { dni: string }) => p.dni?.trim().toLowerCase()).filter(Boolean))
+      .map((p: { dni: string }) => normDni(p.dni)).filter(Boolean))
     const existingEmails = new Set<string>((existing ?? [])
       .map((p: { tutor_email: string }) => p.tutor_email?.trim().toLowerCase()).filter(Boolean))
+
+    const sameNameColumn = colNombre >= 0 && colNombre === colApellidos
 
     let created = 0, skipped = 0
     for (const row of dataRows) {
       const g = (i: number) => (i >= 0 ? (row[i] ?? '').trim() : '')
-      const firstName = g(colNombre)
-      const lastName  = g(colApellidos)
+      const { firstName, lastName } = splitFullName(g(colNombre), g(colApellidos), sameNameColumn)
       const name = `${firstName} ${lastName}`.trim()
       if (!name) { skipped++; continue }
       const email = g(colEmail).toLowerCase()
       const dni   = g(colDni).toUpperCase()
-      if (dni && existingDnis.has(dni.toLowerCase())) { skipped++; continue }
+      if (dni && existingDnis.has(normDni(dni))) { skipped++; continue }
       if (email && existingEmails.has(email)) { skipped++; continue }
 
       const categoria = g(colCategoria)
@@ -310,7 +342,7 @@ export async function autoImportNewInscriptions(
       })
       if (error) { skipped++; continue }
       // marcar como vistos dentro de esta pasada (evita duplicar si la hoja repite fila)
-      if (dni) existingDnis.add(dni.toLowerCase())
+      if (dni) existingDnis.add(normDni(dni))
       if (email) existingEmails.add(email)
       created++
     }

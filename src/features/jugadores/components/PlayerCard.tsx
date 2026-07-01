@@ -1377,8 +1377,8 @@ function RendimientoTab({ playerId }: { playerId: string }) {
     )
   }
 
-  const pctColor = (p: number) =>
-    p >= 80 ? 'text-green-600' : p >= 60 ? 'text-amber-600' : 'text-red-600'
+  const pctColor = (p: number | null) =>
+    p == null ? 'text-muted-foreground' : p >= 80 ? 'text-green-600' : p >= 60 ? 'text-amber-600' : 'text-red-600'
 
   return (
     <div className="lg:col-span-3 space-y-5">
@@ -1395,7 +1395,7 @@ function RendimientoTab({ playerId }: { playerId: string }) {
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Asistencia entrenamientos</p>
               <p className={cn('text-3xl font-bold mt-1', pctColor(data.attendance_pct))}>
-                {data.attendance_pct}%
+                {data.attendance_pct == null ? 'Sin datos' : `${data.attendance_pct}%`}
               </p>
             </div>
             <div className="text-right text-xs text-muted-foreground">
@@ -1407,11 +1407,12 @@ function RendimientoTab({ playerId }: { playerId: string }) {
             <div
               className={cn(
                 'h-full rounded-full transition-all',
-                data.attendance_pct >= 80 ? 'bg-green-500'
+                data.attendance_pct == null ? 'bg-muted-foreground/30'
+                  : data.attendance_pct >= 80 ? 'bg-green-500'
                   : data.attendance_pct >= 60 ? 'bg-amber-500'
                   : 'bg-red-500'
               )}
-              style={{ width: `${Math.min(100, data.attendance_pct)}%` }}
+              style={{ width: `${data.attendance_pct == null ? 0 : Math.min(100, data.attendance_pct)}%` }}
             />
           </div>
           <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
@@ -1434,12 +1435,14 @@ function RendimientoTab({ playerId }: { playerId: string }) {
           </div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${Math.min(100, data.minutes_pct)}%` }}
+              className={cn('h-full rounded-full transition-all', data.minutes_pct == null ? 'bg-muted-foreground/30' : 'bg-primary')}
+              style={{ width: `${data.minutes_pct == null ? 0 : Math.min(100, data.minutes_pct)}%` }}
             />
           </div>
           <p className="text-xs text-muted-foreground mt-3">
-            <span className={cn('font-medium', pctColor(data.minutes_pct))}>{data.minutes_pct}%</span> de los minutos posibles en los partidos que disputó
+            {data.minutes_pct == null
+              ? <span className="font-medium text-muted-foreground">Sin partidos disputados</span>
+              : <><span className={cn('font-medium', pctColor(data.minutes_pct))}>{data.minutes_pct}%</span> de los minutos posibles en los partidos que disputó</>}
           </p>
         </div>
       </div>

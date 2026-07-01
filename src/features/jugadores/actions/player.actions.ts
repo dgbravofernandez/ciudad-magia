@@ -1343,11 +1343,11 @@ export interface PlayerPerformance {
   trainings_attended: number
   trainings_justified: number
   trainings_absent: number
-  attendance_pct: number // 0..100
+  attendance_pct: number | null // 0..100, null si no hay entrenamientos programados (sin datos, no 0%)
   matches_team_total: number // partidos del equipo en la temporada
   matches_played: number // partidos donde el jugador tiene minutos_played > 0
   minutes_played: number
-  minutes_pct: number // sobre matches_played * 90
+  minutes_pct: number | null // sobre matches_played * 90, null si no jugó ningún partido
   goals: number
   assists: number
   yellow_cards: number
@@ -1479,12 +1479,12 @@ export async function getPlayerPerformance(
 
     const attendance_pct = trainings_scheduled > 0
       ? Math.round((trainings_attended / trainings_scheduled) * 1000) / 10
-      : 0
+      : null
 
     // % minutos sobre partidos realmente jugados × 90 (excluye partidos donde no estuvo convocado/no jugó)
     const minutes_pct = matches_played > 0
       ? Math.round((minutes_played / (matches_played * 90)) * 1000) / 10
-      : 0
+      : null
 
     return {
       success: true,

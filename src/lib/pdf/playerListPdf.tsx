@@ -13,7 +13,6 @@ export interface PlayerListPdfRow {
   teamName: string
   position: string
   status: string
-  payment: { label: 'Al día' | 'Parcial' | 'Sin pagar' | 'Sin cuotas'; due: number; paid: number; pending: number }
 }
 
 export interface PlayerListPdfInput {
@@ -28,10 +27,6 @@ function fmtDate(d: string | null): string {
   if (!d) return ''
   const [y, m, day] = d.slice(0, 10).split('-')
   return y && m && day ? `${day}/${m}/${y}` : d
-}
-
-function fmtEuro(n: number): string {
-  return n === 0 ? '—' : `${n.toFixed(0)} €`
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -51,13 +46,6 @@ function fmtPos(p: string): string {
   return POS_LABELS[p.toLowerCase()] ?? p
 }
 
-function payColor(label: PlayerListPdfRow['payment']['label']): string {
-  if (label === 'Al día') return '#16A34A'
-  if (label === 'Parcial') return '#F59E0B'
-  if (label === 'Sin pagar') return '#DC2626'
-  return '#94A3B8'
-}
-
 export async function generatePlayerListPdf(input: PlayerListPdfInput): Promise<Blob> {
   const accent = input.clubPrimaryColor || '#EC4899'
   const today = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -74,16 +62,12 @@ export async function generatePlayerListPdf(input: PlayerListPdfInput): Promise<
     tableHeader: { flexDirection: 'row', backgroundColor: accent, color: '#FFFFFF', padding: 6, fontSize: 8, fontWeight: 700 },
     row: { flexDirection: 'row', padding: 5, fontSize: 8, borderBottom: '0.5pt solid #E5E7EB' },
     rowAlt: { backgroundColor: '#FDF2F8' },
-    c_name: { width: '20%', paddingRight: 4 },
-    c_dni:  { width: '12%' },
-    c_nac:  { width: '10%' },
-    c_team: { width: '14%' },
-    c_pos:  { width: '10%' },
-    c_status: { width: '9%' },
-    c_pay:  { width: '8%' },
-    c_due:  { width: '8%', textAlign: 'right' as const },
-    c_paid: { width: '8%', textAlign: 'right' as const },
-    c_pending: { width: '8%', textAlign: 'right' as const },
+    c_name: { width: '28%', paddingRight: 4 },
+    c_dni:  { width: '16%' },
+    c_nac:  { width: '14%' },
+    c_team: { width: '18%' },
+    c_pos:  { width: '12%' },
+    c_status: { width: '12%' },
     badge: { fontSize: 7, fontWeight: 700 },
     footer: { position: 'absolute', bottom: 20, left: 30, right: 30, flexDirection: 'row', justifyContent: 'space-between', fontSize: 7, color: '#94A3B8' },
     summary: { marginTop: 12, padding: 8, backgroundColor: '#FDF2F8', borderRadius: 4, flexDirection: 'row', justifyContent: 'space-around' },
@@ -94,12 +78,6 @@ export async function generatePlayerListPdf(input: PlayerListPdfInput): Promise<
 
   // KPIs
   const total = input.players.length
-  const alDia = input.players.filter(p => p.payment.label === 'Al día').length
-  const parcial = input.players.filter(p => p.payment.label === 'Parcial').length
-  const sinPagar = input.players.filter(p => p.payment.label === 'Sin pagar').length
-  const totalDue = input.players.reduce((s, p) => s + p.payment.due, 0)
-  const totalPaid = input.players.reduce((s, p) => s + p.payment.paid, 0)
-  const totalPending = input.players.reduce((s, p) => s + p.payment.pending, 0)
 
   const initial = (input.clubName || 'C').slice(0, 1).toUpperCase()
 
@@ -131,10 +109,6 @@ export async function generatePlayerListPdf(input: PlayerListPdfInput): Promise<
           <Text style={styles.c_team}>Equipo</Text>
           <Text style={styles.c_pos}>Pos.</Text>
           <Text style={styles.c_status}>Estado</Text>
-          <Text style={styles.c_pay}>Pago</Text>
-          <Text style={styles.c_due}>Cuota</Text>
-          <Text style={styles.c_paid}>Pagado</Text>
-          <Text style={styles.c_pending}>Pendiente</Text>
         </View>
 
         {input.players.map((p, i) => (
@@ -145,12 +119,6 @@ export async function generatePlayerListPdf(input: PlayerListPdfInput): Promise<
             <Text style={styles.c_team}>{p.teamName}</Text>
             <Text style={styles.c_pos}>{fmtPos(p.position)}</Text>
             <Text style={styles.c_status}>{fmtStatus(p.status)}</Text>
-            <Text style={[styles.c_pay, styles.badge, { color: payColor(p.payment.label) }]}>{p.payment.label}</Text>
-            <Text style={styles.c_due}>{fmtEuro(p.payment.due)}</Text>
-            <Text style={styles.c_paid}>{fmtEuro(p.payment.paid)}</Text>
-            <Text style={[styles.c_pending, { color: p.payment.pending > 0 ? '#DC2626' : '#16A34A' }]}>
-              {fmtEuro(p.payment.pending)}
-            </Text>
           </View>
         ))}
 
@@ -159,30 +127,6 @@ export async function generatePlayerListPdf(input: PlayerListPdfInput): Promise<
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryNum, { color: accent }]}>{total}</Text>
             <Text style={styles.summaryLabel}>JUGADORES</Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryNum, { color: '#16A34A' }]}>{alDia}</Text>
-            <Text style={styles.summaryLabel}>AL DÍA</Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryNum, { color: '#F59E0B' }]}>{parcial}</Text>
-            <Text style={styles.summaryLabel}>PARCIAL</Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryNum, { color: '#DC2626' }]}>{sinPagar}</Text>
-            <Text style={styles.summaryLabel}>SIN PAGAR</Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryNum, { color: '#0F172A' }]}>{totalDue.toFixed(0)}€</Text>
-            <Text style={styles.summaryLabel}>CUOTA TOTAL</Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryNum, { color: '#16A34A' }]}>{totalPaid.toFixed(0)}€</Text>
-            <Text style={styles.summaryLabel}>COBRADO</Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={[styles.summaryNum, { color: '#DC2626' }]}>{totalPending.toFixed(0)}€</Text>
-            <Text style={styles.summaryLabel}>PENDIENTE</Text>
           </View>
         </View>
 

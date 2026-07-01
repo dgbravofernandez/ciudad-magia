@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Search, Plus, ChevronRight, ChevronDown, X, Download, FileText } from 'lucide-react'
+import { Search, Plus, ChevronRight, ChevronDown, X, Download, FileText, Archive } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import type { Player } from '@/types/database.types'
 import { RoleGuard } from '@/components/shared/RoleGuard'
@@ -136,20 +136,6 @@ function downloadCsv(rows: Record<string, unknown>[], filename: string) {
   URL.revokeObjectURL(a.href)
 }
 
-interface PayState { due: number; paid: number }
-type PaymentsByPlayer = Record<string, Record<string, PayState>>
-
-/** Estado de pago de un jugador para una temporada concreta. */
-function getPaymentStatus(playerId: string, season: string, payments: PaymentsByPlayer):
-  { label: 'Al día' | 'Parcial' | 'Sin pagar' | 'Sin cuotas'; due: number; paid: number; pending: number } {
-  const s = payments[playerId]?.[season]
-  if (!s || s.due === 0) return { label: 'Sin cuotas', due: 0, paid: 0, pending: 0 }
-  const pending = Math.max(0, s.due - s.paid)
-  if (pending <= 0.01) return { label: 'Al día', due: s.due, paid: s.paid, pending: 0 }
-  if (s.paid > 0.01) return { label: 'Parcial', due: s.due, paid: s.paid, pending }
-  return { label: 'Sin pagar', due: s.due, paid: 0, pending }
-}
-
 export function PlayerList({
   players,
   teams,
@@ -157,7 +143,6 @@ export function PlayerList({
   currentSeason = '2025/26',
   nextSeason = '2026/27',
   activeSanctions = {},
-  paymentsByPlayer = {},
   clubName = '',
   clubLogoUrl = null,
   clubPrimaryColor = '#EC4899',
@@ -168,7 +153,6 @@ export function PlayerList({
   currentSeason?: string
   nextSeason?: string
   activeSanctions?: Record<string, number>
-  paymentsByPlayer?: PaymentsByPlayer
   clubName?: string
   clubLogoUrl?: string | null
   clubPrimaryColor?: string
@@ -250,7 +234,6 @@ export function PlayerList({
                 return y && m && day ? `${day}/${m}/${y}` : d
               }
               const rows = filtered.map(p => {
-                const pay = getPaymentStatus(p.id, selectedSeason, paymentsByPlayer)
                 return {
                   Nombre: p.first_name ?? '',
                   Apellidos: p.last_name ?? '',
@@ -264,10 +247,6 @@ export function PlayerList({
                   Posición: p.position ?? '',
                   'Pie dominante': p.dominant_foot ?? '',
                   Estado: STATUS_LABELS[p.status] ?? p.status,
-                  'Estado pago': pay.label,
-                  'Cuota total (€)': pay.due,
-                  'Pagado (€)': pay.paid,
-                  'Pendiente (€)': pay.pending,
                   'Tutor 1': p.tutor_name ?? '',
                   'Email tutor 1': p.tutor_email ?? '',
                   'Tel. tutor 1': p.tutor_phone ?? '',
@@ -305,7 +284,6 @@ export function PlayerList({
                   teamName: isNextSeason ? (p.nextTeam?.name ?? '') : (p.teams?.name ?? ''),
                   position: p.position ?? '',
                   status: STATUS_LABELS[p.status] ?? p.status,
-                  payment: getPaymentStatus(p.id, selectedSeason, paymentsByPlayer),
                 })),
               })
               const url = URL.createObjectURL(blob)
@@ -321,6 +299,22 @@ export function PlayerList({
             <FileText className="w-4 h-4" />
             PDF
           </button>
+          <RoleGuard roles={['admin', 'direccion']}>
+            <a
+              href={(() => {
+                const params = new URLSearchParams()
+                if (isNextSeason) params.set('season', 'next')
+                if (filterTeams.length > 0) params.set('teamIds', filterTeams.join(','))
+                const qs = params.toString()
+                return `/api/jugadores/documentos-zip${qs ? `?${qs}` : ''}`
+              })()}
+              className="btn-secondary gap-2 flex items-center text-sm"
+              title={`Descargar ZIP con la documentación (Equipo/Jugador/Documento) de la temporada ${selectedSeason}${filterTeams.length > 0 ? ', equipos filtrados' : ' completa'} — puede tardar varios minutos`}
+            >
+              <Archive className="w-4 h-4" />
+              ZIP docs
+            </a>
+          </RoleGuard>
           <RoleGuard roles={['admin', 'direccion', 'coordinador', 'director_deportivo']}>
             <Link href="/jugadores/nuevo" className="btn-primary gap-2 flex items-center">
               <Plus className="w-4 h-4" />
