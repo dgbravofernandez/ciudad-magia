@@ -34,6 +34,21 @@ const PUBLIC_PREFIX = [
 // Rutas exclusivas del panel superadmin — no necesitan club membership
 const SUPERADMIN_PATHS = ['/superadmin']
 
+// SEC C-1: headers de confianza que SOLO puede setear este middleware.
+// Sin este saneado, un cliente podía inyectar p.ej. `x-platform-role: superadmin`
+// en la petición y, como solo se sobreescribían condicionalmente, el valor
+// inyectado sobrevivía hasta assertSuperAdmin() → escalada a superadmin.
+const TRUSTED_HEADERS = [
+  'x-club-id', 'x-member-id', 'x-user-roles',
+  'x-user-email', 'x-user-id', 'x-platform-role', 'x-impersonating',
+]
+
+function sanitizedHeaders(request: NextRequest): Headers {
+  const h = new Headers(request.headers)
+  for (const name of TRUSTED_HEADERS) h.delete(name)
+  return h
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const host = request.headers.get('host') ?? ''
@@ -49,12 +64,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url, 301)
   }
 
-  // Allow public paths without auth check
+  // Allow public paths without auth check.
+  // SEC C-1: aun siendo públicas, saneamos los headers de confianza para que
+  // ningún handler aguas abajo pueda leer un x-club-id/x-platform-role inyectado.
   if (
     PUBLIC_EXACT.includes(pathname) ||
     PUBLIC_PREFIX.some((p) => pathname.startsWith(p))
   ) {
-    return NextResponse.next()
+    return NextResponse.next({ request: { headers: sanitizedHeaders(request) } })
   }
 
   const { supabaseResponse, user } = await updateSession(request)
@@ -98,7 +115,7 @@ export async function middleware(request: NextRequest) {
   // double-check + fallback a BD). Si el middleware ya sabe que es superadmin,
   // inyecta el header para evitar la query extra del layout.
   if (SUPERADMIN_PATHS.some((p) => pathname.startsWith(p))) {
-    const requestHeaders = new Headers(request.headers)
+    const requestHeaders = sanitizedHeaders(request)
     if (isSuperAdmin) {
       requestHeaders.set('x-platform-role', 'superadmin')
     }
@@ -150,7 +167,7 @@ export async function middleware(request: NextRequest) {
     if (club) {
       const memberId = impMember?.id ?? 'superadmin-impersonating'
 
-      const requestHeaders = new Headers(request.headers)
+      const requestHeaders = sanitizedHeaders(request)
       requestHeaders.set('x-club-id', impersonateClubId)
       requestHeaders.set('x-member-id', memberId)
       // Superadmin impersonando tiene todos los roles
@@ -303,7 +320,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Inject headers for Server Components to read
-  const requestHeaders = new Headers(request.headers)
+  const requestHeaders = sanitizedHeaders(request)
   requestHeaders.set('x-club-id', member.club_id)
   requestHeaders.set('x-member-id', member.id)
   requestHeaders.set('x-user-roles', JSON.stringify(roleNames))

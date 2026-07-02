@@ -7,13 +7,31 @@ import { headers, cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { signValue } from '@/lib/utils/hmac'
 
-/** Verifica que el usuario actual es superadmin. Lanza si no. */
+/**
+ * Verifica que el usuario actual es superadmin. Lanza (redirect) si no.
+ * SEC C-1: el header x-platform-role es solo un fast-path — la fuente de verdad
+ * es SIEMPRE la tabla platform_admins contra la sesión real. Aunque el middleware
+ * sanea los headers entrantes, aquí no confiamos en el header para CONCEDER acceso.
+ */
 async function assertSuperAdmin() {
   const headersList = await headers()
   const platformRole = headersList.get('x-platform-role')
   if (platformRole !== 'superadmin') {
     redirect('/dashboard')
   }
+  // Double-check en BD: el header solo evita la query cuando el middleware ya
+  // negó el acceso; para concederlo exigimos fila en platform_admins.
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any
+  const { data: adminRow } = await sb
+    .from('platform_admins')
+    .select('user_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (!adminRow) redirect('/dashboard')
 }
 
 export type ClubSummary = {

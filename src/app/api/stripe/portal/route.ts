@@ -5,7 +5,12 @@ import { getClubContext } from '@/lib/supabase/get-club-id'
 
 export async function POST(req: NextRequest) {
   try {
-    const { clubId } = await getClubContext()
+    const { clubId, roles } = await getClubContext()
+    // M-2: el portal de facturación expone datos de pago del club — solo administración
+    // (mismo gate que /api/stripe/checkout).
+    if (!roles.some(r => ['admin', 'direccion'].includes(r))) {
+      return NextResponse.json({ error: 'Solo administración' }, { status: 403 })
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createAdminClient() as any
 

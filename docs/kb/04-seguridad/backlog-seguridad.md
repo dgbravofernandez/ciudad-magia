@@ -53,3 +53,26 @@
 - SEC-4 estructural: `getScopedClient()` central + lint `no-restricted-imports` para `createAdminClient` → previene esta clase de bug de raíz.
 - SEC-5: clave por club (HKDF).
 - Probar SEC-5 end-to-end en staging con Google real.
+
+---
+
+## Auditoría multi-tenant 2026-07-01 (revisor-multitenant)
+
+### SEC-7 · CRÍTICO — Escalada a superadmin por inyección de `x-platform-role` — ✅ RESUELTO
+- **Era:** el middleware copiaba TODAS las cabeceras del cliente (`new Headers(request.headers)`) y solo sobreescribía `x-platform-role` condicionalmente. Un usuario autenticado podía inyectar `x-platform-role: superadmin` y pasar `assertSuperAdmin()` → lectura/escritura cross-tenant de todos los clubes (PII, toggleClubActive, notas).
+- **Fix aplicado (doble):**
+  1. `middleware.ts`: helper `sanitizedHeaders()` que borra los 7 headers de confianza (`x-club-id`, `x-member-id`, `x-user-roles`, `x-user-email`, `x-user-id`, `x-platform-role`, `x-impersonating`) al entrar, en los 4 caminos (`public`, `/superadmin`, impersonación, flujo normal).
+  2. `superadmin.actions.ts` `assertSuperAdmin()`: el header solo puede DENEGAR; para conceder se verifica SIEMPRE contra `platform_admins` por `user_id` de sesión.
+- Los `requireSuperadmin` de marketing (campaign/demos/import-leads) ya tenían fallback a BD; con el saneado del middleware su fast-path por header deja de ser inyectable.
+
+### SEC-8 · MEDIO — `/api/stripe/portal` sin validación de rol — ✅ RESUELTO
+- Cualquier miembro del club (entrenador, fisio…) podía abrir el portal de facturación Stripe del club. Añadido gate `admin`/`direccion` (mismo que `/api/stripe/checkout`).
+
+### Pendientes menores de la misma auditoría
+- **B-1:** `api/scouting/rffm/verify` consulta cross-club (datos públicos de federación; además ya está marcado como código muerto SCT-1 en bugs-conocidos — eliminar ruta).
+- **B-2:** `src/lib/supabase/middleware.ts:37-38` — `console.log` con nombres de cookies y `user.id` en cada request. Quitar.
+
+### Áreas verificadas LIMPIAS (misma auditoría)
+Server actions recientes (sync-new-inscriptions, player-docs, stripe-connect), Server Components de negocio, API routes (documentos-zip, PDFs, user-clubs), ClubProvider (force-dynamic, sin caché cross-tenant), `.single()` con `club_id`, flujo cookie `preferred_club_id` firmada (el diff de onboarding MEJORA la seguridad), aplicación de impersonación respaldada por BD.
+
+**Nota sobre el "bug multi-tenant variante 2":** la explicación más plausible NO es fuga del data layer (auditado limpio) sino que el tester creó el club B logueado como el mismo usuario → `createClub` (onboarding) lo dio de alta como admin del club B → 2 memberships → `members[0]` (más reciente) = club B. Confirmar con Diego si el usuario de test pudo haber creado el club él mismo.
