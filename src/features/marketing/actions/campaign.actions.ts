@@ -791,24 +791,7 @@ export async function sendFollowupToClubManual(
   }
 }
 
-// ── reactivateMarketingClub ───────────────────────────────────────────────────
-// Reactiva manualmente un club 'unsubscribed' para poder enviarle followup manual.
-// Solo superadmin. Cambia status → 'sent_1' (ya recibió email previo).
-export async function reactivateMarketingClub(
-  clubId: string,
-): Promise<{ success: boolean; error?: string }> {
-  const auth = await requireSuperadmin()
-  if (!auth.ok) return { success: false, error: auth.error }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = createAdminClient() as any
-  const { error } = await sb
-    .from('marketing_clubs')
-    .update({ status: 'sent_1', followup_click_sent_at: null })
-    .eq('id', clubId)
-    .eq('status', 'unsubscribed')
-
-  if (error) return { success: false, error: error.message }
-  revalidatePath('/superadmin/campanas')
-  return { success: true }
-}
+// reactivateMarketingClub ELIMINADA (2026-07-01): permitía revertir una baja
+// (status 'unsubscribed' → 'sent_1'). El botón de UI ya se había quitado por
+// GDPR/CAN-SPAM; la action quedaba como código muerto con riesgo de cumplimiento.
+// Una baja es definitiva — si un club quiere volver, que escriba él (opt-in).

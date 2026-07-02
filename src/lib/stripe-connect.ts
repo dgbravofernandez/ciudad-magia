@@ -3,10 +3,10 @@
 // constantes de fee + el cliente con `apiVersion` actualizada.
 import { getStripe } from './stripe'
 
-// Application fee híbrido aprobado: 0,50 € fijo + 0,5 % del importe.
-// En céntimos: 50 + round(amount_cents * 0.005). Sobre 60 € (6000 c) → 80 c.
+// Application fee híbrido aprobado (2026-07-01): 0,50 € fijo + 1 % del importe.
+// En céntimos: 50 + round(amount_cents * 0.01). Sobre 60 € (6000 c) → 110 c.
 export const APP_FEE_FIXED_CENTS = 50
-export const APP_FEE_PERCENT = 0.005
+export const APP_FEE_PERCENT = 0.01
 
 export function calculateApplicationFee(amountCents: number): number {
   if (!amountCents || amountCents <= 0) return 0

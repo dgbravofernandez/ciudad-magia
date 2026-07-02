@@ -14,7 +14,7 @@ import {
 // Texto humano del fee — fuente de verdad: src/lib/stripe-connect.ts.
 // Repetido aquí para mostrarlo SIN llamar al server (la página renderiza en SSR
 // + hidrata, no queremos pegar otra ida-vuelta solo por el texto).
-const FEE_TXT = '0,50 € + 0,5 % por cobro procesado'
+const FEE_TXT = '0,50 € + 1 % por cobro procesado'
 
 export function CobrosConfigPage() {
   const [config, setConfig] = useState<CobrosConfig | null>(null)

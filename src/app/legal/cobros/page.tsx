@@ -19,7 +19,7 @@ const SECTIONS = [
   {
     title: '3. Tasa de procesamiento Cluberly (application fee)',
     content:
-      'Cluberly aplica una tasa de procesamiento del 0,50 € fijo + 0,5 % del importe sobre cada cobro completado a través del Servicio de Cobros. La tasa se descuenta automáticamente por Stripe del importe del cobro antes de transferir el neto a la cuenta del club. La tasa cubre infraestructura de pagos, soporte y desarrollo continuo de la plataforma. Sobre una cuota de 60 €, la tasa Cluberly es de 0,80 €.',
+      'Cluberly aplica una tasa de procesamiento del 0,50 € fijo + 1 % del importe sobre cada cobro completado a través del Servicio de Cobros. La tasa se descuenta automáticamente por Stripe del importe del cobro antes de transferir el neto a la cuenta del club. La tasa cubre infraestructura de pagos, soporte y desarrollo continuo de la plataforma. Sobre una cuota de 60 €, la tasa Cluberly es de 1,10 €.',
   },
   {
     title: '4. Tarifas de Stripe',

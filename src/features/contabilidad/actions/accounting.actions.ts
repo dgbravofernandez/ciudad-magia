@@ -856,13 +856,29 @@ export async function sendPendingReminders(playerIds: string[]) {
     if (p.is_special_case) specialByPlayer[p.id] = true
   }
 
+  // Temporada actual ANTES de calcular deuda: el aviso se ciñe a la temporada
+  // activa del club — sin esto, un jugador con deuda en 2025-26 Y 2026-27
+  // recibía un email con la SUMA de ambas temporadas mezcladas.
+  const { data: seasonSettings } = await sb
+    .from('club_settings')
+    .select('current_season')
+    .eq('club_id', clubId)
+    .single()
+  const reminderSeason: string = seasonSettings?.current_season ?? ''
+  // Acepta ambos formatos de temporada en BD: '2025/26' y '2025-26'
+  const seasonVariants = reminderSeason
+    ? [...new Set([reminderSeason, reminderSeason.replace('/', '-'), reminderSeason.replace('-', '/')])]
+    : []
+
   // Pendiente real por diferencia (no por status='pending', alineado con la UI)
-  const { data: pendings } = await sb
+  let pendingsQuery = sb
     .from('quota_payments')
     .select('player_id, amount_due, amount_paid, is_special_case')
     .eq('club_id', clubId)
     .neq('status', 'refunded')
     .in('player_id', playerIds)
+  if (seasonVariants.length > 0) pendingsQuery = pendingsQuery.in('season', seasonVariants)
+  const { data: pendings } = await pendingsQuery
 
   const byPlayer: Record<string, { total: number; specialCase: boolean }> = {}
   for (const p of (pendings ?? [])) {
